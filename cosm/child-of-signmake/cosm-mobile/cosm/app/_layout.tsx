@@ -6,6 +6,7 @@ import React, {useState, useEffect, useRef} from 'react'
 import { MainContext, appState } from "@/components/MainContext";
 
 const activateDb = (db: SQLite.SQLiteDatabase) => {
+  db.getFirstSync( ` pragma journal_mode=WAL `) 
   db.getFirstSync( ` select load_extension('mod_spatialite' ) as r; `) 
   db.getFirstSync( ` select bufferoptions_setendcapstyle('flat'); `) 
 
@@ -32,7 +33,7 @@ const activateDb = (db: SQLite.SQLiteDatabase) => {
 	}
 	db.execSync(
 		`
-		drop table if exists bounds;
+		-- drop table if exists bounds;
 		create table if not exists bounds (
 		  observed datetime,
 		  geom blob,
@@ -45,7 +46,7 @@ const activateDb = (db: SQLite.SQLiteDatabase) => {
 		);
 		select AddGeometryColumn('bounds', 'geom', 4326, 'POLYGON');
 		create table if not exists test(id integer primary key not null);
-		drop table if exists nodes;
+		-- drop table if exists nodes;
 		create table if not exists nodes(
 		  id integer primary key not null,
 		  observed datetime,
@@ -54,7 +55,7 @@ const activateDb = (db: SQLite.SQLiteDatabase) => {
 		  properties blob
 		);
 		select AddGeometryColumn('nodes', 'geom', 4326, 'POINT');
-		drop table if exists ways;
+		-- drop table if exists ways;
 		create table if not exists ways(
 		  id integer primary key not null,
 		  observed datetime,
