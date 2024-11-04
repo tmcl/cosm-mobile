@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import Foundation from '@expo/vector-icons/Foundation';
-import { Portal, FAB } from 'react-native-paper'
 import { Text, View, Pressable, StyleSheet, Image as RnImage } from "react-native";
 import { Image } from 'expo-image'
 import { Link, router } from "expo-router";
@@ -474,8 +473,8 @@ export default function Sottings() {
 			style={styles.page}
 		>
 			
-			{imgbody && <Portal><Image contentFit='contain' style={{top: 150, left: 150, width: 100, height: 100}} source={{uri: imgbody, width:100 , height:100 }} /></Portal> }
-			{fab && currentClick1 && <Portal>
+			{imgbody && <Image contentFit='contain' style={{position: "absolute", top: 150, left: 150, width: 100, height: 100}} source={{uri: imgbody, width:100 , height:100 }} /> }
+			{/*fab && currentClick1 && <Portal>
 				<FAB.Group
 				  style={styles.fab}
 				  open={fabOpen}
@@ -491,7 +490,7 @@ export default function Sottings() {
 					}
 				  ]}
 					 />
-				</Portal>}
+				</Portal>*/}
 			
 			{false && imgbody && <RnImage style={{width: 100, height: 100}} source={{uri: imgbody || undefined, width:100 , height:100 }} /> }
 			{imgUrl && <Link href={imgUrl as any} asChild><Pressable><Text>View details</Text></Pressable></Link> }
