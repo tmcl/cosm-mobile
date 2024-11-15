@@ -1,9 +1,11 @@
+import MapLibreGL from '@maplibre/maplibre-react-native';
 import { Stack } from "expo-router";
-import {PaperProvider} from "react-native-paper"
 import * as SQLite from "expo-sqlite"
 import { Asset } from 'expo-asset';
 import React, {useState, useEffect, useRef} from 'react'
 import { MainContext, appState } from "@/components/MainContext";
+import "../global.css"
+import { GluestackUIProvider } from '@/components/ui/gluestack-ui-provider';
 
 const activateDb = (db: SQLite.SQLiteDatabase) => {
   db.getFirstSync( ` pragma journal_mode=WAL `) 
@@ -33,6 +35,15 @@ const activateDb = (db: SQLite.SQLiteDatabase) => {
 	}
 	db.execSync(
 		`
+		create table if not exists nodes_ways ( 
+			observed text,
+			node_id int,
+			way_id int,
+			ordering int
+		);
+		create index if not exists ix_nodes_ways_node on nodes_ways ( node_id );
+		create index if not exists ix_nodes_ways_way on nodes_ways ( way_id );
+		create unique index if not exists ix_nodes_ways_way_node on nodes_ways ( way_id, node_id );
 		-- drop table if exists bounds;
 		create table if not exists bounds (
 		  observed datetime,
@@ -86,9 +97,12 @@ const activateDb = (db: SQLite.SQLiteDatabase) => {
 export default function RootLayout() {
   const [state, updateState] = useState(appState)
   
+  useEffect(() => {
+	MapLibreGL.setAccessToken(null)
+  })
 
   return (
-    <PaperProvider>
+	<GluestackUIProvider>
       <SQLite.SQLiteProvider databaseName="datbase" options={{enableCRSQLite: true}} onInit={activateDb}>
         <MainContext.Provider value={state}>
           <Stack screenOptions={{
@@ -104,6 +118,6 @@ export default function RootLayout() {
           </Stack>
         </MainContext.Provider>
       </SQLite.SQLiteProvider>
-    </PaperProvider>
+	</GluestackUIProvider>
   );
 }

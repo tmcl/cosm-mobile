@@ -1,0 +1,2 @@
+#!/bin/sh
+adb logcat | grep -F "`adb shell ps | grep dev.tmcl.cosm | tr -s [:space:] ' ' | cut -d' ' -f2`"

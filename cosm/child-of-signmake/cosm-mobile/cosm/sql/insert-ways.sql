@@ -21,7 +21,7 @@ with data as (
                 else 3.5
             end
         ) as width
-    from json_each(?, '$.elements') as t
+    from json_each($json, '$.elements') as t
         join json_each(t.value->'nodes') n
         join nodes on nodes.id = n.value
     where t.value->>'type' = 'way'

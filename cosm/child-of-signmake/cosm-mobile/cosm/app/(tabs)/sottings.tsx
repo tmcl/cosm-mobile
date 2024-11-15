@@ -7,15 +7,14 @@ import { Link, router } from "expo-router";
 import MapLibreGL from '@maplibre/maplibre-react-native';
 import type { RegionPayload } from '@maplibre/maplibre-react-native/javascript/components/MapView';
 import * as SQLite from 'expo-sqlite'
-import * as OsmApi from "ts-output";
-import { useDrizzleStudio } from "expo-drizzle-studio-plugin"
+import * as OsmApi from "@/scripts/clients";
+//import { useDrizzleStudio } from "expo-drizzle-studio-plugin"
 import { useAndroidLocationPermission } from '@/components/AndroidLocationPermission';
 import OnPressEvent from '@maplibre/maplibre-react-native/javascript/types/OnPressEvent';
 import { Asset } from 'expo-asset';
-
-//some weird library infelicity requires this
-//
-MapLibreGL.setAccessToken(null)
+import { Fab, FabLabel, FabIcon } from "@/components/ui/fab"
+import { prepareSignArgs } from '../Add sign';
+import { MainPageQueries as Queries, debug, JustOnce, zip } from '@/components/queries';
 
 const roadcasingsLayerStyle = (wayIds: string[]|null): MapLibreGL.FillLayerStyle => ({
 	fillColor: wayIds ? ["case", ["in", ["id"], ["literal", wayIds] ], "yellow", "purple"] : "red",
@@ -42,8 +41,6 @@ const circleLayerStyle = (input: number|undefined): MapLibreGL.CircleLayerStyle 
 	circleRadius: 5,
 	circlePitchAlignment: "map"
 })
-
-
 
 
 
@@ -93,113 +90,10 @@ const defaultLocation: UserLocation = {
 	}
 }
 
-class Queries {
-	private _neededareas: SQLite.SQLiteStatement | undefined
-	private _insertBounds: SQLite.SQLiteStatement | undefined
-	private _insertNodes: SQLite.SQLiteStatement | undefined
-	private _queryNodes: SQLite.SQLiteStatement | undefined
-	private _insertWays: SQLite.SQLiteStatement | undefined
-	private _queryWays: SQLite.SQLiteStatement | undefined
-	private _findNearbyWays: SQLite.SQLiteStatement | undefined
-
-	constructor() {};
-
-	public get neededareas() { return this._neededareas }
-	public set neededareas(theneededareas: SQLite.SQLiteStatement | undefined) {
-		this._neededareas?.finalizeAsync()
-		this._neededareas = theneededareas
-	}
-
-	public get queryNodes() { return this._queryNodes }
-	public set queryNodes(theQueryNodes: SQLite.SQLiteStatement | undefined) {
-		this._queryNodes?.finalizeAsync()
-		this._queryNodes = theQueryNodes
-	}
-
-	public get queryWays() { return this._queryWays }
-	public set queryWays(theQueryWays: SQLite.SQLiteStatement | undefined) {
-		this._queryWays?.finalizeAsync()
-		this._queryWays = theQueryWays
-	}
-
-	public get insertWays() { return this._insertWays }
-	public set insertWays(theinsertWays: SQLite.SQLiteStatement | undefined) {
-		this._insertWays?.finalizeAsync()
-		this._insertWays = theinsertWays
-	}
-
-	public get insertNodes() { return this._insertNodes }
-	public set insertNodes(theinsertNodes: SQLite.SQLiteStatement | undefined) {
-		this._insertNodes?.finalizeAsync()
-		this._insertNodes = theinsertNodes
-	}
-
-	public get findNearbyWays() { return this._findNearbyWays }
-	public set findNearbyWays(thequery: SQLite.SQLiteStatement | undefined) {
-		this._findNearbyWays?.finalizeAsync()
-		this._findNearbyWays = thequery
-	}
-	public get insertBounds() { return this._insertBounds }
-	public set insertBounds(theinsertBounds: SQLite.SQLiteStatement | undefined) {
-		this._insertBounds?.finalizeAsync()
-		this._insertBounds = theinsertBounds
-	}
-
-	finalize() {
-		 this.neededareas = undefined
-		 this.insertBounds = undefined
-		 this.findNearbyWays = undefined
-		 this.insertNodes = undefined
-		 this.queryNodes = undefined
-		 this.insertWays = undefined
-		 this.queryWays = undefined
-	}
-}
-
-class JustOnce {
-	private others: (() => Promise<any>)[] = []
-	private current: Promise<any>|null = null
-	private timeout: number = 0
-
-	public take(f: () => Promise<any>) {
-		this.others.push(f)
-		this.act()
-		const timeout = ++this.timeout
-		console.log("setting", timeout, this.timeout)
-		setTimeout(() => {
-			console.log("checking", timeout, this.timeout)
-			if (timeout == this.timeout) {
-				this.actAlt()
-			}
-		}, 500)
-	}
-
-	private actAlt() {
-		const one = this.others.pop()
-		if(!one) { console.log("alt none left"); return }
-		one()
-		console.log("alt taking one while there are others left", this.others.length)
-	}
-
-	private act() {
-		if (this.current) { console.log("already working"); return }
-		const one = this.others.pop()
-		if(!one) { console.log("none left"); return }
-		let clear = () => {
-			this.current = null
-			this.act()
-		}
-		this.current = one().then(clear, clear)
-		console.log("taking one, hereafter remain ", this.others.length)
-	}
-}
-
-const debug = function <T>(msg:string, t: T): T { console.log(msg, t); return t }
-
 export default function Sottings() {
 	const db = SQLite.useSQLiteContext()
 	const queries = useRef(new Queries())
-	useDrizzleStudio(db)
+	//useDrizzleStudio(db)
 
 	const [currentClick1, setCurrentClick1] = useState<GeoJSON.Point|null>(null)
 
@@ -260,26 +154,13 @@ export default function Sottings() {
 		}, [symbols])
 
 	useEffect(() => {
-		(async () => {
-			console.log(1)
-			let str = require('@/sql/known-bounds.sql.json')
-			queries.current.neededareas = await db.prepareAsync(str)
-			console.log(2, str, typeof queries.current.neededareas)
-			const insert_bounds = require('@/sql/insert-bounds.sql.json')
-			console.log("insert bounds", insert_bounds)
-			queries.current.insertBounds = await db.prepareAsync(insert_bounds)
-			queries.current.findNearbyWays = await db.prepareAsync(require('@/sql/find-nearby-ways.sql.json'))
-			queries.current.insertNodes = await db.prepareAsync(require('@/sql/insert-nodes.sql.json'))
-			queries.current.insertWays = await db.prepareAsync(require('@/sql/insert-ways.sql.json'))
-			queries.current.queryNodes = await db.prepareAsync(require('@/sql/query-nodes.sql.json'))
-			queries.current.queryWays = await db.prepareAsync(require('@/sql/query-ways.sql.json'))
-		})()
+		queries.current.setup(db)
 
 		return () => {
 			console.log('finalising')
 			queries.current.finalize()
 		}
-	}, [])
+	}, [db])
 
 	const justOnce = useRef(new JustOnce())
 	const [newData, setNewData] = useState(0)
@@ -297,8 +178,8 @@ export default function Sottings() {
 				console.log('begin determine area')
 
 
-				console.log(3, typeof queries.current.neededareas)
-				const boundsStr = await (await queries.current.neededareas?.executeAsync({ $minlon, $minlat, $maxlon, $maxlat }))
+				console.log(3, typeof queries.current.knownBounds)
+				const boundsStr = await (await queries.current.knownBounds?.executeAsync({ $minlon, $minlat, $maxlon, $maxlat }))
 					?.getFirstAsync() as { difference: string }
 				const bounds = JSON.parse(boundsStr.difference) as GeoJSON.Polygon
 
@@ -308,13 +189,16 @@ export default function Sottings() {
 					const [minlon, minlat, maxlon, maxlat] = bounds ? bounds.bbox! : [$minlon, $minlat, $maxlon, $maxlat]
 					console.log('begin api/0.6/map')
 					const b = await OsmApi.getApi06MapText({ minlon, minlat, maxlon, maxlat })
-					console.log('complete api/0.6/map')
+					console.log('complete api/0.6/map', b)
 					console.log('insert initiated')
 					await queries.current.insertBounds?.executeAsync({ '$json': b })
 					console.log('insert bounds a great success')
 					await queries.current.insertNodes?.executeAsync(b)
 					console.log('insert nodes a great success')
-					await queries.current.insertWays?.executeAsync(b)
+					const [await1, await2] = queries.current.doInsertWays({ $json: b })
+					await await1
+					console.log('insert ways part1 a great success')
+					await await2
 					console.log('insert complete')
 					setNewData(newData+1)
 				} else {
@@ -342,7 +226,7 @@ export default function Sottings() {
 						})
 
 				const roadCasings: GeoJSON.Feature<GeoJSON.Polygon, OsmApi.IWay>[] | undefined
-					= ((await (await queries.current.queryWays?.executeAsync({$minlon, $minlat, $maxlon, $maxlat}))?.getAllAsync()) as { geojson: string }[])
+					= ((await (await queries.current.doQueryWays({$minlon, $minlat, $maxlon, $maxlat}))?.getAllAsync()) as { geojson: string }[])
 						?.map(geo => { 
 							const r: GeoJSON.Feature<GeoJSON.Polygon, OsmApi.IWay> = JSON.parse(geo.geojson) 
 							r.id = r.properties.id.toString()
@@ -468,12 +352,21 @@ export default function Sottings() {
 		})()
 	}, [imgUrl])
 	const [fabOpen, setFabOpen] = useState(false)
+	const possibly_affected_ways: [string, GeoJSON.Point][] = zip(nearbyWays || [], nearbyPoints || [])
 	return (
 		<View
 			style={styles.page}
 		>
 			
-			{imgbody && <Image contentFit='contain' style={{position: "absolute", top: 150, left: 150, width: 100, height: 100}} source={{uri: imgbody, width:100 , height:100 }} /> }
+			{imgbody && <Image contentFit='contain' style={{position: "absolute", zIndex: 1, top: 10, left: 150, width: 100, height: 100}} source={{uri: imgbody, width:100 , height:100 }} /> }
+			{fab && currentClick1 && 
+
+			 <Fab placement='bottom right' 
+				onPress={() => router.navigate("../Add sign?" + prepareSignArgs({traffic_sign: 'hazard hazard=?!', possibly_affected_ways, point: currentClick1}).toString() as any)} 
+				size='lg' 
+				className='bg-primary-600 right-2 bottom-4 hover:bg-primary-700 active:bg-primary-800'>
+				<FontAwesome6 name="diamond-turn-right" size={30} color={"white"} />
+			</Fab>}
 			{/*fab && currentClick1 && <Portal>
 				<FAB.Group
 				  style={styles.fab}

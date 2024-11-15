@@ -1,4 +1,4 @@
-with known as (select min(observed) observed, st_union(geom) known from bounds union select '2024-01-01 01:01:01', st_envelope(makepoint(0, 0)) )
+with known as (select min(observed) observed, st_union(geom) known from bounds where observed > datetime('now', '-7 day') union select '2024-01-01 01:01:01', st_envelope(makepoint(0, 0)) )
 select 
   max(observed), 
   $minlon as minlon, 
