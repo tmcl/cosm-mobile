@@ -29,8 +29,16 @@
     },
     "plugins": [
       "expo-router",
-			"@maplibre/maplibre-react-native",
-			["expo-asset", {"assets": ["assets/proj.db"] }]
+      "@maplibre/maplibre-react-native",
+      [
+        "expo-asset",
+        {
+          "assets": [
+            "assets/proj.db"
+          ]
+        }
+      ],
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true
