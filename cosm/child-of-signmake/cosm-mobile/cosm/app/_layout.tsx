@@ -6,10 +6,11 @@ import React, {useState, useEffect, useRef} from 'react'
 import { MainContext, appState } from "@/components/MainContext";
 import "../global.css"
 import { GluestackUIProvider } from '@/components/ui/gluestack-ui-provider';
+import * as Spatialite from "spatialite"
 
 const activateDb = (db: SQLite.SQLiteDatabase) => {
   db.getFirstSync( ` pragma journal_mode=WAL `) 
-  db.getFirstSync( ` select load_extension('mod_spatialite' ) as r; `) 
+  Spatialite.getTheme(db)
   db.getFirstSync( ` select bufferoptions_setendcapstyle('flat'); `) 
 
 	const asset = Asset.fromModule(require('../assets/proj.db'))
