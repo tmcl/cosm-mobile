@@ -104,7 +104,7 @@ export default function RootLayout() {
 
   return (
 	<GluestackUIProvider>
-      <SQLite.SQLiteProvider databaseName="datbase" options={{enableCRSQLite: true}} onInit={activateDb}>
+      <SQLite.SQLiteProvider databaseName="datbase" onInit={activateDb}>
         <MainContext.Provider value={state}>
           <Stack screenOptions={{
                     headerStyle: {
