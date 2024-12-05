@@ -8636,7 +8636,7 @@ source-map@^0.7.3:
 
 "spatialite@git+http://termite:3000/tristan/spatialite#main":
   version "0.1.0"
-  resolved "git+http://termite:3000/tristan/spatialite#d56d1c83556a23dad8ed89701f107048a063aed5"
+  resolved "git+http://termite:3000/tristan/spatialite#637f44083db2c6ff9b136720a50170937329d13b"
 
 splaytree@^3.1.0:
   version "3.1.2"

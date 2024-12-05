@@ -10,7 +10,10 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "dev.tmcl.cosm"
+      "bundleIdentifier": "dev.tmcl.cosm",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "This program is intended to help you map on-the-go.",
+      }
     },
     "android": {
       "adaptiveIcon": {

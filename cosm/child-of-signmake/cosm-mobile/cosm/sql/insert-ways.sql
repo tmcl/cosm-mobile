@@ -12,7 +12,7 @@ with data as (
         jsonb(t.value->'nodes') as nodes,
         jsonb(t.value) as properties,
         coalesce(
-            t.value->'tags'->>'width',
+            case when typeof(t.value->'tags'->>'width') in ('integer' , 'real') and cast(t.value->'tags'->>'width' as real) > 0 then t.value->'tags'->>'width' end,
             t.value->'tags'->>'lanes' * 3.5,
             case
                 when t.value->'tags'->>'highway' = 'footway' then 2
@@ -33,7 +33,7 @@ buffereddata as (
         observed,
         geom,
         transform(geom, 7855) as geomgda,
-        buffer(transform(geom, 7855), width / 2) as geombufferedgda,
+        buffer(transform(geom, 7855), width / 2.0) as geombufferedgda,
         version,
         nodes,
         properties,

@@ -173,11 +173,10 @@ export default function Sottings() {
 		const [$minlon, $minlat, $maxlon, $maxlat] = visibleBounds
 
 		justOnce.current.take(async () => {
-				console.log('begin initiate queries')
-				console.log('begin determine area')
+				console.log('begin initiate queries', 1)
+				console.log('begin determine area', 2)
 
 
-				console.log(3, typeof queries.current.knownBounds)
 				const boundsStr = await (await queries.current.doKnownBounds({ $minlon, $minlat, $maxlon, $maxlat }))
 					?.getFirstAsync() as { difference: string }
 				const bounds = JSON.parse(boundsStr.difference) as GeoJSON.Polygon
@@ -475,4 +474,3 @@ export default function Sottings() {
 		</View>
 	);
 }
-

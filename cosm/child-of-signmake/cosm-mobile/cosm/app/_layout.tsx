@@ -24,7 +24,7 @@ const activateDb = (db: SQLite.SQLiteDatabase) => {
     try {
       projQuery = await db.prepareAsync( ` select proj_setdatabasepath( ? ) as r; `)
       const r = await (await projQuery.executeAsync(shorterpath!)).getAllAsync()
-      console.log(r, "moo")
+      console.log("**************************", r, "moo", shorterpath, localuri, assetpath)
     } finally {
       projQuery && await projQuery.finalizeAsync()
     }

@@ -77,6 +77,7 @@ class ThingyTracker {
 	private _timeout: number|undefined
 
 	public async track<T, R>(arg: T, f: (arg: T) => Promise<R>) {
+		console.log("**t*starting", arg)
 		const newLength = this._trackees.push({any: arg, ts: new Date().getTime(), state: "waiting"})
 		const i = newLength - 1
 		this.checktimeout()
@@ -103,7 +104,7 @@ class ThingyTracker {
 			if (this._timeout === interval && (current = this._trackees.filter(f => f.state == "waiting")) && current?.length) {
 				console.log("waiting jobs", current.length)
 				const old = current.filter(f => f.ts < now - 1_000)
-				console.log("including the following old ones", old)
+				console.log("including the following old ones", old.map(o => ({...o, diff: (now - o.ts)/1000})))
 			} else {
 				if(this._timeout == interval) {
 					this._timeout = undefined
@@ -137,9 +138,13 @@ export class MainPageQueries {
 		this._knownBounds = theneededareas
 	}
 	public async doKnownBounds(args: { $minlon: number, $minlat: number, $maxlon: number, $maxlat: number }) {
+		console.log("what are the known bounds", args)
 		return this._tracker.track({"known bounds": args}, async _ => {
 			try {
-				return await this._knownBounds!.executeAsync(args)
+				console.log("oh we're about to fetch the known bounds", args)
+				const x = await this._knownBounds!.executeAsync(args)
+				console.log("we have some known bounds!", x)
+				return x
 			} catch (e) {
 				console.log("some kind of error, kb", args, e) 
 				throw e
@@ -289,7 +294,7 @@ export class JustOnce {
 	private timeout: number = 0
 
 	public take(f: () => Promise<any>) {
-		this.others.push(f)
+		this.others.push(async () => { try {f()} catch (e) {console.log("not everything working", e); throw e }})
 		this.act()
 		const timeout = ++this.timeout
 		console.log("setting", timeout, this.timeout)
@@ -316,7 +321,7 @@ export class JustOnce {
 			this.current = null
 			this.act()
 		}
-		this.current = one().then(clear, clear)
+		this.current = one().then(() => clear(), (e) => {clear(); console.log("there was an error", e); throw e })
 		console.log("taking one, hereafter remain ", this.others.length)
 	}
 }
