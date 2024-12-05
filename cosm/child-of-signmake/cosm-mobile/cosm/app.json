@@ -44,7 +44,10 @@
           "backgroundColor": "#ffffff"
         }
       ],
-      "expo-font",[
+      ["expo-font", {
+        
+      }],
+      [
         "expo-build-properties",
         {
           "ios": {

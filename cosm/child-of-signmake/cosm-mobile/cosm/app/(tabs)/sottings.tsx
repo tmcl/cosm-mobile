@@ -1,18 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react'
-import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
+import {FAB} from '@rneui/themed'
 import Foundation from '@expo/vector-icons/Foundation';
 import { Text, View, Pressable, StyleSheet, Image as RnImage } from "react-native";
 import { Image } from 'expo-image'
 import { Link, router } from "expo-router";
 import MapLibreGL from '@maplibre/maplibre-react-native';
-import type { RegionPayload } from '@maplibre/maplibre-react-native/javascript/components/MapView';
+import type { RegionPayload } from '@maplibre/maplibre-react-native/src/components/MapView';
 import * as SQLite from 'expo-sqlite'
 import * as OsmApi from "@/scripts/clients";
-//import { useDrizzleStudio } from "expo-drizzle-studio-plugin"
+import { useDrizzleStudio } from "expo-drizzle-studio-plugin"
 import { useAndroidLocationPermission } from '@/components/AndroidLocationPermission';
-import OnPressEvent from '@maplibre/maplibre-react-native/javascript/types/OnPressEvent';
+import { OnPressEvent } from '@maplibre/maplibre-react-native/src/types/OnPressEvent';
 import { Asset } from 'expo-asset';
-import { Fab, FabLabel, FabIcon } from "@/components/ui/fab"
 import { prepareSignArgs } from '../Add sign';
 import { MainPageQueries as Queries, debug, JustOnce, zip } from '@/components/queries';
 
@@ -93,7 +92,7 @@ const defaultLocation: UserLocation = {
 export default function Sottings() {
 	const db = SQLite.useSQLiteContext()
 	const queries = useRef(new Queries())
-	//useDrizzleStudio(db)
+	useDrizzleStudio(db)
 
 	const [currentClick1, setCurrentClick1] = useState<GeoJSON.Point|null>(null)
 
@@ -179,7 +178,7 @@ export default function Sottings() {
 
 
 				console.log(3, typeof queries.current.knownBounds)
-				const boundsStr = await (await queries.current.knownBounds?.executeAsync({ $minlon, $minlat, $maxlon, $maxlat }))
+				const boundsStr = await (await queries.current.doKnownBounds({ $minlon, $minlat, $maxlon, $maxlat }))
 					?.getFirstAsync() as { difference: string }
 				const bounds = JSON.parse(boundsStr.difference) as GeoJSON.Polygon
 
@@ -191,14 +190,14 @@ export default function Sottings() {
 					const b = await OsmApi.getApi06MapText({ minlon, minlat, maxlon, maxlat })
 					console.log('complete api/0.6/map', b)
 					console.log('insert initiated')
-					await queries.current.insertBounds?.executeAsync({ '$json': b })
+					await queries.current.doInsertBounds({ '$json': b })
 					console.log('insert bounds a great success')
-					await queries.current.insertNodes?.executeAsync(b)
+					await queries.current.doInsertNodes({ '$json': b})
 					console.log('insert nodes a great success')
-					const [await1, await2] = queries.current.doInsertWays({ $json: b })
-					await await1
+					const {waysInserted, nodeWaysInserted} = queries.current.doInsertWays({ $json: b })
+					await waysInserted
 					console.log('insert ways part1 a great success')
-					await await2
+					await nodeWaysInserted
 					console.log('insert complete')
 					setNewData(newData+1)
 				} else {
@@ -216,23 +215,44 @@ export default function Sottings() {
 				const $maxlon  = maxlon + (maxlon - minlon)
 				const $minlat  = minlat - (maxlat - minlat)
 				const $maxlat  = maxlat + (maxlat - minlat)
-				console.log('queries initiated')
-				const highwayStop: GeoJSON.Feature<GeoJSON.Point, OsmApi.INode>[] | undefined
-					= ((await (await queries.current.queryNodes?.executeAsync())?.getAllAsync()) as { geojson: string }[])
+				console.log('highway stop/cqueries initiated')
+				const doHighwayStop = async () => {
+					try {
+					  return ((await (await queries.current.doQueryNodes())?.getAllAsync()) as { geojson: string }[])
 						?.map(geo => { 
 							const r: GeoJSON.Feature<GeoJSON.Point, OsmApi.INode> = JSON.parse(geo.geojson) 
 							r.id = r.properties.id.toString()
 							return r
 						})
+					} catch (e) {
+						console.log("doing highway stop, we got an error", e)
+						throw e
+					}
+				}
 
-				const roadCasings: GeoJSON.Feature<GeoJSON.Polygon, OsmApi.IWay>[] | undefined
-					= ((await (await queries.current.doQueryWays({$minlon, $minlat, $maxlon, $maxlat}))?.getAllAsync()) as { geojson: string }[])
+				console.log("do hwy stop")
+
+				const highwayStop: GeoJSON.Feature<GeoJSON.Point, OsmApi.INode>[] | undefined
+					= await doHighwayStop()
+
+				console.log("did hwy stop", highwayStop.length)
+
+				const doRoadCasings = async () => {
+					try {
+						return ((await (await queries.current.doQueryWays({$minlon, $minlat, $maxlon, $maxlat}))?.getAllAsync()) as { geojson: string }[])
 						?.map(geo => { 
 							const r: GeoJSON.Feature<GeoJSON.Polygon, OsmApi.IWay> = JSON.parse(geo.geojson) 
 							r.id = r.properties.id.toString()
 							return r
 						})
-				console.log('query and parse complete')
+					} catch (e) {
+						console.log("doing road casingfs , we got an error", e)
+						throw e
+					}
+				}
+				const roadCasings: GeoJSON.Feature<GeoJSON.Polygon, OsmApi.IWay>[] | undefined
+					= await doRoadCasings()
+				console.log('query and parse complete', roadCasings.length)
 				setSymbols(highwayStop ? { type: "FeatureCollection", features: highwayStop } : null)
 				setRoadcasings(roadCasings ? { type: "FeatureCollection", features: roadCasings } : null)
 				let i = 0;
@@ -308,7 +328,7 @@ export default function Sottings() {
 		(async () => {
 			if(!currentClick1) { setNearbyWays(null); return }
 
-			const ways1 = await queries.current.findNearbyWays?.executeAsync({"$lat": currentClick1.coordinates[1], "$lon": currentClick1.coordinates[0]})
+			const ways1 = await queries.current.doFindNearbyWays({"$lat": currentClick1.coordinates[1], "$lon": currentClick1.coordinates[0]})
 			console.log("doing ways1")
 			const ways2 = (await ways1?.getAllAsync() as {dist: number, id: number, nearest: string}[] | undefined) 
 			console.log("doing ways2", ways2, typeof ways2)
@@ -323,7 +343,9 @@ export default function Sottings() {
 
 	}, [currentClick1])
 	useEffect(() => {
-		setFab(!!nearbyWays?.length || !!nearbyPoints?.length)
+		const fabvis=!!nearbyWays?.length || !!nearbyPoints?.length
+		console.log("i am interested in setting the fab visibility", nearbyWays, nearbyWays?.length, nearbyPoints, nearbyPoints?.length, fabvis)
+		setFab(fabvis)
 	}, [nearbyWays, nearbyPoints])
 	const setImageTags = (it: typeof imageTags) => setImageTagsx(debug("image tags", it))
 	const onPressFeature = (e: OnPressEvent) => {
@@ -352,6 +374,7 @@ export default function Sottings() {
 		})()
 	}, [imgUrl])
 	const [fabOpen, setFabOpen] = useState(false)
+	const isRenderingFab = () => { console.log("is rendering fab"); return true}
 	const possibly_affected_ways: [string, GeoJSON.Point][] = zip(nearbyWays || [], nearbyPoints || [])
 	return (
 		<View
@@ -359,14 +382,13 @@ export default function Sottings() {
 		>
 			
 			{imgbody && <Image contentFit='contain' style={{position: "absolute", zIndex: 1, top: 10, left: 150, width: 100, height: 100}} source={{uri: imgbody, width:100 , height:100 }} /> }
-			{fab && currentClick1 && 
+			{/*fab && currentClick1 && isRenderingFab() &&
 
 			 <Fab placement='bottom right' 
-				onPress={() => router.navigate("../Add sign?" + prepareSignArgs({traffic_sign: 'hazard hazard=?!', possibly_affected_ways, point: currentClick1}).toString() as any)} 
 				size='lg' 
 				className='bg-primary-600 right-2 bottom-4 hover:bg-primary-700 active:bg-primary-800'>
-				<FontAwesome6 name="diamond-turn-right" size={30} color={"white"} />
-			</Fab>}
+				<FontAwesome6 name="diamond-turn-right" size={30} color={"red"} />
+			</Fab>*/}
 			{/*fab && currentClick1 && <Portal>
 				<FAB.Group
 				  style={styles.fab}
@@ -442,6 +464,14 @@ export default function Sottings() {
 				/>
 
 			</MapLibreGL.MapView>
+			<FAB
+				visible={!!fab && !!currentClick1}
+				onPress={() => currentClick1 && router.navigate("../Add sign?" + prepareSignArgs({traffic_sign: 'hazard hazard=?!', possibly_affected_ways, point: currentClick1}).toString() as any)} 
+				placement="right"
+				title="Add Sign"
+				icon={{ name: 'diamond-turn-right', type: 'font-awesome-6', color: 'white' }}
+				color="red"
+			/>
 		</View>
 	);
 }

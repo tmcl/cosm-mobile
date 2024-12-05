@@ -18,7 +18,7 @@ export class EditPageQueries {
 
     public async doFindAnglePointsForWayPoint(args: {$way_id: number, $node_id: number}): Promise<{ next: GeoJSON.Point, prev: GeoJSON.Point}|undefined> {
         if (!this._findAnglePointsForWayPoint) { console.log("i wanted to query the target nodes", args, "but i have nothing to do it with") }
-        const answer = await this._findAnglePointsForWayPoint?.executeAsync(args)
+        const answer = await this._findAnglePointsForWayPoint!.executeAsync(args)
 		console.log("i got an answer", answer)
 		const first = await answer?.getFirstAsync() as {nextgeom: string, prevgeom: string}|undefined
 		console.log("i got a first", first)
@@ -37,7 +37,7 @@ export class EditPageQueries {
     public doFindTargetNodes(args: {$needle: Record<string, string>, $minlon: number, $minlat: number, $maxlon: number, $maxlat: number}) {
         if (!this._findTargetNodes) { console.log("i wanted to query the target nodes", args, "but i have nothing to do it with") }
 		const argsModified = {...args, $needle: JSON.stringify(args.$needle), $needleLength: Object.keys(args.$needle).length}
-        return this._findTargetNodes?.executeAsync(argsModified)
+        return this._findTargetNodes!.executeAsync(argsModified)
     }
 
 	public set queryWays(theQueryWays: SQLite.SQLiteStatement | undefined) {
@@ -48,7 +48,7 @@ export class EditPageQueries {
 
     public doQueryWays(args: {$minlon: number, $minlat: number, $maxlon: number, $maxlat: number}) {
         if (!this._queryWays) { console.log("i wanted to query the ways", args, "but i have nothing to do it with") }
-        return this._queryWays?.executeAsync(args)
+        return this._queryWays!.executeAsync(args)
     }
 
 	public get findNearbyWays() { return this._findNearbyWays }
@@ -72,6 +72,49 @@ export class EditPageQueries {
 	}
 }
 
+class ThingyTracker {
+	private _trackees: {any: any, ts: number, state: "waiting"|"finished"|"failed", end?: number}[] = []
+	private _timeout: number|undefined
+
+	public async track<T, R>(arg: T, f: (arg: T) => Promise<R>) {
+		const newLength = this._trackees.push({any: arg, ts: new Date().getTime(), state: "waiting"})
+		const i = newLength - 1
+		this.checktimeout()
+
+		try {
+			const r = await f(arg)
+			this._trackees[i].state = "finished"
+			this._trackees[i].end = new Date().getTime()
+			return r
+		} catch (e) {
+			console.log("awaiter failed", arg, i, e)
+			this._trackees[i].state = "failed"
+			this._trackees[i].end = new Date().getTime()
+			throw e
+		}
+	}
+
+	public checktimeout() {
+		if (this._timeout) return
+		let interval: number;
+		interval = setInterval(() => {
+			const now = new Date().getTime()
+			let current
+			if (this._timeout === interval && (current = this._trackees.filter(f => f.state == "waiting")) && current?.length) {
+				console.log("waiting jobs", current.length)
+				const old = current.filter(f => f.ts < now - 1_000)
+				console.log("including the following old ones", old)
+			} else {
+				if(this._timeout == interval) {
+					this._timeout = undefined
+				}
+				clearInterval(interval)
+			}
+		}, 1_000) as any
+		this._timeout = interval
+	}
+}
+
 export class MainPageQueries {
 	private _knownBounds: SQLite.SQLiteStatement | undefined
 	private _insertBounds: SQLite.SQLiteStatement | undefined
@@ -82,18 +125,43 @@ export class MainPageQueries {
 	private _queryWays: SQLite.SQLiteStatement | undefined
 	private _findNearbyWays: SQLite.SQLiteStatement | undefined
 
-	constructor() {};
+	private _tracker;
 
-	public get knownBounds() { return this._knownBounds }
+	constructor() {
+		this._tracker = new ThingyTracker()
+	};
+
+	public get knownBounds(): never { throw "use the do function" }
 	public set knownBounds(theneededareas: SQLite.SQLiteStatement | undefined) {
 		this._knownBounds?.finalizeAsync()
 		this._knownBounds = theneededareas
 	}
+	public async doKnownBounds(args: { $minlon: number, $minlat: number, $maxlon: number, $maxlat: number }) {
+		return this._tracker.track({"known bounds": args}, async _ => {
+			try {
+				return await this._knownBounds!.executeAsync(args)
+			} catch (e) {
+				console.log("some kind of error, kb", args, e) 
+				throw e
+			}
+		})
+	}
 
-	public get queryNodes() { return this._queryNodes }
+	public get queryNodes(): never { throw "this._queryNodes" }
 	public set queryNodes(theQueryNodes: SQLite.SQLiteStatement | undefined) {
 		this._queryNodes?.finalizeAsync()
 		this._queryNodes = theQueryNodes
+	}
+
+	public async doQueryNodes() {
+		return this._tracker.track({queryNodes: undefined}, async _ => {
+			try {
+				return await this._queryNodes!.executeAsync()
+			} catch (e) {
+				console.log("some kind of error, qn", e) 
+				throw e
+			}
+		})
 	}
 
 	public set queryWays(theQueryWays: SQLite.SQLiteStatement | undefined) {
@@ -101,12 +169,15 @@ export class MainPageQueries {
 		this._queryWays = theQueryWays
 	}
 
-    public doQueryWays(args: {$minlon: number, $minlat: number, $maxlon: number, $maxlat: number}) {
-        try {
-            return this._queryWays?.executeAsync(args)
-        } catch (e) {
-            console.log("some kind of error", args, e) 
-        }
+    public async doQueryWays(args: {$minlon: number, $minlat: number, $maxlon: number, $maxlat: number}) {
+		return this._tracker.track({"queryways": args}, async _ => {
+			try {
+				return await this._queryWays!.executeAsync(args)
+			} catch (e) {
+				console.log("some kind of error qw", args, e) 
+				throw e
+			}
+		})
     }
 
 	public get insertNodesWays(): never { throw "use the do function" }
@@ -121,38 +192,83 @@ export class MainPageQueries {
 		this._insertWays = theinsertWays
 	}
 	public doInsertWays(param: { $json: string }) {
-		const r1 = this._insertWays?.executeAsync(param)
-		const r2 = this._insertNodesWays?.executeAsync(param)
-		return [r1, r2]
+		const r1 = this._tracker.track("insert ways", async _ => this._insertWays!.executeAsync(param))
+		const r2 = this._tracker.track("insert nodes ways", async _ => this._insertNodesWays!.executeAsync(param))
+		return {waysInserted: r1, nodeWaysInserted: r2}
 	}
 
-	public get insertNodes() { return this._insertNodes }
+	public get insertNodes():never { throw "this._insertNodes" }
 	public set insertNodes(theinsertNodes: SQLite.SQLiteStatement | undefined) {
 		this._insertNodes?.finalizeAsync()
 		this._insertNodes = theinsertNodes
 	}
+	public doInsertNodes(param: { $json: string }) {
+		return this._tracker.track({"insertNodes": param}, async _ => {
+			return this._insertNodes!.executeAsync(param)
+		})
+	}
 
-	public get findNearbyWays() { return this._findNearbyWays }
+	public get findNearbyWays():never { throw "this._findNearbyWays" }
 	public set findNearbyWays(thequery: SQLite.SQLiteStatement | undefined) {
 		this._findNearbyWays?.finalizeAsync()
 		this._findNearbyWays = thequery
 	}
-	public get insertBounds() { return this._insertBounds }
+
+    public async doFindNearbyWays(args: {"$lat": number, "$lon": number}) {
+		return this._tracker.track({"find nearby ways": args}, async _ => {
+			try {
+				return await this._findNearbyWays!.executeAsync(args)
+			} catch (e) {
+				console.log("some kind of error fnbw", args, e) 
+				throw e
+			}
+		})
+    }
+
+	public get insertBounds(): never { throw "this._insertBounds" }
 	public set insertBounds(theinsertBounds: SQLite.SQLiteStatement | undefined) {
 		this._insertBounds?.finalizeAsync()
 		this._insertBounds = theinsertBounds
 	}
 
+    public async doInsertBounds(args: {$json: string}) {
+		return this._tracker.track({"insert bounds": args}, async _ => {
+			try {
+				return await this._insertBounds!.executeAsync(args)
+			} catch (e) {
+				console.log("some kind of error ib", args, e) 
+				throw e
+			}
+		})
+    }
+
 	async setup(db: SQLite.SQLiteDatabase) {
 			console.log(1)
-			this.knownBounds = await db.prepareAsync(require('@/sql/known-bounds.sql.json'))
-			this.insertBounds = await db.prepareAsync(require('@/sql/insert-bounds.sql.json'))
+			try {
 			this.findNearbyWays = await db.prepareAsync( require('@/sql/find-nearby-ways.sql.json') )
+			this.insertBounds = await db.prepareAsync(require('@/sql/insert-bounds.sql.json'))
 			this.insertNodes = await db.prepareAsync( require('@/sql/insert-nodes.sql.json') )
 			this.insertWays = await db.prepareAsync( require('@/sql/insert-ways.sql.json') )
+			this.knownBounds = await db.prepareAsync(require('@/sql/known-bounds.sql.json'))
+
+			console.log("inw")
 			this.insertNodesWays = await db.prepareAsync( require('@/sql/insert-nodes-ways.sql.json') )
+			console.log("qn")
 			this.queryNodes = await db.prepareAsync( require('@/sql/query-nodes.sql.json'))
+			console.log("qw")
 			this.queryWays = await db.prepareAsync( require('@/sql/query-ways.sql.json') )
+			} catch (e) {
+				console.log("failed setting up", e, this)
+
+			this.knownBounds = undefined
+			this.insertBounds = undefined
+			this.findNearbyWays = undefined
+			this.insertNodes = undefined
+			this.insertWays = undefined
+			this.insertNodesWays = undefined
+			this.queryNodes = undefined
+			this.queryWays = undefined
+			}
 	}
 
 	finalize() {

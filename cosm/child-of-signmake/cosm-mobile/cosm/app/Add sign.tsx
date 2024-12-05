@@ -1,21 +1,22 @@
 import React, { useState, useReducer, useRef, useEffect } from 'react'
 import * as Svg from 'react-native-svg'
 import * as OsmApi from "@/scripts/clients";
-import type { RegionPayload } from '@maplibre/maplibre-react-native/javascript/components/MapView';
+import type { RegionPayload } from '@maplibre/maplibre-react-native/src/components/MapView';
 import MapLibreGL from '@maplibre/maplibre-react-native';
-import { Text, View, Pressable, StyleSheet } from "react-native";
-import { FormControl, FormControlLabel, FormControlLabelText } from '@/components/ui/form-control';
-import { Input, InputField } from '@/components/ui/input';
-import { Select, SelectTrigger, SelectInput, SelectIcon, SelectPortal, SelectBackdrop, SelectContent, SelectItem } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
+import { Text, View, Pressable, StyleSheet, ViewProps } from "react-native";
 import { Link, useLocalSearchParams } from "expo-router";
 import * as SQLite from 'expo-sqlite'
 import { ChevronDownIcon } from 'lucide-react-native';
-import { HStack } from '@/components/ui/hstack'
-import { VStack } from '@/components/ui/vstack'
 import { debug, EditPageQueries } from '@/components/queries';
-import OnPressEvent from '@maplibre/maplibre-react-native/javascript/types/OnPressEvent';
+import { OnPressEvent } from '@maplibre/maplibre-react-native/src/types/OnPressEvent';
 import * as turf from '@turf/turf'
+import * as RNE from '@rneui/themed'
+
+const VStack = ({children, ...props}: React.PropsWithChildren<ViewProps>) => 
+  <View {...props} style={Object.assign(props.style || {}, {flexDirection: 'column'})}>{children}</View>
+
+const HStack = ({children, ...props}: React.PropsWithChildren<ViewProps>) => 
+  <View {...props} style={Object.assign(props.style || {}, {width: 200, height:50, flexDirection: 'row'})}>{children}</View>
 
 type DirectionState = {direction: Direction, directions: Partial<Record<DirectionOrigin, Direction>>}
 type LearnDirection = { type: DirectionOrigin, direction: Direction }
@@ -123,6 +124,18 @@ const circleLayerStyle: Record<string, MapLibreGL.CircleLayerStyle> = {
   }
 }
 
+const signTypeIcon: Record<SignType, RNE.IconProps> = {
+  "maxspeed,city_limit maxspeed=?? name=?! city_limit=begin": {name: "rectangle", color: "green"},
+  "maxspeed maxspeed=?!": {name: "circle", type: "octicon", color: "red"},
+  "stop": {name: "octagon", color: "red", type:"material-community"},
+  "give_way": {name: "triangle-outline", style: {transform: [{rotate: '180deg'}]}, color: "red", type:"material-community"},
+  "give_way,roundabout": {name: "arrows-spin", type:"font-awesome-6"},
+  "stop_ahead distance=??": {name: "octagon", color: "black", type:"material-community"},
+  "yield_ahead distance=??": {name: "triangle-outline", style: {transform: [{rotate: '180deg'}]}, color: "black", type:"material-community"},
+  "signal_ahead distance=??": {name: "traffic-light", type:"font-awesome-5"},
+  "hazard hazard=?!": {name: "diamond", color:"orange", type:"font-awesome-6"}
+}
+
 const signTypes = {
   "maxspeed,city_limit maxspeed=?? name=?! city_limit=begin": "City Limit",
   "maxspeed maxspeed=?!": "Speed Limit",
@@ -177,6 +190,7 @@ const isValidSpeedUnit = (speedUnit: string): speedUnit is SpeedUnit => {
 
 type UnitChooserProps<T extends string> =
   {
+    placeholder: string,
     optional: boolean,
     options: { [property in T]: string },
     pureNumber: boolean,
@@ -188,22 +202,14 @@ type UnitChooserProps<T extends string> =
     onChooseDistanceUnit: (distanceUnit: T) => any
   }
 function UnitChooser<T extends string>(params: UnitChooserProps<T>) {
-  const initialDistanceLabel = params.options[params.distanceUnit]
-  return <HStack className="w-full">
-    <Input isRequired={!params.optional} isInvalid={!params.inputIsValid && (!params.optional || params.inputDistance !== '')} className="w-2/3" >
-      <InputField value={params.inputDistance} onChangeText={params.onInputDistance} inputMode={params.pureNumber ? 'numeric' : 'text'} className="w-2/3" type="text" /></Input>
-    <Select className="w-1/3" initialLabel={initialDistanceLabel} selectedValue={params.distanceUnit} onValueChange={(value) => { console.log(value, params.isValid(value)), params.isValid(value) && params.onChooseDistanceUnit(value) }} isDisabled={false} isFocused={true}>
-      <SelectTrigger variant="outline" size="md">
-        <SelectInput placeholder="Select sign" />
-        <SelectIcon className="mr-3" as={ChevronDownIcon} />
-      </SelectTrigger>
-      <SelectPortal>
-        <SelectBackdrop />
-        <SelectContent>
-          {Object.keys(params.options).map((k) => params.isValid(k) && <SelectItem key={k} label={params.options[k]} value={k} />)}
-        </SelectContent>
-      </SelectPortal>
-    </Select>
+  const keys = Object.keys(params.options)
+  const buttons: string[] = []
+  keys.forEach(k => params.isValid(k) && buttons.push(params.options[k]))
+  const selButton = keys.findIndex((k) => k===params.distanceUnit)
+  const logger = (args: number) => params.isValid(keys[args]) && params.onChooseDistanceUnit(keys[args])
+  return <HStack style={{width: "100%"}}>
+    <View style={{flexGrow: 3, width:"100%", borderColor: "black"}}><RNE.Input errorMessage={(params.inputIsValid && (params.optional || params.inputDistance !== "") ) ? undefined : "Enter a number"} onChangeText={params.onInputDistance} value={params.inputDistance} keyboardType={params.pureNumber ? 'number-pad' : undefined} placeholder={params.placeholder}></RNE.Input></View>
+    <RNE.ButtonGroup onPress={logger} containerStyle={{width: "100%"}} selectedIndex={selButton} buttons={buttons}></RNE.ButtonGroup>
   </HStack>
 }
 
@@ -368,11 +374,7 @@ const YieldAheadDistanceForm = (params: StandardSignFormType) => {
     if (!(typeof dist === "object" && "error" in dist))
       onNewAdequatelySpecifiedSign({ sign: "signal_ahead distance=??", distance: dist })
   }, [signDistance, signDistanceType])
-  return <FormControl className="w-full">
-    <FormControlLabel><FormControlLabelText>Distance (optional)</FormControlLabelText></FormControlLabel>
-
-    <DistanceChooser optional={true} inputDistance={signDistance} onInputDistance={setSignDistance} distanceUnit={signDistanceType} onChooseDistanceUnit={setSignDistanceUnit} />
-  </FormControl>
+  return <DistanceChooser placeholder="distance" optional={true} inputDistance={signDistance} onInputDistance={setSignDistance} distanceUnit={signDistanceType} onChooseDistanceUnit={setSignDistanceUnit} />
 }
 
 const StopAheadDistanceForm = (params: StandardSignFormType) => {
@@ -385,10 +387,7 @@ const StopAheadDistanceForm = (params: StandardSignFormType) => {
     if (!(typeof dist === "object" && "error" in dist))
       onNewAdequatelySpecifiedSign({ sign: "signal_ahead distance=??", distance: dist })
   }, [signDistance, signDistanceType])
-  return <FormControl className="w-full">
-    <FormControlLabel><FormControlLabelText>Distance (optional)</FormControlLabelText></FormControlLabel>
-    <DistanceChooser optional={true} inputDistance={signDistance} onInputDistance={setSignDistance} distanceUnit={signDistanceType} onChooseDistanceUnit={setSignDistanceUnit} />
-  </FormControl>
+  return <DistanceChooser placeholder="Distance" optional={true} inputDistance={signDistance} onInputDistance={setSignDistance} distanceUnit={signDistanceType} onChooseDistanceUnit={setSignDistanceUnit} />
 }
 
 const SignalAheadDistanceForm = (params: StandardSignFormType) => {
@@ -401,10 +400,7 @@ const SignalAheadDistanceForm = (params: StandardSignFormType) => {
     if (!(typeof dist === "object" && "error" in dist))
       onNewAdequatelySpecifiedSign({ sign: "signal_ahead distance=??", distance: dist })
   }, [signDistance, signDistanceType])
-  return <FormControl className="w-full">
-    <FormControlLabel><FormControlLabelText>Distance (optional)</FormControlLabelText></FormControlLabel>
-    <DistanceChooser optional={true} inputDistance={signDistance} onInputDistance={setSignDistance} distanceUnit={signDistanceType} onChooseDistanceUnit={setSignDistanceUnit} />
-  </FormControl>
+  return <DistanceChooser placeholder='distance' optional={true} inputDistance={signDistance} onInputDistance={setSignDistance} distanceUnit={signDistanceType} onChooseDistanceUnit={setSignDistanceUnit} />
 }
 
 const MaxspeedCitylimitForm = (params: StandardSignFormType) => {
@@ -418,14 +414,9 @@ const MaxspeedCitylimitForm = (params: StandardSignFormType) => {
     if (!(typeof dist === "object" && "error" in dist))
       onNewAdequatelySpecifiedSign({ sign: "maxspeed,city_limit maxspeed=?? name=?! city_limit=begin", maxspeed: dist, name: townName })
   }, [signDistance, signDistanceType, townName])
-  return <VStack><FormControl className="w-full">
-    <FormControlLabel><FormControlLabelText>Speed</FormControlLabelText></FormControlLabel>
-    <SpeedChooser optional={true} inputDistance={signDistance} onInputDistance={setSignDistance} distanceUnit={signDistanceType} onChooseDistanceUnit={setSignDistanceUnit} />
-  </FormControl>
-    <FormControl className="w-full">
-      <FormControlLabel><FormControlLabelText>Name</FormControlLabelText></FormControlLabel>
-      <Input className="w-full" ><InputField value={townName} onChangeText={setTownName} type="text" /></Input>
-    </FormControl>
+  return <VStack>
+    <SpeedChooser placeholder="Speed" optional={true} inputDistance={signDistance} onInputDistance={setSignDistance} distanceUnit={signDistanceType} onChooseDistanceUnit={setSignDistanceUnit} />
+    <RNE.Input placeholder="Town Name" value={townName} onChangeText={setTownName}></RNE.Input>
   </VStack>
 }
 
@@ -439,10 +430,7 @@ const Maxspeed = (params: StandardSignFormType) => {
     if (!(typeof dist === "object" && "error" in dist))
       onNewAdequatelySpecifiedSign({ sign: "maxspeed maxspeed=?!", maxspeed: dist })
   }, [signDistance, signDistanceType])
-  return <FormControl className="w-full">
-    <FormControlLabel><FormControlLabelText>Speed</FormControlLabelText></FormControlLabel>
-    <SpeedChooser optional={false} inputDistance={signDistance} onInputDistance={setSignDistance} distanceUnit={signDistanceType} onChooseDistanceUnit={setSignDistanceUnit} />
-  </FormControl>
+  return <SpeedChooser placeholder="Speed" optional={false} inputDistance={signDistance} onInputDistance={setSignDistance} distanceUnit={signDistanceType} onChooseDistanceUnit={setSignDistanceUnit} />
 }
 
 const Stop = (params: StandardSignFormType) => {
@@ -464,6 +452,8 @@ const Hazard = (params: StandardSignFormType) => {
     onNewAdequatelySpecifiedSign({ sign: "stop" })
   }, [hazardType])
 
+  return <Text>Hazard presently disabled</Text>
+  /*
   return <FormControl className="w-full">
     <FormControlLabel><FormControlLabelText>Hazard</FormControlLabelText></FormControlLabel>
     <Select className="w-full" initialLabel={hazardTypeLabel}
@@ -482,6 +472,7 @@ const Hazard = (params: StandardSignFormType) => {
     </Select>
 
   </FormControl>
+  */
 }
 
 const GiveWay = (params: StandardSignFormType) => {
@@ -509,6 +500,7 @@ type SignType2<S extends string> = Split<S, " ">
 
 function FormFor(params: { sign: SignType, onNewSignDetail?: (signDetails: Partial<AdequatelySpecifiedSign>) => void, onNewAdequatelySpecifiedSign?: (adeq: AdequatelySpecifiedSign) => void }) {
   const sign: SignType = params.sign
+  console.log(sign, "the sign")
   switch (sign) {
     case "yield_ahead distance=??": {
       return <YieldAheadDistanceForm {...params} />
@@ -830,12 +822,15 @@ export default function Settings() {
     }
   }, [selectedNodes])
 
-  const affectableIsNext = function <T extends Affectable>(affectable: T | `next ${QualifiedDistance}`): affectable is `next ${QualifiedDistance}` { return !affectableIsComplex && affectable.startsWith("next ") }
+  const affectableIsNext = function <T extends Affectable>(affectable: T | `next ${QualifiedDistance}`): affectable is `next ${QualifiedDistance}` { 
+    return !affectableIsComplex(affectable) && affectable.startsWith("next ") 
+  }
   const affectableIsComplex = (affectable: Affectable): affectable is `${BasicAffectable},${BasicAffectable}` => affectable.includes(",")
 
   // type BasicAffectable = `next ${QualifiedDistance}` | "ahead" | "point to point" | "point to intersection" | "point" | "zone"
   const adequatelySpecifiedSignMessage = adequatelySpecifiedSign && (() => {
     const affected = signAffects(adequatelySpecifiedSign)
+    console.log("this is the affected", affected, affectableIsComplex(affected), affectableIsNext(affected))
     if (affectableIsComplex(affected)) {
       return <Text>The sign is complex. Affected regions are not yet supported.</Text>
     }
@@ -859,7 +854,8 @@ export default function Settings() {
           return <Text>The sign relates to the ways between two specific points. The end point might be another sign or an intersection. On the affected ways, choose the start and end points.</Text>
         default:
           const m: never = affected
-          return m
+          console.log("affected is never", m as string)
+          return false
       }
     }
   })()
@@ -903,27 +899,26 @@ export default function Settings() {
 
    })()
 
+   const [signTypesExpanded, setSignTypesExpanded] = useState(false)
 
   return (
     <View >
       <VStack>
         <VStack className="v-half">
-          <Text>text</Text>
-          <FormControl>
-            <FormControlLabel><FormControlLabelText>Sign Type</FormControlLabelText></FormControlLabel>
-            <Select initialLabel={initialLabel} selectedValue={signType} onValueChange={(value) => { console.log(value, isValidValue(value)), isValidValue(value) && setSignType(value) }} isDisabled={false} isFocused={true}>
-              <SelectTrigger variant="outline" size="md">
-                <SelectInput placeholder="Select sign" />
-                <SelectIcon className="mr-3" as={ChevronDownIcon} />
-              </SelectTrigger>
-              <SelectPortal>
-                <SelectBackdrop />
-                <SelectContent>
-                  {Object.keys(signTypes).map((k) => isValidValue(k) && <SelectItem key={k} label={signTypes[k]} value={k} />)}
-                </SelectContent>
-              </SelectPortal>
-            </Select>
-          </FormControl>
+          <>
+          <RNE.ListItem.Accordion onPress={() => setSignTypesExpanded(!signTypesExpanded)} isExpanded={signTypesExpanded} content={
+            <RNE.ListItem.Content>
+              <RNE.ListItem.Title>
+                <Text>{signTypes[signType]}</Text>
+              </RNE.ListItem.Title>
+            </RNE.ListItem.Content>
+          }>
+              {Object.keys(signTypes).map((k) => isValidValue(k) && <RNE.ListItem key={k} onPress={() => (setSignType(k), setSignTypesExpanded(false))} >
+                <RNE.Icon {...signTypeIcon[k]} style={{...signTypeIcon[k].style, width:"33"}}></RNE.Icon>
+                <RNE.ListItem.Content><RNE.ListItem.Title>{signTypes[k]}</RNE.ListItem.Title></RNE.ListItem.Content>
+              </RNE.ListItem>)}
+          </RNE.ListItem.Accordion>
+          </>
           <FormFor onNewAdequatelySpecifiedSign={setAdequatelySpecifiedSign} sign={signType} />
           <Text>{JSON.stringify(adequatelySpecifiedSign)}</Text>
           <Text>{JSON.stringify(angle)}</Text>
@@ -5560,4 +5555,5 @@ const mapstyle = ({ center, zoom }: { center: GeoJSON.Position, zoom: number }) 
   ],
   "id": "qebnlkra6"
 })
+
 

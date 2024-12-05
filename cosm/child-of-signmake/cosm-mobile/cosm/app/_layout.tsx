@@ -4,13 +4,14 @@ import * as SQLite from "expo-sqlite"
 import { Asset } from 'expo-asset';
 import React, {useState, useEffect, useRef} from 'react'
 import { MainContext, appState } from "@/components/MainContext";
-import "../global.css"
-import { GluestackUIProvider } from '@/components/ui/gluestack-ui-provider';
 import * as Spatialite from "spatialite"
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
+import * as Themed from '@rneui/themed';
 
 const activateDb = (db: SQLite.SQLiteDatabase) => {
   db.getFirstSync( ` pragma journal_mode=WAL `) 
-  Spatialite.getTheme(db)
+  Spatialite.initializeDb(db)
   db.getFirstSync( ` select bufferoptions_setendcapstyle('flat'); `) 
 
 	const asset = Asset.fromModule(require('../assets/proj.db'))
@@ -36,11 +37,13 @@ const activateDb = (db: SQLite.SQLiteDatabase) => {
 	}
 	db.execSync(
 		`
+		drop table nodes_ways;
 		create table if not exists nodes_ways ( 
 			observed text,
 			node_id int,
 			way_id int,
-			ordering int
+			ordering int, 
+			version int
 		);
 		create index if not exists ix_nodes_ways_node on nodes_ways ( node_id );
 		create index if not exists ix_nodes_ways_way on nodes_ways ( way_id );
@@ -100,11 +103,12 @@ export default function RootLayout() {
   
   useEffect(() => {
 	MapLibreGL.setAccessToken(null)
+	Themed.registerCustomIconType('font-awesome-6', FontAwesome6)
   })
 
   return (
-	<GluestackUIProvider>
-      <SQLite.SQLiteProvider databaseName="datbase" options={{enableCRSQLite: true}} onInit={activateDb}>
+	<SafeAreaProvider>
+      <SQLite.SQLiteProvider databaseName="datbase" onInit={activateDb}>
         <MainContext.Provider value={state}>
           <Stack screenOptions={{
                     headerStyle: {
@@ -119,6 +123,6 @@ export default function RootLayout() {
           </Stack>
         </MainContext.Provider>
       </SQLite.SQLiteProvider>
-	</GluestackUIProvider>
+	</SafeAreaProvider>
   );
 }

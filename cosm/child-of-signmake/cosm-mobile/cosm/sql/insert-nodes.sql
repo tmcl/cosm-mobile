@@ -5,5 +5,5 @@ select t.value->>'id',
     MakePoint(t.value->>'lon', t.value->>'lat', 4326) as makepoint,
     t.value->>'version',
     jsonb(t.value)
-from json_each(?, '$.elements') as t
+from json_each($json, '$.elements') as t
 where t.value->>'type' = 'node';
