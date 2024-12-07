@@ -37,7 +37,6 @@ const activateDb = (db: SQLite.SQLiteDatabase) => {
 	}
 	db.execSync(
 		`
-		drop table nodes_ways;
 		create table if not exists nodes_ways ( 
 			observed text,
 			node_id int,
