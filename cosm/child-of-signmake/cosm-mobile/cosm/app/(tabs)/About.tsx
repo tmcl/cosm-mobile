@@ -33,8 +33,8 @@ export default function Settings() {
 	}, [db])
 	var onPress = () => "hi"
 
-	const [isAndroidPermissionGranted, setAndroidPermissionGranted] = useState<boolean|null>(null);
-	useAndroidLocationPermission(setAndroidPermissionGranted)
+  const [isAndroidPermissionGranted, setAndroidPermissionGranted] = useState<boolean|null>(null);
+  useAndroidLocationPermission(setAndroidPermissionGranted)
   const permission = <Text>{isAndroidPermissionGranted === null ? "checking permission" : (isAndroidPermissionGranted ? "got permission" : "refused permission")}</Text>
 
   return (
@@ -47,8 +47,7 @@ export default function Settings() {
     >
 		  {permission}
       <Text>{log}</Text>
-			<Link href="/details" asChild><Pressable><Text>View details</Text></Pressable></Link>
-			<Button title="My Button" onPress={onPress} />
+	<Button title="My Button" onPress={onPress} />
     </View>
   );
 }
