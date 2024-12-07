@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
 import {FAB} from '@rneui/themed'
-import Foundation from '@expo/vector-icons/Foundation';
 import { Text, View, Pressable, StyleSheet, Image as RnImage } from "react-native";
 import { Image } from 'expo-image'
 import { Link, router } from "expo-router";
@@ -11,7 +10,6 @@ import * as OsmApi from "@/scripts/clients";
 import { useDrizzleStudio } from "expo-drizzle-studio-plugin"
 import { useAndroidLocationPermission } from '@/components/AndroidLocationPermission';
 import { OnPressEvent } from '@maplibre/maplibre-react-native/src/types/OnPressEvent';
-import { Asset } from 'expo-asset';
 import { prepareSignArgs } from '../Add sign';
 import { MainPageQueries as Queries, debug, JustOnce, zip } from '@/components/queries';
 
@@ -125,8 +123,7 @@ export default function Sottings() {
 	const setSymbols = (s: typeof symbols) => setSymbolsx(debug("symbol", s))
 	const [currentClick, setCurrentClickx] = useState<GeoJSON.FeatureCollection<GeoJSON.Point, {}> | null>(null)
 	const setCurrentClick = (cc: typeof currentClick) => setCurrentClickx(debug("current click", cc))
-	const [roadcasings, setRoadcasingsx] = useState<GeoJSON.FeatureCollection<GeoJSON.Polygon, OsmApi.IWay> | null>(null)
-	const setRoadcasings = (rc: typeof roadcasings) => setRoadcasingsx(debug("road casings", rc))
+	const [roadcasings, setRoadcasings] = useState<GeoJSON.FeatureCollection<GeoJSON.Polygon, OsmApi.IWay> | null>(null)
 
 	const [visibleBounds, setVisibleBoundsx] = useState<GeoJSON.BBox | null>(null)
 	const setVisibleBounds = (vb: typeof visibleBounds) => setVisibleBoundsx(debug("visible bounds", vb))
@@ -187,9 +184,9 @@ export default function Sottings() {
 					const [minlon, minlat, maxlon, maxlat] = bounds ? bounds.bbox! : [$minlon, $minlat, $maxlon, $maxlat]
 					console.log('begin api/0.6/map')
 					const b = await OsmApi.getApi06MapText({ minlon, minlat, maxlon, maxlat })
-					console.log('complete api/0.6/map', b)
+					console.log('complete api/0.6/map', b.substring(0, 100))
 					console.log('insert initiated')
-					await queries.current.doInsertBounds({ '$json': b })
+					await queries.current.doInsertBounds({ '$json': b, $requestedBounds: [minlon, minlat, maxlon, maxlat] })
 					console.log('insert bounds a great success')
 					await queries.current.doInsertNodes({ '$json': b})
 					console.log('insert nodes a great success')

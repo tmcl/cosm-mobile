@@ -16,7 +16,7 @@ const VStack = ({children, ...props}: React.PropsWithChildren<ViewProps>) =>
   <View {...props} style={Object.assign(props.style || {}, {flexDirection: 'column'})}>{children}</View>
 
 const HStack = ({children, ...props}: React.PropsWithChildren<ViewProps>) => 
-  <View {...props} style={Object.assign(props.style || {}, {width: 200, height:50, flexDirection: 'row'})}>{children}</View>
+  <View {...props} style={Object.assign(props.style || {}, {width: "100%", flexDirection: 'row'})}>{children}</View>
 
 type DirectionState = {direction: Direction, directions: Partial<Record<DirectionOrigin, Direction>>}
 type LearnDirection = { type: DirectionOrigin, direction: Direction }
@@ -208,8 +208,10 @@ function UnitChooser<T extends string>(params: UnitChooserProps<T>) {
   const selButton = keys.findIndex((k) => k===params.distanceUnit)
   const logger = (args: number) => params.isValid(keys[args]) && params.onChooseDistanceUnit(keys[args])
   return <HStack style={{width: "100%"}}>
-    <View style={{flexGrow: 3, width:"100%", borderColor: "black"}}><RNE.Input errorMessage={(params.inputIsValid && (params.optional || params.inputDistance !== "") ) ? undefined : "Enter a number"} onChangeText={params.onInputDistance} value={params.inputDistance} keyboardType={params.pureNumber ? 'number-pad' : undefined} placeholder={params.placeholder}></RNE.Input></View>
-    <RNE.ButtonGroup onPress={logger} containerStyle={{width: "100%"}} selectedIndex={selButton} buttons={buttons}></RNE.ButtonGroup>
+    <View style={{width:"60%", borderWidth:1, borderColor: "teal"}}><RNE.Input errorMessage={(params.inputIsValid && (params.optional || params.inputDistance !== "") ) ? undefined : "Enter a number"} onChangeText={params.onInputDistance} value={params.inputDistance} keyboardType={params.pureNumber ? 'number-pad' : undefined} placeholder={params.placeholder}></RNE.Input></View>
+    <View style={{width:"30%", borderWidth:1, borderColor: "orange"}}>
+    <RNE.ButtonGroup onPress={logger} selectedIndex={selButton} buttons={buttons}></RNE.ButtonGroup>
+  </View>
   </HStack>
 }
 

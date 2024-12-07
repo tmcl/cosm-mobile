@@ -73,7 +73,7 @@ export class EditPageQueries {
 }
 
 class ThingyTracker {
-	private _trackees: {any: any, ts: number, state: "waiting"|"finished"|"failed", end?: number}[] = []
+	private _trackees: {any: any, ts: number, state: "waiting"|"finished"|"failed", end?: number, e?: any}[] = []
 	private _timeout: number|undefined
 
 	public async track<T, R>(arg: T, f: (arg: T) => Promise<R>) {
@@ -84,13 +84,15 @@ class ThingyTracker {
 
 		try {
 			const r = await f(arg)
+		console.log("**t**finishing", arg)
 			this._trackees[i].state = "finished"
 			this._trackees[i].end = new Date().getTime()
 			return r
 		} catch (e) {
-			console.log("awaiter failed", arg, i, e)
+			console.log("**t***awaiter failed", arg, i, e)
 			this._trackees[i].state = "failed"
 			this._trackees[i].end = new Date().getTime()
+			this._trackees[i].e = e
 			throw e
 		}
 	}
@@ -101,9 +103,10 @@ class ThingyTracker {
 		interval = setInterval(() => {
 			const now = new Date().getTime()
 			let current
-			if (this._timeout === interval && (current = this._trackees.filter(f => f.state == "waiting")) && current?.length) {
-				console.log("waiting jobs", current.length)
-				const old = current.filter(f => f.ts < now - 1_000)
+				console.log("failed jobs", this._trackees.filter(f => f.state == "failed"))
+			if (this._timeout === interval && (current = this._trackees.filter(f => f.state === "waiting")) && current?.length) {
+				console.log("waiting jobs", current.filter(s => s.state == "waiting").length)
+				const old = current.filter(f => f.state == "waiting" && f.ts < now - 1_000)
 				console.log("including the following old ones", old.map(o => ({...o, diff: (now - o.ts)/1000})))
 			} else {
 				if(this._timeout == interval) {
@@ -159,7 +162,7 @@ export class MainPageQueries {
 	}
 
 	public async doQueryNodes() {
-		return this._tracker.track({queryNodes: undefined}, async _ => {
+		return this._tracker.track({"query Nodes, which requires no param": undefined}, async _ => {
 			try {
 				return await this._queryNodes!.executeAsync()
 			} catch (e) {
@@ -236,10 +239,12 @@ export class MainPageQueries {
 		this._insertBounds = theinsertBounds
 	}
 
-    public async doInsertBounds(args: {$json: string}) {
+    public async doInsertBounds(args: {$json: string, $requestedBounds: [number, number, number, number]}) {
+		const [minlon, minlat, maxlon, maxlat] = args.$requestedBounds
+		const param = {$json: JSON.stringify({bounds: {minlon, minlat, maxlon, maxlat}})}
 		return this._tracker.track({"insert bounds": args}, async _ => {
 			try {
-				return await this._insertBounds!.executeAsync(args)
+				return await this._insertBounds!.executeAsync(param)
 			} catch (e) {
 				console.log("some kind of error ib", args, e) 
 				throw e
@@ -263,16 +268,7 @@ export class MainPageQueries {
 			console.log("qw")
 			this.queryWays = await db.prepareAsync( require('@/sql/query-ways.sql.json') )
 			} catch (e) {
-				console.log("failed setting up", e, this)
-
-			this.knownBounds = undefined
-			this.insertBounds = undefined
-			this.findNearbyWays = undefined
-			this.insertNodes = undefined
-			this.insertWays = undefined
-			this.insertNodesWays = undefined
-			this.queryNodes = undefined
-			this.queryWays = undefined
+				console.log("************/////////////////////////////*******************failed setting up", e, this)
 			}
 	}
 
