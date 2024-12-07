@@ -497,8 +497,6 @@ const Roundabout = (params: StandardSignFormType) => {
 
 type Split<S extends string, D extends string> = S extends `${infer T}${D}${infer U}` ? [T, ...Split<U, D>] : [S];
 
-type SignType2<S extends string> = Split<S, " ">
-
 
 function FormFor(params: { sign: SignType, onNewSignDetail?: (signDetails: Partial<AdequatelySpecifiedSign>) => void, onNewAdequatelySpecifiedSign?: (adeq: AdequatelySpecifiedSign) => void }) {
   const sign: SignType = params.sign
