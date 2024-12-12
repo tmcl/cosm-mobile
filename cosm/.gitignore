@@ -20,6 +20,7 @@ expo-env.d.ts
 *.orig.*
 web-build/
 android/
+ios/
 
 # Metro
 .metro-health-check*
@@ -45,12 +46,9 @@ expo-env.d.ts
 
 app-example
 .secrets
-child-of-signmake/cosm-mobile/cosm/ios/
-child-of-signmake/cosm-mobile/cosm-old/
-child-of-signmake/cosm-mobile/app-new/
 .idea/
 **/.env
-child-of-signmake/cosm-mobile/cosm/sql/*.sql.json
+sql/*.sql.json
 dist-newstyle
 */debug
 ghcjs
