@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import {FAB} from '@rneui/themed'
-import { Text, View, Pressable, StyleSheet, Image as RnImage } from "react-native";
+import { Text, View, Pressable, StyleSheet, Image as RnImage, Button } from "react-native";
 import { Image } from 'expo-image'
 import { Link, router } from "expo-router";
 import MapLibreGL from '@maplibre/maplibre-react-native';
@@ -12,6 +12,8 @@ import { useAndroidLocationPermission } from '@/components/AndroidLocationPermis
 import { OnPressEvent } from '@maplibre/maplibre-react-native/src/types/OnPressEvent';
 import { prepareSignArgs } from '../Add sign';
 import { MainPageQueries as Queries, debug, JustOnce, zip } from '@/components/queries';
+import { makeRedirectUri, useAuthRequest, exchangeCodeAsync } from "expo-auth-session";
+import * as WebBrowser from 'expo-web-browser';
 
 const roadcasingsLayerStyle = (wayIds: string[]|null): MapLibreGL.FillLayerStyle => ({
 	fillColor: wayIds ? ["case", ["in", ["id"], ["literal", wayIds] ], "yellow", "purple"] : "red",
@@ -85,6 +87,14 @@ const defaultLocation: UserLocation = {
 		accuracy: 0.0,
 		speed: 0.0,
 	}
+}
+
+// OAuth
+WebBrowser.maybeCompleteAuthSession()
+
+const discovery = {
+	authorizationEndpoint: "https://master.apis.dev.openstreetmap.org/oauth2/authorize",
+	tokenEndpoint: "https://master.apis.dev.openstreetmap.org/oauth2/token"
 }
 
 export default function Sottings() {
@@ -372,11 +382,41 @@ export default function Sottings() {
 	const [fabOpen, setFabOpen] = useState(false)
 	const isRenderingFab = () => { console.log("is rendering fab"); return true}
 	const possibly_affected_ways: [string, GeoJSON.Point][] = zip(nearbyWays || [], nearbyPoints || [])
+
+	// OAuth with OpenStreetMap
+	const [authTokens, setAuthTokens] = useState({access_token: "", refresh_token: ""});
+	const [request, response, promptAsync] = useAuthRequest(
+		{
+			clientId: process.env.EXPO_PUBLIC_Client_ID,
+			usePKCE: true,
+			redirectUri: makeRedirectUri({
+				native: "cosm://login",
+			}),
+			scopes: ["openid"]
+		},
+		discovery
+	);
+	console.log("cientid", process.env.EXPO_PUBLIC_Client_ID)
+
+
+	useEffect(() => {
+		if (response?.type === 'success') {
+		  const { code } = response.params;
+		  // exchange( response.params.code);
+		}
+	}, [discovery, request, response]);
+
 	return (
 		<View
 			style={styles.page}
 		>
-			
+			<Button
+				title="Login with OpenStreetmap"
+				onPress={() => {
+					promptAsync();
+				}}
+			/>
+			<Text>AuthTokens: {JSON.stringify(authTokens)}</Text>
 			{imgbody && <Image contentFit='contain' style={{position: "absolute", zIndex: 1, top: 10, left: 150, width: 100, height: 100}} source={{uri: imgbody, width:100 , height:100 }} /> }
 			{/*fab && currentClick1 && isRenderingFab() &&
 
