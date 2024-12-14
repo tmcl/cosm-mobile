@@ -1,5 +1,9 @@
-
 import * as SQLite from 'expo-sqlite'
+import type GeoJSON from "geojson";
+import * as OsmApi from "@/scripts/clients";
+import {SQLiteExecuteAsyncResult} from "expo-sqlite";
+
+const consoleLog: typeof console.log = () => {}
 
 export class EditPageQueries {
 	private _queryWays: SQLite.SQLiteStatement | undefined
@@ -9,49 +13,52 @@ export class EditPageQueries {
 
 	constructor() {};
 
+	// noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
 	public get findAnglePointsForWayPoint(): never { throw "use the do- method" }
 	public set findAnglePointsForWayPoint(theQueryWays: SQLite.SQLiteStatement | undefined) {
-        console.log("i wanted to set the find angle points", theQueryWays)
+        consoleLog("i wanted to set the find angle points", theQueryWays)
 		this._findAnglePointsForWayPoint?.finalizeAsync()
 		this._findAnglePointsForWayPoint = theQueryWays
 	}
 
     public async doFindAnglePointsForWayPoint(args: {$way_id: number, $node_id: number}): Promise<{ next: GeoJSON.Point, prev: GeoJSON.Point}|undefined> {
-        if (!this._findAnglePointsForWayPoint) { console.log("i wanted to query the target nodes", args, "but i have nothing to do it with") }
-        const answer = await this._findAnglePointsForWayPoint!.executeAsync(args)
-		console.log("i got an answer", answer)
-		const first = await answer?.getFirstAsync() as {nextgeom: string, prevgeom: string}|undefined
-		console.log("i got a first", first)
+        if (!this._findAnglePointsForWayPoint) { consoleLog("i wanted to query the target nodes", args, "but i have nothing to do it with") }
+        const answer = await this._findAnglePointsForWayPoint!.executeAsync<{nextgeom: string, prevgeom: string}>(args)
+		consoleLog("i got an answer", answer)
+		const first = await answer.getFirstAsync()
+		consoleLog("i got a first", first)
 		const final = first && {next: JSON.parse(first.nextgeom), prev: JSON.parse(first.prevgeom) }
-		console.log("and finally", final)
-		return final
+		consoleLog("and finally", final)
+		return final || undefined
     }
 
+	// noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
 	public get findTargetNodes(): never { throw "use the do- method" }
 	public set findTargetNodes(theQueryWays: SQLite.SQLiteStatement | undefined) {
-        console.log("i wanted to set the find target nodes", theQueryWays)
+        consoleLog("i wanted to set the find target nodes", theQueryWays)
 		this._findTargetNodes?.finalizeAsync()
 		this._findTargetNodes = theQueryWays
 	}
 
     public doFindTargetNodes(args: {$needle: Record<string, string>, $minlon: number, $minlat: number, $maxlon: number, $maxlat: number}) {
-        if (!this._findTargetNodes) { console.log("i wanted to query the target nodes", args, "but i have nothing to do it with") }
+        if (!this._findTargetNodes) { consoleLog("i wanted to query the target nodes", args, "but i have nothing to do it with") }
 		const argsModified = {...args, $needle: JSON.stringify(args.$needle), $needleLength: Object.keys(args.$needle).length}
-        return this._findTargetNodes!.executeAsync(argsModified)
+        return this._findTargetNodes!.executeAsync<never>(argsModified)
     }
 
 	public set queryWays(theQueryWays: SQLite.SQLiteStatement | undefined) {
-        console.log("i wanted to set the query ways", theQueryWays)
+        consoleLog("i wanted to set the query ways", theQueryWays)
 		this._queryWays?.finalizeAsync()
 		this._queryWays = theQueryWays
 	}
 
     public doQueryWays(args: {$minlon: number, $minlat: number, $maxlon: number, $maxlat: number}) {
-        if (!this._queryWays) { console.log("i wanted to query the ways", args, "but i have nothing to do it with") }
-        return this._queryWays!.executeAsync(args)
+        if (!this._queryWays) { consoleLog("i wanted to query the ways", args, "but i have nothing to do it with") }
+        return this._queryWays!.executeAsync<never>(args)
     }
 
-	public get findNearbyWays() { return this._findNearbyWays }
+	// noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
+	public get findNearbyWays(): never { throw "this._findNearbyWays" }
 	public set findNearbyWays(thequery: SQLite.SQLiteStatement | undefined) {
 		this._findNearbyWays?.finalizeAsync()
 		this._findNearbyWays = thequery
@@ -77,19 +84,19 @@ class ThingyTracker {
 	private _timeout: number|undefined
 
 	public async track<T, R>(arg: T, f: (arg: T) => Promise<R>) {
-		console.log("**t*starting", arg)
+		consoleLog("**t*starting", arg)
 		const newLength = this._trackees.push({any: arg, ts: new Date().getTime(), state: "waiting"})
 		const i = newLength - 1
 		this.checktimeout()
 
 		try {
 			const r = await f(arg)
-		console.log("**t**finishing", arg)
+		consoleLog("**t**finishing", arg)
 			this._trackees[i].state = "finished"
 			this._trackees[i].end = new Date().getTime()
 			return r
 		} catch (e) {
-			console.log("**t***awaiter failed", arg, i, e)
+			consoleLog("**t***awaiter failed", arg, i, e)
 			this._trackees[i].state = "failed"
 			this._trackees[i].end = new Date().getTime()
 			this._trackees[i].e = e
@@ -103,11 +110,11 @@ class ThingyTracker {
 		interval = setInterval(() => {
 			const now = new Date().getTime()
 			let current
-				console.log("failed jobs", this._trackees.filter(f => f.state == "failed"))
+				consoleLog("failed jobs", this._trackees.filter(f => f.state == "failed"))
 			if (this._timeout === interval && (current = this._trackees.filter(f => f.state === "waiting")) && current?.length) {
-				console.log("waiting jobs", current.filter(s => s.state == "waiting").length)
+				consoleLog("waiting jobs", current.filter(s => s.state == "waiting").length)
 				const old = current.filter(f => f.state == "waiting" && f.ts < now - 1_000)
-				console.log("including the following old ones", old.map(o => ({...o, diff: (now - o.ts)/1000})))
+				consoleLog("including the following old ones", old.map(o => ({...o, diff: (now - o.ts)/1000})))
 			} else {
 				if(this._timeout == interval) {
 					this._timeout = undefined
@@ -128,6 +135,7 @@ export class MainPageQueries {
 	private _insertWays: SQLite.SQLiteStatement | undefined
 	private _queryWays: SQLite.SQLiteStatement | undefined
 	private _findNearbyWays: SQLite.SQLiteStatement | undefined
+	private _addCasingsToWays: SQLite.SQLiteStatement | undefined
 
 	private _tracker;
 
@@ -135,41 +143,33 @@ export class MainPageQueries {
 		this._tracker = new ThingyTracker()
 	};
 
+	// noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
 	public get knownBounds(): never { throw "use the do function" }
 	public set knownBounds(theneededareas: SQLite.SQLiteStatement | undefined) {
 		this._knownBounds?.finalizeAsync()
 		this._knownBounds = theneededareas
 	}
 	public async doKnownBounds(args: { $minlon: number, $minlat: number, $maxlon: number, $maxlat: number }) {
-		console.log("what are the known bounds", args)
+		consoleLog("what are the known bounds", args)
 		return this._tracker.track({"known bounds": args}, async _ => {
-			try {
-				console.log("oh we're about to fetch the known bounds", args)
-				const x = await this._knownBounds!.executeAsync(args)
-				console.log("we have some known bounds!", x)
-				return x
-			} catch (e) {
-				console.log("some kind of error, kb", args, e) 
-				throw e
-			}
+			const boundsQuer = await this._knownBounds!.executeAsync<{ difference: string }>(args)
+			const boundsStr = await boundsQuer.getFirstAsync()
+			return JSON.parse(boundsStr!.difference) as GeoJSON.Polygon
 		})
 	}
 
+	// noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
 	public get queryNodes(): never { throw "this._queryNodes" }
 	public set queryNodes(theQueryNodes: SQLite.SQLiteStatement | undefined) {
 		this._queryNodes?.finalizeAsync()
 		this._queryNodes = theQueryNodes
 	}
 
-	public async doQueryNodes() {
-		return this._tracker.track({"query Nodes, which requires no param": undefined}, async _ => {
-			try {
-				return await this._queryNodes!.executeAsync()
-			} catch (e) {
-				console.log("some kind of error, qn", e) 
-				throw e
-			}
-		})
+	public async *doQueryNodes(args: {$minlon: number, $minlat: number, $maxlon: number, $maxlat: number}) {
+		const result = await this._queryNodes!.executeAsync<{ geojson: string }>(args)
+		for await (const geojson of result) {
+			yield JSON.parse(geojson.geojson) as GeoJSON.Feature<GeoJSON.Point, OsmApi.INode>
+		}
 	}
 
 	public set queryWays(theQueryWays: SQLite.SQLiteStatement | undefined) {
@@ -177,34 +177,70 @@ export class MainPageQueries {
 		this._queryWays = theQueryWays
 	}
 
-    public async doQueryWays(args: {$minlon: number, $minlat: number, $maxlon: number, $maxlat: number}) {
-		return this._tracker.track({"queryways": args}, async _ => {
-			try {
-				return await this._queryWays!.executeAsync(args)
-			} catch (e) {
-				console.log("some kind of error qw", args, e) 
-				throw e
+	private voom = 0
+
+    public async *doQueryWays(args: {$minlon: number, $minlat: number, $maxlon: number, $maxlat: number}) {
+		const voom = this.voom++
+		let vool = 0
+		const result = this._queryWays!.executeSync<{ geojson: string }>(args)
+		for await (const geojson of result) {
+			const result = JSON.parse(geojson.geojson) as GeoJSON.Feature<GeoJSON.Polygon|GeoJSON.LineString, OsmApi.IWay>
+			if(result.id == 992972544) {
+				consoleLog(result, result.id, voom, vool++)
 			}
-		})
+			yield result
+		}
     }
 
+	// noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
 	public get insertNodesWays(): never { throw "use the do function" }
 	public set insertNodesWays(theinsertWays: SQLite.SQLiteStatement | undefined) {
 		this._insertNodesWays?.finalizeAsync()
 		this._insertNodesWays = theinsertWays
 	}
 
+	// noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
+	public get addCasingToWays(): never { throw "use the do function" }
+	public set addCasingToWays(thequery: SQLite.SQLiteStatement | undefined) {
+		this._addCasingsToWays?.finalizeAsync()
+		if(thequery) {
+			const settlers = this.todoAddCasings
+			this.todoAddCasings = []
+			settlers.forEach(s => s(thequery))
+		}
+
+		this._addCasingsToWays = thequery
+		consoleLog("query add casing to ways", thequery, this._addCasingsToWays)
+	}
+
+	private todoAddCasings: ((value: SQLite.SQLiteStatement) => void)[] = []
+
+	public doAddCasingToWays() {
+		const currentQuery = this._addCasingsToWays
+		if(currentQuery) {
+			return currentQuery.executeAsync<never>()
+		} else {
+			const settler = (resolve: (value: SQLiteExecuteAsyncResult<never>) => void, reject: (reason?: any) => void) =>
+				{
+					this.todoAddCasings.push(theQuery => theQuery.executeAsync<never>().then(resolve, reject) )
+				}
+			return new Promise<SQLiteExecuteAsyncResult<never>>( settler )
+		}
+	}
+
+	// noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
 	public get insertWays(): never { throw "use the do function" }
 	public set insertWays(theinsertWays: SQLite.SQLiteStatement | undefined) {
 		this._insertWays?.finalizeAsync()
 		this._insertWays = theinsertWays
 	}
 	public doInsertWays(param: { $json: string }) {
-		const r1 = this._tracker.track("insert ways", async _ => this._insertWays!.executeAsync(param))
-		const r2 = this._tracker.track("insert nodes ways", async _ => this._insertNodesWays!.executeAsync(param))
+		const r1 = this._tracker.track("insert ways", async _ => this._insertWays!.executeAsync<never>(param))
+		const r2 = this._tracker.track("insert nodes ways", async _ => this._insertNodesWays!.executeAsync<never>(param))
 		return {waysInserted: r1, nodeWaysInserted: r2}
 	}
 
+	// noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
 	public get insertNodes():never { throw "this._insertNodes" }
 	public set insertNodes(theinsertNodes: SQLite.SQLiteStatement | undefined) {
 		this._insertNodes?.finalizeAsync()
@@ -212,10 +248,11 @@ export class MainPageQueries {
 	}
 	public doInsertNodes(param: { $json: string }) {
 		return this._tracker.track({"insertNodes": param}, async _ => {
-			return this._insertNodes!.executeAsync(param)
+			return this._insertNodes!.executeAsync<never>(param)
 		})
 	}
 
+	// noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
 	public get findNearbyWays():never { throw "this._findNearbyWays" }
 	public set findNearbyWays(thequery: SQLite.SQLiteStatement | undefined) {
 		this._findNearbyWays?.finalizeAsync()
@@ -225,14 +262,16 @@ export class MainPageQueries {
     public async doFindNearbyWays(args: {"$lat": number, "$lon": number}) {
 		return this._tracker.track({"find nearby ways": args}, async _ => {
 			try {
-				return await this._findNearbyWays!.executeAsync(args)
+				const query = await this._findNearbyWays!.executeAsync<{dist: number, id: string, nearest: string}>(args)
+				return await query.getAllAsync()
 			} catch (e) {
-				console.log("some kind of error fnbw", args, e) 
+				consoleLog("some kind of error fnbw", args, e)
 				throw e
 			}
 		})
     }
 
+	// noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
 	public get insertBounds(): never { throw "this._insertBounds" }
 	public set insertBounds(theinsertBounds: SQLite.SQLiteStatement | undefined) {
 		this._insertBounds?.finalizeAsync()
@@ -244,81 +283,78 @@ export class MainPageQueries {
 		const param = {$json: JSON.stringify({bounds: {minlon, minlat, maxlon, maxlat}})}
 		return this._tracker.track({"insert bounds": args}, async _ => {
 			try {
-				return await this._insertBounds!.executeAsync(param)
+				return await this._insertBounds!.executeAsync<never>(param)
 			} catch (e) {
-				console.log("some kind of error ib", args, e) 
+				consoleLog("some kind of error ib", args, e)
 				throw e
 			}
 		})
     }
 
 	async setup(db: SQLite.SQLiteDatabase) {
-			console.log(1)
+			consoleLog(1)
+		let x = 0;
 			try {
+				x++
 			this.findNearbyWays = await db.prepareAsync( require('@/sql/find-nearby-ways.sql.json') )
+				x++
 			this.insertBounds = await db.prepareAsync(require('@/sql/insert-bounds.sql.json'))
+				x++
 			this.insertNodes = await db.prepareAsync( require('@/sql/insert-nodes.sql.json') )
+				x++
 			this.insertWays = await db.prepareAsync( require('@/sql/insert-ways.sql.json') )
+				x++
 			this.knownBounds = await db.prepareAsync(require('@/sql/known-bounds.sql.json'))
+				x++
+			this.addCasingToWays = await db.prepareAsync(require('@/sql/add-casing-to-ways.sql.json'))
+				x++
 
-			console.log("inw")
+			consoleLog("inw")
 			this.insertNodesWays = await db.prepareAsync( require('@/sql/insert-nodes-ways.sql.json') )
-			console.log("qn")
+				x++
+			consoleLog("qn")
 			this.queryNodes = await db.prepareAsync( require('@/sql/query-nodes.sql.json'))
-			console.log("qw")
+				x++
+			consoleLog("qw")
 			this.queryWays = await db.prepareAsync( require('@/sql/query-ways.sql.json') )
+				x++
 			} catch (e) {
-				console.log("************/////////////////////////////*******************failed setting up", e, this)
+				consoleLog("************/////////////////////////////*******************failed setting up", x, e, this)
 			}
 	}
 
 	finalize() {
-		 this.knownBounds = undefined
-		 this.insertBounds = undefined
-		 this.findNearbyWays = undefined
-		 this.insertNodes = undefined
-		 this.insertNodesWays = undefined
-		 this.queryNodes = undefined
-		 this.insertWays = undefined
-		 this.queryWays = undefined
+		this.knownBounds = undefined
+		this.insertBounds = undefined
+		this.findNearbyWays = undefined
+		this.insertNodes = undefined
+		this.insertNodesWays = undefined
+		this.queryNodes = undefined
+		this.insertWays = undefined
+		this.addCasingToWays = undefined
+		this.queryWays = undefined
 	}
 }
 
-export class JustOnce {
+export class MemoryWorkerQueue {
 	private others: (() => Promise<any>)[] = []
 	private current: Promise<any>|null = null
-	private timeout: number = 0
 
-	public take(f: () => Promise<any>) {
-		this.others.push(async () => { try {f()} catch (e) {console.log("not everything working", e); throw e }})
+	public accept(f: () => Promise<any>) {
+		this.others.push(async () => { try {await f()} catch (e) {consoleLog("not everything working", e); throw e }})
 		this.act()
-		const timeout = ++this.timeout
-		console.log("setting", timeout, this.timeout)
-		setTimeout(() => {
-			console.log("checking", timeout, this.timeout)
-			if (timeout == this.timeout) {
-				this.actAlt()
-			}
-		}, 500)
-	}
-
-	private actAlt() {
-		const one = this.others.pop()
-		if(!one) { console.log("alt none left"); return }
-		one()
-		console.log("alt taking one while there are others left", this.others.length)
 	}
 
 	private act() {
-		if (this.current) { console.log("already working"); return }
+		if (this.current) { consoleLog("already working"); return }
 		const one = this.others.pop()
-		if(!one) { console.log("none left"); return }
+		if(!one) { consoleLog("none left"); return }
 		let clear = () => {
 			this.current = null
 			this.act()
 		}
-		this.current = one().then(() => clear(), (e) => {clear(); console.log("there was an error", e); throw e })
-		console.log("taking one, hereafter remain ", this.others.length)
+		this.current = one().then(() => clear(), (e) => {clear(); consoleLog("there was an error", e); throw e })
+		consoleLog("taking one, hereafter remain ", this.others.length)
 	}
 }
 

@@ -27,27 +27,12 @@ with data as (
     where t.value->>'type' = 'way'
         and t.value->'tags'->>'highway' is not null
     group by t.value->>'id'
-),
-buffereddata as (
-    select id,
-        observed,
-        geom,
-        transform(geom, 7855) as geomgda,
-        buffer(transform(geom, 7855), width / 2.0) as geombufferedgda,
-        version,
-        nodes,
-        properties,
-        width
-    from data
 )
-insert
-    or replace into ways (
+insert into ways (
         id,
         observed,
         geom,
         geomgda,
-        geombuffered,
-        geombufferedgda,
         version,
         nodes,
         properties,
@@ -57,10 +42,20 @@ select id,
     observed,
     geom,
     transform(geom, 7855) as geomgda,
-    transform(geombufferedgda, 4326) as geombuffered,
-    geombufferedgda,
     version,
     nodes,
     properties,
     width
-from buffereddata;
+from data
+where true
+on conflict(id) do update set version = excluded.version
+      , observed = excluded.observed
+      , geom = excluded.geom
+    , geomgda = excluded.geomgda
+    , geombuffered = excluded.geombuffered
+    , geombufferedgda = excluded.geombufferedgda
+    , nodes = excluded.nodes
+    , properties = excluded.properties
+    , width = excluded.width
+    where ways.version <> excluded.version
+;

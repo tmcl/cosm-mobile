@@ -914,7 +914,7 @@ export default function Settings() {
             </RNE.ListItem.Content>
           }>
               {Object.keys(signTypes).map((k) => isValidValue(k) && <RNE.ListItem key={k} onPress={() => (setSignType(k), setSignTypesExpanded(false))} >
-                <RNE.Icon {...signTypeIcon[k]} style={{...signTypeIcon[k].style, width:"33"}}></RNE.Icon>
+                <RNE.Icon {...signTypeIcon[k]} style={{...signTypeIcon[k].style, width:33}}></RNE.Icon>
                 <RNE.ListItem.Content><RNE.ListItem.Title>{signTypes[k]}</RNE.ListItem.Title></RNE.ListItem.Content>
               </RNE.ListItem>)}
           </RNE.ListItem.Accordion>
@@ -927,7 +927,6 @@ export default function Settings() {
           {adequatelySpecifiedSignMessage}
           <Text>Welcome to the add sign view</Text>
           <Text>{JSON.stringify(searchParams)}</Text>
-          <Link href="/details" asChild><Pressable><Text>There's no details here, seriously.</Text></Pressable></Link>
         </VStack>
         <VStack className="v-half" >
           <MapLibreGL.MapView

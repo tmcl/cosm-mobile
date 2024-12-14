@@ -3791,6 +3791,11 @@ argparse@^2.0.1:
   resolved "https://registry.yarnpkg.com/argparse/-/argparse-2.0.1.tgz#246f50f3ca78a3240f6c997e8a9bd1eac49e4b38"
   integrity sha512-8+9WqebbFzpX9OR+Wa6O29asIogeRMzcGtAINdpMHHyAg10f05aSFVBbcEqGf/PXw1EjAZ+q2/bEBg3DvurK3Q==
 
+array-from-async@^3.0.0:
+  version "3.0.0"
+  resolved "https://registry.yarnpkg.com/array-from-async/-/array-from-async-3.0.0.tgz#4624d21ea472b188021c8593dc8fb3622efd6f9a"
+  integrity sha512-gV8/L4y2QB5JTXL9DMdtspGyed2M3V6nMnSN+nNg8ejyUlAAbKAjRS6pfWWINjU/MuFJFMGWPazHPor7hThXQw==
+
 array-union@^2.1.0:
   version "2.1.0"
   resolved "https://registry.yarnpkg.com/array-union/-/array-union-2.1.0.tgz#b798420adbeb1de828d84acd8a2e23d3efe85e8d"

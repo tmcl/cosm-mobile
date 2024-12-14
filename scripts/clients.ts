@@ -1,3 +1,4 @@
+const consoleLog: typeof console.log = () => {}
 export function getApi06Map(bbox?: Bbox, fetchFn?: (input: RequestInfo, init?: RequestInit) => Promise<Response>): Promise<OsmStandard & BoundedElements> {
   let options: RequestInit = {
     credentials: "same-origin" as RequestCredentials,
@@ -30,18 +31,18 @@ export async function getApi06MapText(bbox?: Bbox, fetchFn?: (input: RequestInfo
   bbox && (params.bbox = toQueryParamBbox(bbox));
 
 	let url = `https://openstreetmap.org/api/0.6/map` + "?" + new URLSearchParams(params).toString()
-		console.log(url, "query url")
+		consoleLog(url, "query url")
 	try {
 	const response = await (fetchFn || window.fetch)(url, options)
 		if (response.status !== 200) {
 			const text = await response.text()
-			console.log({text, status: response.status}, "error")
+			consoleLog({text, status: response.status}, "error")
 			throw ({text, status: response.status});
 		} else {
 			return await response.text()
 		}
 	} catch (e) {
-		console.log(e, "error")
+		consoleLog(e, "error")
 		throw e
 	}
 }
