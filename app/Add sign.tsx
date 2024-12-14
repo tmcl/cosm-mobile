@@ -46,7 +46,6 @@ const ensureDirection = (directionStr: string|undefined): Direction|undefined =>
 
 type Direction = "forward" | "backward"
 type DirectionOrigin =  "inferred" | "specified_tag" | "specified_user"
-type DirectionSpecification  = { direction: Direction, origin: DirectionOrigin }
 
 type FeaturePayload = GeoJSON.Feature<
 GeoJSON.Point,
@@ -95,33 +94,6 @@ const selectableCircleLayerStyle: (nodeIds: string[]) => MapLibreGL.CircleLayerS
     circleRadius: 5,
     circlePitchAlignment: "map"
 })
-
-const circleLayerStyle: Record<string, MapLibreGL.CircleLayerStyle> = {
-  red: {
-    circleColor: "red",
-    circleOpacity: 1,
-    circleStrokeWidth: 2,
-    circleStrokeColor: "white",
-    circleRadius: 5,
-    circlePitchAlignment: "map",
-  },
-  gray: {
-    circleColor: "gray",
-    circleOpacity: 0.84,
-    circleStrokeWidth: 2,
-    circleStrokeColor: "white",
-    circleRadius: 5,
-    circlePitchAlignment: "map"
-  },
-  green: {
-    circleColor: "gray",
-    circleOpacity: 0.84,
-    circleStrokeWidth: 2,
-    circleStrokeColor: "white",
-    circleRadius: 5,
-    circlePitchAlignment: "map"
-  }
-}
 
 const signTypeIcon: Record<SignType, RNE.IconProps> = {
   "maxspeed,city_limit maxspeed=?? name=?! city_limit=begin": {name: "rectangle", color: "green"},
@@ -259,6 +231,7 @@ type AdequatelySpecifiedSign =
   | { sign: "stop" }
   | { sign: "maxspeed maxspeed=?!", maxspeed?: QualifiedSpeed }
   | { sign: "maxspeed,city_limit maxspeed=?? name=?! city_limit=begin", maxspeed?: QualifiedSpeed, name: string }
+  | { sign: "hazard hazard=?!", hazard: HazardType }
 
 type BasicAffectable = `next ${QualifiedDistance}` | "ahead" | "point to point" | "point to intersection" | "point" | "zone"
 type Affectable = BasicAffectable | `${BasicAffectable},${BasicAffectable}`
@@ -290,9 +263,12 @@ const signAffects = (adeq: AdequatelySpecifiedSign): Affectable => {
     case "maxspeed,city_limit maxspeed=?? name=?! city_limit=begin": {
       return "point to point,zone"
     }
+    case "hazard hazard=?!": {
+      return "point"
+    }
     default: {
       const never: never = sign
-      return never
+      throw never
     }
   }
 }
@@ -444,6 +420,7 @@ const Stop = (params: StandardSignFormType) => {
 }
 
 const Hazard = (params: StandardSignFormType) => {
+  const [expanded, setExpanded] = useState(false)
   const [hazardType, setHazardType] = useState<HazardType | undefined>(undefined)
   const hazardTypeLabel = hazardType && hazardTypes[hazardType]
 
@@ -453,27 +430,24 @@ const Hazard = (params: StandardSignFormType) => {
     onNewAdequatelySpecifiedSign({ sign: "stop" })
   }, [hazardType])
 
-  return <Text>Hazard presently disabled</Text>
-  /*
-  return <FormControl className="w-full">
-    <FormControlLabel><FormControlLabelText>Hazard</FormControlLabelText></FormControlLabel>
-    <Select className="w-full" initialLabel={hazardTypeLabel}
-      selectedValue={hazardType}
-      onValueChange={(value) => { (value === undefined || isValidHazardType(value)) && setHazardType(value) }} isDisabled={false} isFocused={true}>
-      <SelectTrigger variant="outline" size="md">
-        <SelectInput placeholder="Select hazard" />
-        <SelectIcon className="mr-3" as={ChevronDownIcon} />
-      </SelectTrigger>
-      <SelectPortal>
-        <SelectBackdrop />
-        <SelectContent>
-          {Object.keys(hazardTypes).map((k) => isValidHazardType(k) && <SelectItem key={k} label={hazardTypes[k]} value={k} />)}
-        </SelectContent>
-      </SelectPortal>
-    </Select>
+  const onUpdate = (key: HazardType) => () => {
+    setHazardType(key)
+    setExpanded(false)
+    params.onNewAdequatelySpecifiedSign && params.onNewAdequatelySpecifiedSign({sign: "hazard hazard=?!", hazard: key})
+  }
 
-  </FormControl>
-  */
+  return <RNE.ListItem.Accordion onPress={() => setExpanded(!expanded)} isExpanded={expanded} content={
+    <RNE.ListItem.Content>
+      <RNE.ListItem.Title>
+        <Text>{hazardTypeLabel}</Text>
+      </RNE.ListItem.Title>
+    </RNE.ListItem.Content>
+  }>
+    {Object.keys(hazardTypes).map((k) => isValidHazardType(k) && <RNE.ListItem key={k} onPress={onUpdate(k)} >
+      {/*<RNE.Icon {...signTypeIcon[k]} style={{...signTypeIcon[k].style, width:33}}></RNE.Icon>*/}
+      <RNE.ListItem.Content><RNE.ListItem.Title>{hazardTypes[k]}</RNE.ListItem.Title></RNE.ListItem.Content>
+    </RNE.ListItem>)}
+  </RNE.ListItem.Accordion>
 }
 
 const GiveWay = (params: StandardSignFormType) => {
@@ -547,7 +521,6 @@ const styles = StyleSheet.create({
 })
 
 export type WayId<T extends number|string = string> = T
-export type NodeId<T extends number|string> = T
 
 type TrafficSignArgsInternal = { "traffic_sign": string, point: string, possibly_affected_ways: string }
 export type TrafficSignArgs = { "traffic_sign": SignType, point: GeoJSON.Point, possibly_affected_ways: [WayId, GeoJSON.Point][] }
@@ -576,14 +549,17 @@ const wants = (adeq: AdequatelySpecifiedSign): { type: "way" | "node", tags: Rec
     case 'stop': return { type: "node", tags: { "highway": "stop" }, erroneous_alternatives: {"highway": "give_way"} }
     case 'maxspeed maxspeed=?!': return { type: "way", tags: adeq.maxspeed ? { "maxspeed": adeq.maxspeed } : {} }
     case 'maxspeed,city_limit maxspeed=?? name=?! city_limit=begin': return { type: "way", tags: adeq.maxspeed ? { "maxspeed": adeq.maxspeed } : {} }
+    case 'hazard hazard=?!':
+        return { type:"node", tags: {}}
     default:
       const never: never = adeq
-      return never
+      throw never
   }
 }
 
 
-export default function Settings() {
+// noinspection JSUnusedGlobalSymbols
+export default function AddSign() {
   const searchParams = depareSignArgs(useLocalSearchParams() as TrafficSignArgsInternal)
   const db = SQLite.useSQLiteContext()
 
@@ -597,16 +573,14 @@ export default function Settings() {
 
 
   const [signLocation, setSignLocation] = useState<GeoJSON.Position>(searchParams.point?.coordinates || [0, 0])
-  const [centrePoint, setCentrePoint] = useState<GeoJSON.Position>(searchParams.point?.coordinates || [0, 0])
-  console.log("centre point", centrePoint, searchParams, searchParams.point, typeof searchParams.point)
 
   const [signType, setSignType] = useState<SignType>('stop')
-  const initialLabel = signTypes[signType]
 
   const [affectedWays, setAffectedWays] = useState<[WayId, GeoJSON.Point, boolean][]>(searchParams.possibly_affected_ways?.map(([wayId, point]) => [wayId, point, false]) || [])
 
   const mapViewRef = useRef<MapLibreGL.MapViewRef>(null)
 
+  const centrePoint = searchParams.point?.coordinates || [0, 0]
   const mapStyle = mapstyle({ center: centrePoint, zoom: 16 })
 
   const [mapBounds, setMapBounds] = useState<GeoJSON.Feature<GeoJSON.Point, RegionPayload> | undefined>(undefined)
@@ -620,7 +594,6 @@ export default function Settings() {
   const waysSource = useRef<MapLibreGL.ShapeSourceRef>(null)
   const interestingNodesSource = useRef<MapLibreGL.ShapeSourceRef>(null)
   const nearestPointsSource = useRef<MapLibreGL.ShapeSourceRef>(null)
-  const signNodeSource = useRef<MapLibreGL.ShapeSourceRef>(null)
   const [adequatelySpecifiedSign, setAdequatelySpecifiedSign] = useState<AdequatelySpecifiedSign>({ sign: "stop" })
 
   useEffect(() => {
@@ -689,7 +662,7 @@ export default function Settings() {
   useEffect(() => {
     const affectableWays: WayId[] = []
     const actuallyAffectedWays: WayId[] = []
-    affectedWays.forEach(([wayId, node, isAffected]) => isAffected ? actuallyAffectedWays.push(wayId) : affectableWays.push(wayId))
+    affectedWays.forEach(([wayId, , isAffected]) => isAffected ? actuallyAffectedWays.push(wayId) : affectableWays.push(wayId))
     setActuallyAffectedWays(actuallyAffectedWays)
     setAffectableWays(affectableWays)
 
@@ -698,7 +671,7 @@ export default function Settings() {
   const [nearestPoints, setNearestPoints] = useState<Record<WayId<string>, NearestPoint>>({})
   useEffect( () => {
     const newNearestPoints = {...nearestPoints}
-    affectedWays.forEach(([wayId, node, isAffected]) => {
+    affectedWays.forEach(([wayId, , ]) => {
       if(newNearestPoints[wayId]) return
       const way = waysCentreline?.find(w => w.id === wayId)
       if(!way) return
@@ -854,7 +827,7 @@ export default function Settings() {
         default:
           const m: never = affected
           console.log("affected is never", m as string)
-          return false
+          throw m
       }
     }
   })()
@@ -890,10 +863,10 @@ export default function Settings() {
    })()
 
    const highwaymarker: undefined|Record<string, string> = (() => {
-    if(selectedNodes.length) return (console.log("there are selected nodes", selectedNodes), undefined)
-    if(!nearestPoint) return (console.log("there is no nearest point", nearestPoint), undefined)
+    if(selectedNodes.length) return
+    if(!nearestPoint) return
     const marker = wants(adequatelySpecifiedSign)
-    if(marker.type!=="node") return (console.log("marker tye is not node", marker), undefined)
+    if(marker.type!=="node") return
     return {... marker.tags, direction: direction}
 
    })()
