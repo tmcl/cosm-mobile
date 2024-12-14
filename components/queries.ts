@@ -278,7 +278,6 @@ export class MainPageQueries {
 	}
 }
 
-export const debug = function <T>(msg:string, t: T): T { console.log(msg, t); return t }
 export const zip = function <A, B>(aa: A[], bb: B[]): [A, B][] {
     const answer: [A, B][] = []
     for (let i = 0; i < aa.length; i++) {

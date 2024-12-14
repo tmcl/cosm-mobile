@@ -3,11 +3,10 @@ import * as Svg from 'react-native-svg'
 import * as OsmApi from "@/scripts/clients";
 import type { RegionPayload } from '@maplibre/maplibre-react-native/src/components/MapView';
 import MapLibreGL from '@maplibre/maplibre-react-native';
-import { Text, View, Pressable, StyleSheet, ViewProps } from "react-native";
-import { Link, useLocalSearchParams } from "expo-router";
+import { Text, View, StyleSheet, ViewProps } from "react-native";
+import { useLocalSearchParams } from "expo-router";
 import * as SQLite from 'expo-sqlite'
-import { ChevronDownIcon } from 'lucide-react-native';
-import { debug, EditPageQueries } from '@/components/queries';
+import { EditPageQueries } from '@/components/queries';
 import { OnPressEvent } from '@maplibre/maplibre-react-native/src/types/OnPressEvent';
 import * as turf from '@turf/turf'
 import * as RNE from '@rneui/themed'
@@ -531,7 +530,7 @@ function FormFor(params: { sign: SignType, onNewSignDetail?: (signDetails: Parti
     }
     default:
       const c: never = sign
-      return false
+      throw c
   }
 }
 
@@ -791,9 +790,9 @@ export default function Settings() {
        //const orientation = nodes?.filter(f => f.id == $node_id && (f.properties.tags || {})["direction"] == "backward").length ? 180 : 0
     const direction = (() => {
       const trueIx = ix
-      if (theoreticallyNearestPoint.properties.location === 0) return debug(trueIx.toString(), 'backward')
-      if (theoreticallyNearestPoint.properties.index  === way.geometry.coordinates.length - 1) return debug(JSON.stringify([trueIx, way.geometry.coordinates.length]), 'forward')
-      return debug(JSON.stringify([trueIx, way.geometry.coordinates.length, nearestIntersection.properties.featureIndex, wayIntersections[nearestIntersection.properties.featureIndex].properties.ix]), trueIx < wayIntersections[nearestIntersection.properties.featureIndex].properties.ix ? 'forward' : 'backward')
+      if (theoreticallyNearestPoint.properties.location === 0) return 'backward'
+      if (theoreticallyNearestPoint.properties.index  === way.geometry.coordinates.length - 1) return  'forward'
+      return trueIx < wayIntersections[nearestIntersection.properties.featureIndex].properties.ix ? 'forward' : 'backward'
     })()
     dispatchDirection({direction, type: "inferred"}) 
     console.log("orientation", direction, nearestIntersection.properties.featureIndex, wayIntersections[nearestIntersection.properties.featureIndex].properties.ix, ix)

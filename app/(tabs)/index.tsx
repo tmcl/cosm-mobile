@@ -12,7 +12,7 @@ import {useDrizzleStudio} from "expo-drizzle-studio-plugin"
 import {useAndroidLocationPermission} from '@/components/AndroidLocationPermission';
 import {OnPressEvent} from '@maplibre/maplibre-react-native/src/types/OnPressEvent';
 import {prepareSignArgs} from '../Add sign';
-import {debug, MemoryWorkerQueue, MainPageQueries as Queries, zip} from '@/components/queries';
+import {MainPageQueries as Queries, zip} from '@/components/queries';
 import type GeoJSON from "geojson";
 
 const consoleLog: typeof console.log = () => {}
@@ -31,7 +31,7 @@ const roadStrokesLayerStyle = (wayIds: string[]|null): MapLibreGL.LineLayerStyle
 })
 
 const roadcasingsLayerStyle = (wayIds: string[]|null): MapLibreGL.FillLayerStyle => ({
-	fillColor: debug("wayIds", wayIds) ? ["case", ["in", ["id"], ["literal", wayIds] ], "purple", "red"] : "red",
+	fillColor: wayIds ? ["case", ["in", ["id"], ["literal", wayIds] ], "purple", "red"] : "red",
 	fillOpacity: ["case", ["in", ["geometry-type"], ["literal", "Polygon"]], 0.48, 0]
 })
 
@@ -82,7 +82,6 @@ const styles = StyleSheet.create({
 
 type UpdateRoadCasingsProps = {
 	queries: MutableRefObject<Queries>
-	taskManager: MutableRefObject<MemoryWorkerQueue>
 	onNewCasings: () => void
 }
 const updateRoadCasings = (props: UpdateRoadCasingsProps, depth: number) => {
@@ -105,7 +104,6 @@ const updateRoadCasings = (props: UpdateRoadCasingsProps, depth: number) => {
 export default function MainPage() {
 	const db = SQLite.useSQLiteContext()
 	const queries = useRef(new Queries())
-	const taskManager = useRef(new MemoryWorkerQueue())
 	useDrizzleStudio(db)
 	useEffect(() => {
 		queries.current.setup(db)
@@ -115,7 +113,7 @@ export default function MainPage() {
 	const [currentClick, setCurrentClick] = useState<GeoJSON.Point|null>(null)
 
 	const onPress = (event: GeoJSON.Feature<GeoJSON.Point>) => {
-		const { geometry, properties } = event;
+		const { geometry } = event;
 		setCurrentClick(geometry)
 		setImageTags(null)
 	}
@@ -130,7 +128,7 @@ export default function MainPage() {
 		if(!roadCasings) return
 		const r: Record<string|number, number> = {}
 		roadCasings.features.forEach(f => f.id && (r[f.id] = (r[f.id] || 0)+1 ))
-		consoleLog(Object.entries(r).filter(([id, num]) => num > 1), "updated roadcasings")
+		consoleLog(Object.entries(r).filter(([, num]) => num > 1), "updated roadcasings")
 		setRoadcasingsx(roadCasings)
 	}
 
@@ -166,7 +164,7 @@ export default function MainPage() {
 					await waysInserted
 					await nodeWaysInserted
 					setNewData({})
-					updateRoadCasings({queries, taskManager, onNewCasings: () => setNewData({})}, 0)
+					updateRoadCasings({queries, onNewCasings: () => setNewData({})}, 0)
 				} else {
 					consoleLog('no insert')
 				}
@@ -237,16 +235,14 @@ export default function MainPage() {
 	const highwaystopSource = useRef<MapLibreGL.ShapeSourceRef>(null)
 	const pointsOnWayNearClickSource = useRef<MapLibreGL.ShapeSourceRef>(null)
 	const roadcasingsSource = useRef<MapLibreGL.ShapeSourceRef>(null)
-	const [isAndroidPermissionGranted, setAndroidPermissionGrantedx] = useState<boolean | null>(null);
-	const setAndroidPermissionGranted = (apg: typeof isAndroidPermissionGranted) => setAndroidPermissionGrantedx(debug("a p g", apg))
+	const [, setAndroidPermissionGranted] = useState<boolean | null>(null);
 	useAndroidLocationPermission(setAndroidPermissionGranted)
-	const [imageTags, setImageTagsx] = useState<{nsiId: number, nsiLatLon: [number, number], nsiBasicTags: {[ix: string]: string}}|null>(null)
+	const [imageTags, setImageTags] = useState<{nsiId: number, nsiLatLon: [number, number], nsiBasicTags: {[ix: string]: string}}|null>(null)
 	useEffect(() => {
 		(async () => {
 			if(!currentClick) { setNearbyWays(null); return }
 
 			const ways = await queries.current.doFindNearbyWays({"$lat": currentClick.coordinates[1], "$lon": currentClick.coordinates[0]})
-			console.log("these are the nearby ways", ways)
 			const wayIds = ways.map(w => w.id)
 			const nearestPoint = ways.map(w => JSON.parse(w.nearest)) as GeoJSON.Point[]
 			setNearbyWays(!!wayIds?.length ? wayIds : null)
@@ -255,7 +251,6 @@ export default function MainPage() {
 
 	}, [currentClick])
 	const fab = !!nearbyWays?.length || !!nearbyPoints?.length
-	const setImageTags = (it: typeof imageTags) => setImageTagsx(debug("image tags", it))
 	const onPressFeature = (e: OnPressEvent) => {
 		setImageTags({nsiId: e.features[0].properties?.id, nsiLatLon: [e.coordinates.latitude, e.coordinates.longitude], nsiBasicTags: e.features[0].properties?.tags})
 	}
@@ -307,7 +302,7 @@ export default function MainPage() {
 				>
 					<MapLibreGL.CircleLayer
 						id="points"
-						style={circleLayerStyle(imageTags ? debug("number", imageTags.nsiId) : undefined)}
+						style={circleLayerStyle(imageTags ? imageTags.nsiId : undefined)}
 					/>
 
 				</MapLibreGL.ShapeSource>}
