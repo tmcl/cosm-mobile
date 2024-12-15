@@ -3,11 +3,13 @@ import { Stack } from "expo-router";
 import * as SQLite from "expo-sqlite"
 import { Asset } from 'expo-asset';
 import React, {useState, useEffect, useRef} from 'react'
-import { MainContext, appState } from "@/components/MainContext";
 import * as Spatialite from "spatialite"
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import * as Themed from '@rneui/themed';
+import * as ReactQuery from '@tanstack/react-query'
+
+const queryClient = new ReactQuery.QueryClient()
 
 const activateDb = (db: SQLite.SQLiteDatabase) => {
   db.getFirstSync( ` pragma journal_mode=WAL `) 
@@ -50,7 +52,6 @@ const activateDb = (db: SQLite.SQLiteDatabase) => {
 		-- drop table if exists bounds;
 		create table if not exists bounds (
 		  observed datetime,
-		  geom blob,
 		  everything text,
 		  bounds text,
 		  minlon text,
@@ -74,32 +75,23 @@ const activateDb = (db: SQLite.SQLiteDatabase) => {
 		  id integer primary key not null,
 		  observed datetime,
 		  version integer,
-		  geom blob,
-		  geomgda blob,
-		  geombuffered blob,
-		  geombufferedgda blob,
 		  nodes blob,
 		  properties blob,
 		  width real
 		);
 		select AddGeometryColumn('ways', 'geom', 4326, 'LINESTRING');
 		select AddGeometryColumn('ways', 'geomgda', 7855, 'LINESTRING');
-		select AddGeometryColumn('ways', 'geombuffered', 4326, 'LINESTRING');
+		select AddGeometryColumn('ways', 'geombuffered', 4326, 'POLYGON');
+        select AddGeometryColumn('ways', 'geombufferedgda', 7855, 'POLYGON');
+		select CreateSpatialIndex('ways', 'geombuffered');
+		select CreateSpatialIndex('ways', 'geom');
 		`)
-	
-	const spatialite_info = db.getFirstSync(
-		`
-		select spatialite_version() as spatialite_version, proj_version() as proj_version, spatialite_target_cpu() as target_cpu;
-		`
-	) as {spatialite_version: string, proj_version: string, target_cpu: string}
 
   return projInterlinked
 }
 
 
 export default function RootLayout() {
-  const [state, updateState] = useState(appState)
-  
   useEffect(() => {
 	MapLibreGL.setAccessToken(null)
 	Themed.registerCustomIconType('font-awesome-6', FontAwesome6)
@@ -107,21 +99,21 @@ export default function RootLayout() {
 
   return (
 	<SafeAreaProvider>
-      <SQLite.SQLiteProvider databaseName="datbase" onInit={activateDb}>
-        <MainContext.Provider value={state}>
-          <Stack screenOptions={{
-                    headerStyle: {
-                backgroundColor: '#f4511e',
-              },
-              headerTintColor: '#fff',
-              headerTitleStyle: {
-                fontWeight: 'bold',
-              },
-          }}>
-            <Stack.Screen options={{headerShown: false}} name="(tabs)" />
-          </Stack>
-        </MainContext.Provider>
-      </SQLite.SQLiteProvider>
+        <ReactQuery.QueryClientProvider client={queryClient}>
+          <SQLite.SQLiteProvider databaseName="tism" onInit={activateDb}>
+              <Stack screenOptions={{
+                        headerStyle: {
+                    backgroundColor: '#f4511e',
+                  },
+                  headerTintColor: '#fff',
+                  headerTitleStyle: {
+                    fontWeight: 'bold',
+                  },
+              }}>
+                <Stack.Screen options={{headerShown: false}} name="(tabs)" />
+              </Stack>
+          </SQLite.SQLiteProvider>
+        </ReactQuery.QueryClientProvider>
 	</SafeAreaProvider>
   );
 }

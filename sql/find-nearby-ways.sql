@@ -8,4 +8,12 @@ select
 from ways
   join (select makepoint($lon, $lat, 4326) as llpoint) as point
 where dist < 5
+and rowid in (
+    select rowid
+    from SpatialIndex
+    where f_table_name = 'ways'
+    and f_geometry_column = 'geombuffered'
+    and search_frame = st_envelope(makeline(makepoint($minlon, $minlat, 4326), makepoint($maxlon, $maxlat, 4326)))
+
+    )
 limit 5

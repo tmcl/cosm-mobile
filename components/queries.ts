@@ -1,3 +1,4 @@
+import fromAsync from 'array-from-async';
 import * as SQLite from 'expo-sqlite'
 import type GeoJSON from "geojson";
 import * as OsmApi from "@/scripts/clients";
@@ -131,11 +132,9 @@ export class MainPageQueries {
 		this._knownBounds = theneededareas
 	}
 	public async doKnownBounds(args: { $minlon: number, $minlat: number, $maxlon: number, $maxlat: number }) {
-		return this._tracker.track({"known bounds": args}, async _ => {
-			const boundsQuer = await this._knownBounds!.executeAsync<{ difference: string }>(args)
-			const boundsStr = await boundsQuer.getFirstAsync()
-			return JSON.parse(boundsStr!.difference) as GeoJSON.Polygon
-		})
+		const boundsQuer = await this._knownBounds!.executeAsync<{ difference: string }>(args)
+		const boundsStr = await boundsQuer.getFirstAsync()
+		return JSON.parse(boundsStr!.difference) as GeoJSON.Polygon|null
 	}
 
 	// noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
@@ -208,7 +207,7 @@ export class MainPageQueries {
 	public doInsertWays(param: { $json: string }) {
 		const r1 = this._tracker.track("insert ways", async _ => this._insertWays!.executeAsync<never>(param))
 		const r2 = this._tracker.track("insert nodes ways", async _ => this._insertNodesWays!.executeAsync<never>(param))
-		return {waysInserted: r1, nodeWaysInserted: r2}
+		return fromAsync([r1, r2])
 	}
 
 	// noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
@@ -230,11 +229,15 @@ export class MainPageQueries {
 		this._findNearbyWays = thequery
 	}
 
-    public async doFindNearbyWays(args: {"$lat": number, "$lon": number}) {
-		return this._tracker.track({"find nearby ways": args}, async _ => {
-				const query = await this._findNearbyWays!.executeAsync<{dist: number, id: string, nearest: string}>(args)
-				return await query.getAllAsync()
+    public async doFindNearbyWays(args: {"$lat": number, "$lon": number, "$minlon": number, "$minlat": number, "$maxlon": number, "$maxlat": number}) {
+		const query = await this._findNearbyWays!.executeAsync<{dist: number, id: string, nearest: string}>(args)
+		const queryResult = await query.getAllAsync()
+		const result = {ways: new Array<string>(queryResult.length), nodes: new Array<GeoJSON.Point>(queryResult.length)}
+		queryResult.forEach((r, ix) => {
+			result.ways[ix] = r.id;
+			result.nodes[ix] = JSON.parse(r.nearest)
 		})
+		return result
     }
 
 	// noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is

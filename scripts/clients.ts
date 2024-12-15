@@ -39,7 +39,7 @@ export async function getApi06MapText(bbox?: Bbox, fetchFn?: (input: RequestInfo
     }
 }
 
-export function getApi06Capabilities(fetchFn?: (input: RequestInfo, init?: RequestInit) => Promise<Response>): Promise<OsmStandard & ApiCapabilities> {
+export function getApi06Capabilities(): Promise<OsmStandard & ApiCapabilities> {
   let options: RequestInit = {
     credentials: "same-origin" as RequestCredentials,
     method: "GET",
@@ -47,7 +47,7 @@ export function getApi06Capabilities(fetchFn?: (input: RequestInfo, init?: Reque
   };
   
   let params = {};
-  return (fetchFn || window.fetch)(`https://openstreetmap.org/api/0.6/capabilities` + "?" + new URLSearchParams(params).toString(), options).then((response) => {
+  return window.fetch(`https://openstreetmap.org/api/0.6/capabilities` + "?" + new URLSearchParams(params).toString(), options).then((response) => {
     return new Promise((resolve, reject) => {
       if (response.status !== 200) {
         return response.text().then((text) => reject({text, status: response.status}));
@@ -77,7 +77,7 @@ export function getApi06CapabilitiesText(fetchFn?: (input: RequestInfo, init?: R
   });
 }
 
-export function getApiVersions(fetchFn?: (input: RequestInfo, init?: RequestInit) => Promise<Response>): Promise<OsmStandard & JSONApiVersions> {
+export function getApiVersions(): Promise<OsmStandard & JSONApiVersions> {
   let options: RequestInit = {
     credentials: "same-origin" as RequestCredentials,
     method: "GET",
@@ -85,7 +85,7 @@ export function getApiVersions(fetchFn?: (input: RequestInfo, init?: RequestInit
   };
   
   let params = {};
-  return (fetchFn || window.fetch)(`https://openstreetmap.org/api/versions` + "?" + new URLSearchParams(params).toString(), options).then((response) => {
+  return window.fetch(`https://openstreetmap.org/api/versions` + "?" + new URLSearchParams(params).toString(), options).then((response) => {
     return new Promise((resolve, reject) => {
       if (response.status !== 200) {
         return response.text().then((text) => reject({text, status: response.status}));
