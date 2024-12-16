@@ -211,6 +211,7 @@ export default function MainPage() {
 	const qGetSignWays = ReactQuery.useQuery({
 		queryKey: ["spatialite query ways", ...Object.values(doublePaddedBounds)],
 		enabled: !!(doublePaddedBounds.$minlon || doublePaddedBounds.$minlat || doublePaddedBounds.$maxlon || doublePaddedBounds.$maxlat),
+		placeholderData: (d) => d,
 		queryFn: async (): Promise<GeoJSON.FeatureCollection<GeoJSON.Polygon|GeoJSON.LineString, OsmApi.IWay>|null> => {
 			const ways = await fromAsync(queries.current.doQueryWays(doublePaddedBounds))
 			return ways.length ? {type: "FeatureCollection", features: ways } : null
@@ -223,16 +224,42 @@ export default function MainPage() {
 
 	const mapView = useRef<{ o: MapLibreGL.MapViewRef | null }>({ o: null })
 
-	const qVersionList = ReactQuery.useQuery({ queryKey: ['osm query version'], queryFn: OsmApi.getApiVersions, staleTime: 7*24*60*60*1000 })
-	const qCapabalitiesList = ReactQuery.useQuery({
+	const qVersionList = ReactQuery.useQuery({
+		queryKey: ['osm query version'],
+		queryFn: OsmApi.getApiVersions,
+		staleTime: 7*24*60*60*1000,
+		placeholderData: (prev) => (prev || {api: {versions: ["0.6" as const]}})
+	})
+	const qCapabilitiesList = ReactQuery.useQuery({
 		queryKey: ['osm query capabilities', qVersionList.data],
 		enabled: qVersionList.isSuccess && qVersionList.data.api.versions.includes("0.6"),
 		queryFn: OsmApi.getApi06Capabilities,
-		staleTime: 7*24*60*60*1000
+		staleTime: 7*24*60*60*1000,
+		placeholderData: (prev) => (prev || {
+		  api: {
+			  version: {minimum: "0.6" as const, maximum: "0.6" as const},
+			  area: {maximum: 0.125},
+			  note_area: {maximum: 1},
+			  tracepoints: {per_page: 0},
+			  waynodes: {maximum: 100},
+			  relationmembers: {maximum: 100},
+			  changesets: {maximum_elements: 8, default_query_limit: 10, maximum_query_limit: 10},
+			  notes: {default_query_limit: 10, maximum_query_limit: 10},
+			  timeout: {seconds: 100},
+			  status: {
+				  database: "offline" as const,
+				  api: "offline" as const,
+				  gpx: "offline" as const,
+				}
+			},
+		  policy: {imagery: {blacklist: []}},
+		} )
 	})
+	queryStatuses.qVersionList = { query: qVersionList.status, fetch: qVersionList.fetchStatus }
+	queryStatuses.qCapabilitiesList = { query: qCapabilitiesList.status, fetch: qCapabilitiesList.fetchStatus }
 
 	const onMapBoundChange = (feature: GeoJSON.Feature<GeoJSON.Point, RegionPayload>) => {
-		const c = qCapabalitiesList.isSuccess && qCapabalitiesList.data.api.area.maximum
+		const c = qCapabilitiesList.isSuccess && qCapabilitiesList.data.api.area.maximum
 		if (!c) return;
 		consoleLog('observed map bounds change')
 		const [ne, sw] = feature.properties.visibleBounds
