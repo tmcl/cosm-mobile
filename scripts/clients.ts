@@ -189,11 +189,11 @@ export interface INotesCapabilities {
 }
 
 export interface IOsmStandard {
-  version: string | null;
-  generator: string | null;
-  copyright: string | null;
-  attribution: string | null;
-  license: string | null;
+  version?: string | null;
+  generator?: string | null;
+  copyright?: string | null;
+  attribution?: string | null;
+  license?: string | null;
 }
 
 export interface IPerPage<T> {

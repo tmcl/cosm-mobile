@@ -3,9 +3,12 @@ import * as SQLite from 'expo-sqlite'
 import type GeoJSON from "geojson";
 import * as OsmApi from "@/scripts/clients";
 import {SQLiteExecuteAsyncResult} from "expo-sqlite";
+import {WayId} from "@/app/Add sign";
+
+export type TargetNode = GeoJSON.Feature<GeoJSON.Point, { ways: string[] } & OsmApi.INode>
 
 export class EditPageQueries {
-	private _queryWays: SQLite.SQLiteStatement | undefined
+	private _queryWaysWithIntersections: SQLite.SQLiteStatement | undefined
 	private _findNearbyWays: SQLite.SQLiteStatement | undefined
 	private _findTargetNodes: SQLite.SQLiteStatement | undefined
 	private _findAnglePointsForWayPoint: SQLite.SQLiteStatement | undefined
@@ -33,18 +36,54 @@ export class EditPageQueries {
 		this._findTargetNodes = theQueryWays
 	}
 
-    public doFindTargetNodes(args: {$needle: Record<string, string>, $minlon: number, $minlat: number, $maxlon: number, $maxlat: number}) {
+    public async doFindTargetNodes(args: {$needle: Record<string, string>, $minlon: number, $minlat: number, $maxlon: number, $maxlat: number}) {
+		var x = "additional info: there is none"
+		try {
+		console.log("====================================================hunting nodes")
 		const argsModified = {...args, $needle: JSON.stringify(args.$needle), $needleLength: Object.keys(args.$needle).length}
-        return this._findTargetNodes!.executeAsync<never>(argsModified)
+        const r = await this._findTargetNodes!.executeAsync<{ geojson: string, ways: string }>(argsModified)
+		const r2 = await r.getAllAsync()
+		console.log("i found target nodes", r2, "target nodes gefunden habe ich")
+		return r2.map(geo => {
+			console.log("//////////////////////I would very much like to parse geo.geojson", geo.geojson)
+			x = geo.geojson
+				const r: TargetNode = JSON.parse(geo.geojson)
+				//const ways: (string | number)[] = JSON.parse(geo.ways)
+				console.log(r.properties, r, "something something")
+				//r.properties.ways = ways.map(w => w.toString())
+				return r
+			})
+		} catch (e) {
+			throw [e, x]
+		}
     }
 
-	public set queryWays(theQueryWays: SQLite.SQLiteStatement | undefined) {
-		this._queryWays?.finalizeAsync()
-		this._queryWays = theQueryWays
+	public set queryWaysWithIntersections(theQueryWays: SQLite.SQLiteStatement | undefined) {
+		this._queryWaysWithIntersections?.finalizeAsync()
+		this._queryWaysWithIntersections = theQueryWays
 	}
 
-    public doQueryWays(args: {$minlon: number, $minlat: number, $maxlon: number, $maxlat: number}) {
-        return this._queryWays!.executeAsync<never>(args)
+    public async doQueryWaysWithIntersections(args: {$minlon: number, $minlat: number, $maxlon: number, $maxlat: number}) {
+        const waysResult = await this._queryWaysWithIntersections!.executeAsync<{ length: number|null, geojson: string, centreline: string, other_ways: string }>(args)
+
+		const parsedCasings: GeoJSON.Feature<GeoJSON.Polygon, OsmApi.IWay>[] = []
+		const parsedCentrelines: GeoJSON.Feature<GeoJSON.LineString, OsmApi.IWay>[] = []
+		const parsedOthers: Record<WayId, IntersectingWayInfo> = {}
+
+		for await (const geo of waysResult) {
+			const casing: GeoJSON.Feature<GeoJSON.Polygon, OsmApi.IWay> = JSON.parse(geo.geojson)
+			const centreline: GeoJSON.Feature<GeoJSON.LineString, OsmApi.IWay> = JSON.parse(geo.centreline)
+			const other_ways = JSON.parse(geo.other_ways)
+			if(centreline.id) {
+				parsedOthers[centreline.id.toString()] = other_ways
+			}
+			console.log("parsed others", other_ways )
+			console.log("parsed length (m)", geo.length )
+			parsedCasings.push(casing)
+			parsedCentrelines.push(centreline)
+		}
+
+		return {parsedCasings, parsedCentrelines, parsedOthers}
     }
 
 	// noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
@@ -56,14 +95,14 @@ export class EditPageQueries {
 
 	async setup(db: SQLite.SQLiteDatabase) {
 			this.findNearbyWays = await db.prepareAsync( require('@/sql/find-nearby-ways.sql.json') )
-			this.queryWays = await db.prepareAsync( require('@/sql/query-ways-with-intersections.sql.json') )
+			this.queryWaysWithIntersections = await db.prepareAsync( require('@/sql/query-ways-with-intersections.sql.json') )
 			this.findTargetNodes = await db.prepareAsync( require('@/sql/find-target-elements.sql.json') )
 			this.findAnglePointsForWayPoint = await db.prepareAsync( require('@/sql/find-angle-points-for-way-point.sql.json') )
 	}
 
 	finalize() {
 		 this.findNearbyWays = undefined
-		 this.queryWays = undefined
+		 this.queryWaysWithIntersections = undefined
 		 this.findTargetNodes = undefined
 		 this.findAnglePointsForWayPoint = undefined
 	}
@@ -290,3 +329,18 @@ export const zip = function <A, B>(aa: A[], bb: B[]): [A, B][] {
     }
     return answer
 }
+
+export type Maybe<R> = {type: "nothing"}|{type: "just", just: R}
+export const mapMaybe = function <T, R>(tt: T[], f: (t: T) => Maybe<R>): R[] {
+	const answer: R[] = new Array(tt.length)
+	let i: number = 0
+	tt.forEach(t => {
+		const maybe = f(t)
+		if(maybe.type === "just") {
+			answer[i++] = maybe.just
+		}
+	})
+	answer.length = i
+	return answer
+}
+export type IntersectingWayInfo = {ix: number, node_tags: OsmApi.INode, others: WayId<number>, way_tags: OsmApi.IWay}[]

@@ -8,11 +8,11 @@ with
 select nodes.id, nodes.observed, nodes.version, 
     json_object(
         'type', 'Feature',
+        'id', cast(nodes.id as text),
         'geometry', json(asgeojson(geom)),
-        'properties', json(properties)
-    ) as geojson,
-    json_group_array(nodes_ways.way_id) as ways
-  from nodes 
+        'properties', json(jsonb_set(properties, '$.ways', jsonb_group_array(cast(nodes_ways.way_id as text))))
+    ) as geojson
+  from nodes
   join tagmatchingnodes on tagmatchingnodes.matchingrowid = nodes.rowid
   join nodes_ways on nodes.id = nodes_ways.node_id
   where st_EnvelopesIntersects(geom, $minlon, $minlat, $maxlon, $maxlat)
