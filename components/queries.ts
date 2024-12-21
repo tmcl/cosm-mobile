@@ -2,9 +2,12 @@ import fromAsync from 'array-from-async';
 import * as SQLite from 'expo-sqlite'
 import type GeoJSON from "geojson";
 import * as OsmApi from "@/scripts/clients";
-import {SQLiteExecuteAsyncResult} from "expo-sqlite";
 import {WayId} from "@/app/Add sign";
 import {InteractionManager} from "react-native";
+import * as ReactQuery from "@tanstack/react-query";
+import {useEffect, useRef} from "react";
+import {useDrizzleStudio} from "expo-drizzle-studio-plugin";
+import type {DefaultError} from "@tanstack/query-core";
 
 export type QueryWaysWithIntersections = {
 	parsedCasings: GeoJSON.Feature<GeoJSON.Polygon, OsmApi.IWay>[]
@@ -48,11 +51,12 @@ export class EditPageQueries {
 		this._findTargetNodes = theQueryWays
 	}
 
-    public async doFindTargetNodes(args: {$needle: Record<string, string>, $minlon: number, $minlat: number, $maxlon: number, $maxlat: number}) {
+    public async doFindTargetNodes(jsArgs: {$needle: Record<string, string>, minlon: number, minlat: number, maxlon: number, maxlat: number}) {
+		const {minlon, minlat, maxlon, maxlat} = jsArgs
 		var x = "additional info: there is none"
 		try {
 		console.log("====================================================hunting nodes")
-		const argsModified = {...args, $needle: JSON.stringify(args.$needle), $needleLength: Object.keys(args.$needle).length}
+		const argsModified = {$minlon: minlon, $minlat: minlat, $maxlat: maxlat, $maxlon: maxlon, $needle: JSON.stringify(jsArgs.$needle), $needleLength: Object.keys(jsArgs.$needle).length}
         const r = await this._findTargetNodes!.executeAsync<{ geojson: string, ways: string }>(argsModified)
 		const r2 = await r.getAllAsync()
 		console.log("i found target nodes", r2, "target nodes gefunden habe ich")
@@ -75,12 +79,12 @@ export class EditPageQueries {
 		this._queryWaysWithIntersections = complete
 	}
 
-    public async doQueryWaysWithIntersections(args: {$required_ids: WayId[], $minlon: number, $minlat: number, $maxlon: number, $maxlat: number}): Promise<QueryWaysWithIntersections> {
+    public async doQueryWaysWithIntersections(jsArgs: {$required_ids: WayId[], minlon: number, minlat: number, maxlon: number, maxlat: number}): Promise<QueryWaysWithIntersections> {
+		const {minlon, minlat, maxlon, maxlat} = jsArgs
 		const allAtOnce = async () => {
 			console.log("wanting to query aow")
 
-			const {$required_ids, ...envelope} = args
-			const serialArgs = {...envelope, $required_ids: JSON.stringify(args.$required_ids)}
+			const serialArgs = {$minlon: minlon, $minlat: minlat, $maxlat: maxlat, $maxlon: maxlon, $required_ids: JSON.stringify(jsArgs.$required_ids)}
 			const waysResult1 = await this._tracker.track("raw query", () => this._queryWaysWithIntersections!.executeAsync<{ length: number|null, geojson: string, centreline: string, other_ways: string, sameroad: string }>(serialArgs), true)
 			const waysResult = waysResult1.res
 			console.log("//////waysresult raw query", waysResult1.times)
@@ -155,6 +159,7 @@ class ThingyTracker {
 			this._trackees[i].state = "finished"
 			this._trackees[i].end = new Date().getTime()
 			this._trackees[i].seconds = (this._trackees[i].end - this._trackees[i].ts) / 1000
+			console.log(this._trackees[i])
 			if(withTimes) {
 				return {res: r, times: this._trackees[i]}
 			} else {
@@ -165,6 +170,7 @@ class ThingyTracker {
 			this._trackees[i].end = new Date().getTime()
 			this._trackees[i].seconds = (this._trackees[i].end - this._trackees[i].ts) / 1000
 			this._trackees[i].e = e
+			console.log(this._trackees[i])
 			throw e
 		}
 	}
@@ -221,8 +227,10 @@ export class MainPageQueries {
 		this._knownBounds?.finalizeAsync()
 		this._knownBounds = theneededareas
 	}
-	public async doKnownBounds(args: { $minlon: number, $minlat: number, $maxlon: number, $maxlat: number }) {
-		const boundsQuer = await this._knownBounds!.executeAsync<{ difference: string }>(args)
+	public async doKnownBounds(jsArgs: { minlon: number, minlat: number, maxlon: number, maxlat: number }) {
+		const {minlon, minlat, maxlon, maxlat} = jsArgs
+		const sqliteArgs = {$minlon: minlon, $minlat: minlat, $maxlat: maxlat, $maxlon: maxlon}
+		const boundsQuer = await this._knownBounds!.executeAsync<{ difference: string }>(sqliteArgs)
 		const boundsStr = await boundsQuer.getFirstAsync()
 		return JSON.parse(boundsStr!.difference) as GeoJSON.Polygon|null
 	}
@@ -234,8 +242,10 @@ export class MainPageQueries {
 		this._queryNodes = theQueryNodes
 	}
 
-	public async *doQueryNodes(args: {$minlon: number, $minlat: number, $maxlon: number, $maxlat: number}) {
-		const result = await this._queryNodes!.executeAsync<{ geojson: string }>(args)
+	public async *doQueryNodes(jsArgs: {minlon: number, minlat: number, maxlon: number, maxlat: number}) {
+		const {minlon, minlat, maxlon, maxlat} = jsArgs
+		const sqliteArgs = {$minlon: minlon, $minlat: minlat, $maxlat: maxlat, $maxlon: maxlon}
+		const result = await this._queryNodes!.executeAsync<{ geojson: string }>(sqliteArgs)
 		for await (const geojson of result) {
 			yield JSON.parse(geojson.geojson) as GeoJSON.Feature<GeoJSON.Point, OsmApi.INode>
 		}
@@ -246,8 +256,10 @@ export class MainPageQueries {
 		this._queryWays = theQueryWays
 	}
 
-    public async *doQueryWays(args: {$minlon: number, $minlat: number, $maxlon: number, $maxlat: number}) {
-		const result = this._queryWays!.executeSync<{ geojson: string }>(args)
+    public async *doQueryWays(jsArgs: {$limit: number, minlon: number, minlat: number, maxlon: number, maxlat: number}) {
+		const {minlon, minlat, maxlon, maxlat, ...others} = jsArgs
+		const sqliteArgs = {...others, $minlon: minlon, $minlat: minlat, $maxlat: maxlat, $maxlon: maxlon}
+		const result = this._queryWays!.executeSync<{ geojson: string }>(sqliteArgs)
 		for await (const geojson of result) {
 			yield JSON.parse(geojson.geojson) as GeoJSON.Feature<GeoJSON.Polygon|GeoJSON.LineString, OsmApi.IWay>
 		}
@@ -270,7 +282,7 @@ export class MainPageQueries {
 		const loop = async (changes: number, resolver: (val: number) => void) => {
 			const currentQuery = this._insertRelatedWays
 			const queryResult = await this._tracker.track("insert related ways", () => currentQuery!.executeAsync<never>())
-			console.log("queryResult.changes", queryResult.changes)
+			console.log("irw queryResult.changes", queryResult.changes)
 			if (queryResult.changes) {
 				InteractionManager.runAfterInteractions(() => loop(changes + queryResult.changes, resolver))
 			} else {
@@ -287,28 +299,12 @@ export class MainPageQueries {
 	public get addCasingToWays(): never { throw "use the do function" }
 	public set addCasingToWays(thequery: SQLite.SQLiteStatement | undefined) {
 		this._addCasingsToWays?.finalizeAsync()
-		if(thequery) {
-			const settlers = this.todoAddCasings
-			this.todoAddCasings = []
-			settlers.forEach(s => s(thequery))
-		}
-
 		this._addCasingsToWays = thequery
 	}
 
-	private todoAddCasings: ((value: SQLite.SQLiteStatement) => void)[] = []
 
 	public doAddCasingToWays() {
-		const currentQuery = this._addCasingsToWays
-		if(currentQuery) {
-			return currentQuery.executeAsync<never>()
-		} else {
-			const settler = (resolve: (value: SQLiteExecuteAsyncResult<never>) => void, reject: (reason?: any) => void) =>
-				{
-					this.todoAddCasings.push(theQuery => theQuery.executeAsync<never>().then(resolve, reject) )
-				}
-			return new Promise<SQLiteExecuteAsyncResult<never>>( settler )
-		}
+		return this._addCasingsToWays!.executeAsync<never>()
 	}
 
 	// noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
@@ -330,7 +326,7 @@ export class MainPageQueries {
 		this._insertNodes = theinsertNodes
 	}
 	public doInsertNodes(param: { $json: string }) {
-		return this._tracker.track({"insertNodes": param}, async _ => {
+		return this._tracker.track("insertNodes", async _ => {
 			return this._insertNodes!.executeAsync<never>(param)
 		})
 	}
@@ -342,9 +338,11 @@ export class MainPageQueries {
 		this._findNearbyWays = thequery
 	}
 
-    public async doFindNearbyWays(args: {"$lat": number, "$lon": number, "$minlon": number, "$minlat": number, "$maxlon": number, "$maxlat": number}) {
-		const query = await this._findNearbyWays!.executeAsync<{dist: number, id: string, nearest: string}>(args)
-		const queryResult = await query.getAllAsync()
+    public async doFindNearbyWays(jsArgs: {"$lat": number, "$lon": number, "minlon": number, "minlat": number, "maxlon": number, "maxlat": number}): Promise<FoundNearbyWays> {
+		const {minlon, minlat, maxlon, maxlat, ...corrected} = jsArgs
+		const sqliteArgs = {...corrected, $minlon: minlon, $minlat: minlat, $maxlat: maxlat, $maxlon: maxlon}
+		const query = await this._tracker.track("exec find nearby ways", () => this._findNearbyWays!.executeAsync<{dist: number, id: string, nearest: string}>(sqliteArgs))
+		const queryResult = await this._tracker.track("exec getall nearby ways", () => query.getAllAsync())
 		const result = {ways: new Array<string>(queryResult.length), nodes: new Array<GeoJSON.Point>(queryResult.length)}
 		queryResult.forEach((r, ix) => {
 			result.ways[ix] = r.id;
@@ -360,10 +358,9 @@ export class MainPageQueries {
 		this._insertBounds = theinsertBounds
 	}
 
-    public async doInsertBounds(args: {$json: string, $requestedBounds: [number, number, number, number]}) {
-		const [minlon, minlat, maxlon, maxlat] = args.$requestedBounds
-		const param = {$json: JSON.stringify({bounds: {minlon, minlat, maxlon, maxlat}})}
-		return this._tracker.track({"insert bounds": args}, async _ => {
+    public async doInsertBounds(args: {$json: string, $requestedBounds: JsonBBox}) {
+		const param = {$json: JSON.stringify({bounds: args.$requestedBounds})}
+		return this._tracker.track("insert bounds", async _ => {
 			return await this._insertBounds!.executeAsync<never>(param)
 		})
     }
@@ -420,33 +417,90 @@ export const mapMaybe = function <T, R>(tt: T[], f: (t: T) => Maybe<R>): R[] {
 	return answer
 }
 
-export type SqliteBBox = { $minlon: number, $minlat: number, $maxlat: number, $maxlon : number}
 export type JsonBBox = { minlon: number, minlat: number, maxlat: number, maxlon : number}
-export type GeojsonBBox = [ number, number, number, number] | [ number, number, number, number, number, number]
 
 export type IntersectingWayInfo = {ix: number, node_tags: OsmApi.INode, others: WayId<number>, way_tags: OsmApi.IWay}[]
-export function doublePad (bbox: GeojsonBBox): GeojsonBBox
 export function doublePad (bbox: JsonBBox): JsonBBox
-export function doublePad (bbox: SqliteBBox): SqliteBBox
-export function doublePad <T extends GeojsonBBox|JsonBBox|SqliteBBox>
-  (args: T): T {
-	function doDoublePad({minlon, minlat, maxlon, maxlat}: JsonBBox) {
-		const $minlon = minlon - (maxlon - minlon)
-		const $maxlon = maxlon + (maxlon - minlon)
-		const $minlat = minlat - (maxlat - minlat)
-		const $maxlat = maxlat + (maxlat - minlat)
-		return {$minlon, $minlat, $maxlon, $maxlat}
-	}
-	if (args instanceof Array) {
-		const [minlon, minlat, maxlon, maxlat] = args
-		const {$minlon, $minlat, $maxlon, $maxlat} = doDoublePad({minlon, minlat, maxlon, maxlat})
-		return [$minlon, $minlat, $maxlon, $maxlat] as T
-	} else if ("$minlon" in args) {
-		const {$minlon: minlon, $minlat: minlat, $maxlon: maxlon, $maxlat: maxlat} = args
-		return doDoublePad({minlon, minlat, maxlon, maxlat}) as T
-	} else {
-		const {$minlon: minlon, $minlat: minlat, $maxlon: maxlon, $maxlat: maxlat} = doDoublePad(args)
-		return {minlon, minlat, maxlon, maxlat} as T
-	}
+export function doublePad({minlon, minlat, maxlon, maxlat}: JsonBBox): JsonBBox {
+		minlon = minlon - (maxlon - minlon)
+		maxlon = maxlon + (maxlon - minlon)
+		minlat = minlat - (maxlat - minlat)
+		maxlat = maxlat + (maxlat - minlat)
+		return {minlon, minlat, maxlon, maxlat}
 }
 
+export type StandardQuery<T, TError, TResult, W extends ReactQuery.QueryKey> = Parameters<typeof ReactQuery.useQuery<T, TError, TResult, W>>
+export type QueryState<TError, TResult> =
+ 	 {status: 'error', fetchStatus: 'fetching'|'paused'|'idle', data: TResult|undefined, error: TError}
+   | {status: 'pending', fetchStatus: 'fetching'|'paused'|'idle', data: TResult|undefined, error: TError|null}
+   | {status: 'success', fetchStatus: 'fetching'|'paused'|'idle', data: TResult, error: TError|null}
+export const initialQueryState = <TError, TResult>(): QueryState<TError, TResult> => ({status: 'pending', fetchStatus: 'idle', data: undefined, error: null})
+export type QueryDispatcher<TError, TResult> = (args: QueryState<TError, TResult>) => void
+export const useDispatchingQuery =
+	function <TError, TResult, W extends ReactQuery.QueryKey>(
+		dispatcher: QueryDispatcher<TError, TResult>,
+		...args: StandardQuery<TResult, TError, TResult, W>) {
+		const query = ReactQuery.useQuery(...args)
+		useEffect(() => {
+			// noinspection JSUnreachableSwitchBranches webstorm overenthusiastic?
+			switch (query.status) {
+				case "error":
+					return dispatcher({status: query.status, fetchStatus: query.fetchStatus, data: query.data, error: query.error})
+				case "success":
+					return dispatcher({status: query.status, fetchStatus: query.fetchStatus, data: query.data, error: query.error})
+				case "pending":
+					return dispatcher({status: query.status, fetchStatus: query.fetchStatus, data: query.data, error: query.error})
+				default:
+					const c: never = query
+			}
+		}, [query.status, query.fetchStatus, query.data])
+	}
+
+export type MutationState<TError, TResult> =
+	{status: 'error',  data: TResult|undefined, error: TError}
+	| {status: 'idle',  data: TResult|undefined, error: TError|null}
+	| {status: 'pending',  data: TResult|undefined, error: TError|null}
+	| {status: 'success',  data: TResult, error: TError|null}
+export const initialMutationState = <TError, TResult>(): MutationState<TError, TResult> => ({status: 'idle', data: undefined, error: null})
+export type StandardMutation<
+	TData = unknown,
+	TError = DefaultError,
+	TVariables = void,
+	TContext = unknown,
+> =	Parameters<typeof ReactQuery.useMutation<TData, TError, TVariables, TContext>>
+export type MutationDispatcher<TError, TResult> = (args: MutationState<TError, TResult>) => void
+export const useDispatchingMutation =
+	function<TData, TError, TVariables = void, TContext = unknown>(dispatcher: MutationDispatcher<TError, TData>, ...args: StandardMutation<TData, TError, TVariables, TContext>) {
+		const mutation = ReactQuery.useMutation(...args)
+		useEffect(() => {
+			// noinspection JSUnreachableSwitchBranches webstorm overenthusiastic?
+			switch (mutation.status) {
+				case "idle":
+					return dispatcher({status: mutation.status, data: mutation.data, error: mutation.error})
+				case "error":
+					return dispatcher({status: mutation.status, data: mutation.data, error: mutation.error})
+				case "success":
+					return dispatcher({status: mutation.status, data: mutation.data, error: mutation.error})
+				case "pending":
+					return dispatcher({status: mutation.status, data: mutation.data, error: mutation.error})
+				default:
+					const c: never = mutation
+			}
+		}, [mutation.status, mutation.data])
+		return mutation
+	}
+
+export const useMainPageQueries = () => {
+	const db = SQLite.useSQLiteContext()
+	const queries = useRef(new MainPageQueries())
+	useDrizzleStudio(db)
+	useEffect(() => {
+		queries.current.setup(db)
+		return () => queries.current.finalize()
+	}, [db])
+	return queries
+}
+export type FoundNearbyWays = {ways: WayId[], nodes: GeoJSON.Point[]}
+
+
+export const debug = (a: any, b: any) => { console.log(a, b); return b}

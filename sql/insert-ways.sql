@@ -16,7 +16,9 @@ with data as (
             t.value->'tags'->>'lanes' * 3.5,
             case
                 when t.value->'tags'->>'highway' = 'footway' then 2
+                when t.value->'tags'->>'highway' = 'cycleway' then case when coalesce(t.value->'tags'->>'oneway', 'no') = 'no' then 3 else 2 end
                 when t.value->'tags'->>'highway' = 'service' then 3.5
+                when t.value->'tags'->>'highway' = 'path' then 3
                 when coalesce(t.value->'tags'->>'oneway', 'no') = 'no' then 7
                 else 3.5
             end

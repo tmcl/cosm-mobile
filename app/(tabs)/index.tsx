@@ -1,20 +1,27 @@
 import fromAsync from 'array-from-async';
-import React, {useEffect, useRef, useState} from 'react'
+import React, {useEffect, useReducer, useRef} from 'react'
 import {FAB} from '@rneui/themed'
-import {Text, View, Pressable, StyleSheet } from "react-native";
-import {Image} from 'expo-image'
-import {Link, router} from "expo-router";
+import {InteractionManager, StyleSheet, Text, View} from "react-native";
+import {router} from "expo-router";
 import MapLibreGL from '@maplibre/maplibre-react-native';
 import type {RegionPayload} from '@maplibre/maplibre-react-native/src/components/MapView';
-import * as SQLite from 'expo-sqlite'
 import * as OsmApi from "@/scripts/clients";
-import {useDrizzleStudio} from "expo-drizzle-studio-plugin"
 import {useAndroidLocationPermission} from '@/components/AndroidLocationPermission';
-import {OnPressEvent} from '@maplibre/maplibre-react-native/src/types/OnPressEvent';
 import {prepareSignArgs} from '../Add sign';
-import {MainPageQueries as Queries, zip, doublePad} from '@/components/queries';
+import {
+	doublePad,
+	FoundNearbyWays, initialMutationState,
+	initialQueryState,
+	JsonBBox, MutationState,
+	QueryState, useDispatchingMutation,
+	useDispatchingQuery,
+	useMainPageQueries,
+	zip
+} from '@/components/queries';
 import type GeoJSON from "geojson";
-import * as ReactQuery from '@tanstack/react-query'
+import {skipToken, useQueryClient} from '@tanstack/react-query'
+
+const MAX_FEATURES_QUERY = 3000
 
 const consoleLog: typeof console.log = () => {}
 
@@ -25,7 +32,7 @@ const roadStrokesLayerStyle = (wayIds: string[]|null): MapLibreGL.LineLayerStyle
 
 const roadcasingsLayerStyle = (wayIds: string[]|null): MapLibreGL.FillLayerStyle => ({
 	fillColor: wayIds ? ["case", ["in", ["id"], ["literal", wayIds] ], "purple", "red"] : "red",
-	fillOpacity: ["case", ["in", ["geometry-type"], ["literal", "Polygon"]], 0.48, 0]
+	fillOpacity: ["case", ["in", ["geometry-type"], ["literal", "Polygon"]], 0.98, 0]
 })
 
 const pointsOnWayNearClickLayerStyle: MapLibreGL.CircleLayerStyle = ({
@@ -73,91 +80,333 @@ const styles = StyleSheet.create({
 	},
 });
 
-// noinspection JSUnusedGlobalSymbols default export is automatically included by expo-router
-export default function MainPage() {
-	const db = SQLite.useSQLiteContext()
-	const queries = useRef(new Queries())
-	const queryClient = ReactQuery.useQueryClient()
-	useDrizzleStudio(db)
-	useEffect(() => {
-		queries.current.setup(db)
-		return () => queries.current.finalize()
-	}, [db])
+type State = {
+	initialSetup: boolean,
+	zoom: number
+	tappedLocation: GeoJSON.Point|null
+	visibleBounds: {minlat: number, minlon: number, maxlat: number, maxlon: number}|undefined
+	queries: {
+		queryNodes: QueryState<unknown, GeoJSON.FeatureCollection<GeoJSON.Point, OsmApi.INode> | null>
+		queryWays: QueryState<unknown, GeoJSON.FeatureCollection<GeoJSON.Polygon|GeoJSON.LineString, OsmApi.IWay>|null>
+		nearbyWays: QueryState<unknown, FoundNearbyWays>
+		osmCapabilities: QueryState<unknown, OsmApi.IApiCapabilities>
+		osmVersions: QueryState<unknown, OsmApi.IJSONApiVersions>
+		osmMap: QueryState<unknown, { $json: string; $requestedBounds: {minlat: number, minlon: number, maxlat: number, maxlon: number}; }>
+		unknownBounds: QueryState<unknown, {minlat: number, minlon: number, maxlat: number, maxlon: number}|null>
+		insertBounds: MutationState<unknown, void>
+		insertNodes: MutationState<unknown, boolean>
+		insertWays: MutationState<unknown, boolean>
+		insertRelatedWays: MutationState<unknown, boolean>
+		updateCasings: MutationState<unknown, number>
+	}
+}
 
-	const [currentClick, setCurrentClick] = useState<GeoJSON.Point|null>(null)
-	const queryStatuses: Record<string, {query: ReactQuery.QueryStatus, fetch: ReactQuery.FetchStatus} | {mutate: ReactQuery.MutationStatus}> = {}
+const initialState: State = {
+	initialSetup: true,
+	tappedLocation: null,
+	visibleBounds: undefined,
+	zoom: 14,
+	queries: {
+		queryNodes: initialQueryState(),
+		queryWays: initialQueryState(),
+		nearbyWays: initialQueryState(),
+		unknownBounds: initialQueryState(),
+		osmCapabilities: initialQueryState(),
+		osmMap: initialQueryState(),
+		osmVersions: initialQueryState(),
+		insertBounds: initialMutationState(),
+		insertNodes: initialMutationState(),
+		insertWays: initialMutationState(),
+		insertRelatedWays: initialMutationState(),
+		updateCasings: initialMutationState(),
+	}
+}
 
-	const onPress = (event: GeoJSON.Feature<GeoJSON.Point>) => {
-		const { geometry } = event;
-		setCurrentClick(geometry)
-		setImageTags(null)
+type SetInitialSetup = { action: "post initial setup" }
+type SetZoom = { action: "set zoom", zoom: number }
+type TapLocation = { action: "tap location", tappedLocation: GeoJSON.Point|null }
+type SetVisibleBounds = { action: "set visible bounds", visibleBounds: JsonBBox }
+type SetQuery<Query extends keyof State['queries']> = {action: "set query", query: Query, queryState: State['queries'][Query] }
+
+type Action = TapLocation
+	| SetVisibleBounds
+	| SetZoom
+	| SetInitialSetup
+	| SetQuery<"unknownBounds">
+	| SetQuery<"osmCapabilities">
+	| SetQuery<"nearbyWays">
+	| SetQuery<"osmMap">
+	| SetQuery<"queryNodes">
+	| SetQuery<"queryWays">
+	| SetQuery<"osmVersions">
+	| SetQuery<"insertBounds">
+	| SetQuery<"insertNodes">
+	| SetQuery<"insertWays">
+	| SetQuery<"insertRelatedWays">
+	| SetQuery<"updateCasings">
+
+const reducer = (state: State, action: Action): State => {
+	switch (action.action) {
+		case "post initial setup": {
+		   return  state.initialSetup ? {...state, initialSetup: false } : state
+		}
+		case "set zoom": {
+			console.log(action)
+			return state.zoom === action.zoom ? state : {...state, zoom: action.zoom}
+		}
+		case "tap location": {
+			return {...state, tappedLocation: action.tappedLocation }
+		}
+		case "set visible bounds": {
+			if (!state.visibleBounds
+				|| state.visibleBounds.minlat !== action.visibleBounds.minlat
+				|| state.visibleBounds.minlon !== action.visibleBounds.minlon
+				|| state.visibleBounds.maxlat !== action.visibleBounds.maxlat
+				|| state.visibleBounds.maxlon !== action.visibleBounds.maxlon
+			) {
+				return {...state, visibleBounds: action.visibleBounds}
+			} else {
+				return state
+			}
+		}
+		case "set query": {
+			// noinspection FallThroughInSwitchStatementJS
+			switch (action.query) {
+				case "queryWays":
+					if(state.zoom < 20 && action.queryState.status === "success" && action.queryState.fetchStatus == "idle" && action.queryState.data?.features.length === MAX_FEATURES_QUERY) {
+						console.log("because max features", action.queryState.data?.features.length, "zooming", state.zoom+1)
+						return {...state, zoom: Math.floor(state.zoom)+1, queries: {...state.queries, [action.query]: action.queryState }}
+					}
+				default:
+					return {...state, queries: {...state.queries, [action.query]: action.queryState }}
+			}
+		}
+	}
+}
+
+function buildStatusString(queries: Record<string, MutationState<unknown, unknown>|QueryState<unknown, unknown>>) {
+	const buildStatusStr = (m: MutationState<unknown, unknown>|QueryState<unknown, unknown>) => {
+		if ("fetchStatus" in m) {
+			switch (m.status) {
+				case "success":
+					switch (m.fetchStatus) {
+						case "idle":
+							return "S"
+						case "paused":
+							return "5"
+						case "fetching":
+							return "s"
+						default:
+							return "0"
+					}
+				case "error":
+					switch (m.fetchStatus) {
+						case "idle":
+							return "E"
+						case "paused":
+							return "3"
+						case "fetching":
+							return "e"
+						default:
+							return "1"
+					}
+				case "pending":
+					switch (m.fetchStatus) {
+						case "idle":
+							return "P"
+						case "paused":
+							return "B"
+						case "fetching":
+							return "p"
+						default:
+							return "1"
+					}
+			}
+		} else {
+			switch (m.status) {
+				case "idle":
+					return "_"
+				case "error":
+					return "E"
+				case "pending":
+					return "P"
+				case "success" :
+					return "S"
+			}
+		}
 	}
 
-	const [mapArea, setMapArea] = useState<[number, number] | "unknown" | "unloaded">("unknown")
+	return Object.entries(queries)
+		.sort(([k1, ] , [k2,]) => k1.localeCompare(k2))
+		.map(([k, m]) => k[0] + k.split('').filter(k => /[A-Z]/.test(k)).join('') + buildStatusStr(m))
+		.join(" ")
+}
 
-	const [visibleBounds, setVisibleBounds] = useState<GeoJSON.BBox>([0, 0, 0, 0])
+// noinspection JSUnusedGlobalSymbols default export is automatically included by expo-router
+export default function MainPage() {
+	/* standard/project effects */
+	useAndroidLocationPermission(() => {})
+	const queryClient = useQueryClient()
+	const queries = useMainPageQueries()
+	const [state, xdispatch] = useReducer(reducer, initialState)
+	const dispatch = (a: Action) => { console.log("action", a.action, "query" in a && a.query); return xdispatch(a) }
+	const highwaystopSource = useRef<MapLibreGL.ShapeSourceRef>(null)
+	const pointsOnWayNearClickSource = useRef<MapLibreGL.ShapeSourceRef>(null)
+	const roadcasingsSource = useRef<MapLibreGL.ShapeSourceRef>(null)
+	const mapView = useRef<MapLibreGL.MapViewRef|null>(null)
 
-	const qNearbyWays = ReactQuery.useQuery({
-		queryKey: ["spatialite", "nearby ways", ...(currentClick ? Object.values(currentClick) : [])],
-		enabled: !!currentClick,
-		queryFn: currentClick ? (() => queries.current.doFindNearbyWays({"$lat": currentClick.coordinates[1], "$lon": currentClick.coordinates[0], ...doublePaddedBounds})) : undefined
-	})
-	queryStatuses.qNearbyWays = {query: qNearbyWays.status, fetch: qNearbyWays.fetchStatus}
-	const nearbyWays: string[]|null = currentClick && qNearbyWays.data && qNearbyWays.data.ways.length && qNearbyWays.data.ways || null
-	const nearbyPoints: GeoJSON.Point[]|null = currentClick && qNearbyWays.data && qNearbyWays.data.nodes.length && qNearbyWays.data.nodes || null
-	const pointsOnWayNearClick: GeoJSON.FeatureCollection<GeoJSON.Geometry, {}>|undefined = currentClick && nearbyPoints && nearbyPoints.length ? {
+	/* simple synonoms */
+	const visibleBounds = state.visibleBounds;
+	const doublePaddedBounds = visibleBounds && doublePad(visibleBounds)
+
+	const qNearbyWays = state.queries.nearbyWays
+	const tappedLocation1 = state.tappedLocation;
+	const nearbyWays: string[]|null = tappedLocation1 && qNearbyWays.data && qNearbyWays.data.ways.length && qNearbyWays.data.ways || null
+	const nearbyPoints: GeoJSON.Point[]|null = tappedLocation1 && qNearbyWays.data && qNearbyWays.data.nodes.length && qNearbyWays.data.nodes || null
+	const pointsOnWayNearClick: GeoJSON.FeatureCollection<GeoJSON.Geometry, {}>|undefined = tappedLocation1 && nearbyPoints && nearbyPoints.length ? {
 		type: "FeatureCollection",
 		features: nearbyPoints.map(geometry => ({type:"Feature", properties:{}, geometry}))
 	} : undefined
 
-	const [$minlon, $minlat, $maxlon, $maxlat] = visibleBounds
-	console.log("visibleBounds", {$minlon, $minlat, $maxlon, $maxlat})
-	const qUnkownBoundsEnabled = (() => {
-		if (typeof mapArea === "string") return false
-		const [deg, capability] = mapArea
-		return (deg * 10 <= capability) && !!($minlon || $minlat || $maxlon || $maxlat)
-	})()
-	const qUnknownBounds = (() => {
-		return ReactQuery.useQuery({
-			queryKey: ["spatialite known bounds", $minlon, $minlat, $maxlon, $maxlat],
-			enabled: qUnkownBoundsEnabled,
-			queryFn: () => queries.current.doKnownBounds({$minlon, $minlat, $maxlon, $maxlat})
-		})
-	})()
-	queryStatuses.qUnknownBounds = { query: qUnknownBounds.status, fetch: qUnknownBounds.fetchStatus }
+	const mapArea = visibleBounds ? (visibleBounds.maxlon - visibleBounds.minlon) * (visibleBounds.maxlat - visibleBounds.minlat) : undefined
+	const capability = state.queries.osmCapabilities.data?.api.area.maximum
+	const osmMapArgs: JsonBBox|undefined = state.queries.unknownBounds.data || visibleBounds
+	const symbols = state.queries.queryNodes.data || null
+	const roadcasings = state.queries.queryWays.data || null
 
-	const qOsmMap = (() => {
-		const [minlon, minlat, maxlon, maxlat] = qUnknownBounds.data ? qUnknownBounds.data.bbox! : [$minlon, $minlat, $maxlon, $maxlat]
-		return ReactQuery.useQuery<{ $json: string; $requestedBounds: [number, number, number, number]; }>({
-			queryKey: ["osm map", minlon, minlat, maxlon, maxlat],
-			enabled: qUnknownBounds.isSuccess && !!qUnknownBounds.data?.coordinates.length ,
-			queryFn: async () => ({$json: await OsmApi.getApi06MapText({minlon, minlat, maxlon, maxlat}), $requestedBounds: [minlon, minlat, maxlon, maxlat]})
-		})
-	})()
-	queryStatuses.qOsmMap = { query: qOsmMap.status, fetch: qOsmMap.fetchStatus }
+	const fab = !!nearbyWays?.length || !!nearbyPoints?.length
+	const possiblyAffectedWays: [string, GeoJSON.Point][] = zip(nearbyWays || [], nearbyPoints || [])
+	const statusString = buildStatusString(state.queries)
 
-	const qInsertBounds = ReactQuery.useMutation({
-		mutationFn: (args: {$json: string, $requestedBounds: [number, number, number, number]}) => queries.current.doInsertBounds(args),
+
+	/* queries */
+	useDispatchingQuery(
+		(queryState: QueryState<unknown, FoundNearbyWays>) => dispatch({action: "set query", query: "nearbyWays", queryState}),
+		{
+			queryKey: ["spatialite", "nearby ways", tappedLocation1],
+			// refetchOnMount: false,
+			// refetchOnWindowFocus: false,
+			// refetchOnReconnect: false,
+			// refetchInterval: 1000*1000*1000,
+			enabled: !!tappedLocation1 ,
+			queryFn: tappedLocation1 && doublePaddedBounds ? (() => queries.current.doFindNearbyWays({"$lat": tappedLocation1.coordinates[1], "$lon": tappedLocation1.coordinates[0], ...doublePaddedBounds})) : undefined
+		})
+
+	useDispatchingQuery(
+		(queryState: QueryState<unknown, JsonBBox|null>) => dispatch({action: "set query", query: "unknownBounds", queryState}),
+		{
+			queryKey: ["spatialite known bounds", visibleBounds],
+			enabled: !!mapArea && !!capability && !!visibleBounds && (mapArea * 10 <= capability),
+			queryFn: visibleBounds ? async () => {
+				const result = (await queries.current.doKnownBounds(visibleBounds))
+				if (result && result.bbox) {
+					const [minlon, minlat, maxlon, maxlat] = result.bbox
+					return {minlon, minlat, maxlon, maxlat}
+				} else {
+					return null
+				}
+			}: skipToken
+		})
+
+	useDispatchingQuery(
+		(queryState: QueryState<unknown, { $json: string; $requestedBounds: JsonBBox ; }>) => {
+			const sha = queryState.data ? sha256(bytesToBase64(JSON.stringify(queryState.data))) : undefined
+			console.log("***set query osmMap", queryState.status, queryState.fetchStatus, sha)
+			dispatch({action: "set query", query: "osmMap", queryState})
+		}
+		,
+		{
+		queryKey: ["osm map", osmMapArgs],
+		enabled: state.queries.unknownBounds.status === 'success' && !!state.queries.unknownBounds.data && !!osmMapArgs,
+		queryFn: osmMapArgs ? (async () => ({$json: await OsmApi.getApi06MapText(osmMapArgs), $requestedBounds: osmMapArgs})): undefined
+	})
+
+	useDispatchingQuery(
+		(queryState: QueryState<unknown, GeoJSON.FeatureCollection<GeoJSON.Point, OsmApi.INode> | null>) => dispatch({action: "set query", query: "queryNodes", queryState})
+		, {
+			queryKey: ["spatialite query nodes", (doublePaddedBounds || {})],
+			enabled: !!doublePaddedBounds,
+			queryFn: doublePaddedBounds && (async ():Promise<GeoJSON.FeatureCollection<GeoJSON.Point, OsmApi.INode> | null> => {
+				const nodes = await fromAsync(queries.current.doQueryNodes(doublePaddedBounds))
+				return nodes.length ? {type: "FeatureCollection", features: nodes} : null
+			})
+		})
+
+	useDispatchingQuery(
+		(queryState: QueryState<unknown, GeoJSON.FeatureCollection<GeoJSON.Polygon|GeoJSON.LineString, OsmApi.IWay>|null>) => dispatch({action: "set query", query: "queryWays", queryState}),
+		{
+			queryKey: ["spatialite query ways", (doublePaddedBounds || {})],
+			enabled: !!doublePaddedBounds,
+			placeholderData: (d) => d,
+			queryFn: doublePaddedBounds && (async (): Promise<GeoJSON.FeatureCollection<GeoJSON.Polygon|GeoJSON.LineString, OsmApi.IWay>|null> => {
+				const ways = await fromAsync(queries.current.doQueryWays({... doublePaddedBounds, $limit: MAX_FEATURES_QUERY}))
+				return ways.length ? {type: "FeatureCollection", features: ways } : null
+			})
+		})
+	useDispatchingQuery(
+		(queryState: QueryState<unknown, OsmApi.IJSONApiVersions>) => dispatch({action: "set query", query: "osmVersions", queryState}),
+		{
+			queryKey: ['osm query version'],
+			queryFn: OsmApi.getApiVersions,
+			staleTime: 7*24*60*60*1000,
+			placeholderData: (prev) => (prev || {api: {versions: ["0.6" as const]}})
+		})
+
+	useDispatchingQuery(
+		(queryState: QueryState<unknown, OsmApi.IApiCapabilities>) => dispatch({action: "set query", query: "osmCapabilities", queryState}),
+		{
+			queryKey: ['osm query capabilities', state.queries.osmVersions.data],
+			enabled: state.queries.osmVersions.status === 'success' && state.queries.osmVersions.data.api.versions.includes("0.6"),
+			queryFn: OsmApi.getApi06Capabilities,
+			staleTime: 7*24*60*60*1000,
+			placeholderData: (prev) => (prev || {
+				api: {
+					version: {minimum: "0.6" as const, maximum: "0.6" as const},
+					area: {maximum: 0.125},
+					note_area: {maximum: 1},
+					tracepoints: {per_page: 0},
+					waynodes: {maximum: 100},
+					relationmembers: {maximum: 100},
+					changesets: {maximum_elements: 8, default_query_limit: 10, maximum_query_limit: 10},
+					notes: {default_query_limit: 10, maximum_query_limit: 10},
+					timeout: {seconds: 100},
+					status: {
+						database: "offline" as const,
+						api: "offline" as const,
+						gpx: "offline" as const,
+					}
+				},
+				policy: {imagery: {blacklist: []}},
+			} )
+		})
+
+	/* mutations */
+	const qInsertBounds = useDispatchingMutation(
+		(queryState: MutationState<unknown, void>) => dispatch({action: "set query", query: "insertBounds", queryState}),
+		{
+		mutationFn: async (args: {$json: string, $requestedBounds: JsonBBox}) => { await queries.current.doInsertBounds(args) },
 		onSuccess: (data, variables, ) => {
-			queryClient.invalidateQueries({queryKey: ["spatialite known bounds", ...variables.$requestedBounds]})
+			queryClient.invalidateQueries({queryKey: ["spatialite known bounds", variables.$requestedBounds]})
 		}
 	})
-	queryStatuses.qInsertBounds = { mutate: qInsertBounds.status }
 
-	const qInsertNodes = ReactQuery.useMutation({
-		mutationFn: (param: { $json: string }) => queries.current.doInsertNodes(param),
-		onSuccess: (data ) => {
-			if(data.changes) {
+	const qInsertNodes = useDispatchingMutation(
+		(queryState: MutationState<unknown, boolean>) => dispatch({action: "set query", query: "insertNodes", queryState}),
+		{
+		mutationFn: async (param: { $json: string }) => (await queries.current.doInsertNodes(param)).changes > 0,
+		onSuccess: (changes ) => {
+			if(changes) {
 				queryClient.invalidateQueries({queryKey: ["spatialite query nodes"]})
 			}
 		}
 	})
-	queryStatuses.qInsertNodes = { mutate: qInsertNodes.status }
 
-	const qInsertWays = ReactQuery.useMutation({
-		mutationFn: (param: { $json: string }) => queries.current.doInsertWays(param),
+	const qInsertWays = useDispatchingMutation(
+		(queryState: MutationState<unknown, boolean>) => dispatch({action: "set query", query: "insertWays", queryState}),
+		{
+		mutationFn: async (param: { $json: string }) => (await queries.current.doInsertWays(param)).filter(d => d.changes).length > 0,
 		onSuccess: (data) => {
-			if(data.filter(d => d.changes).length) {
+			if(data) {
 				queryClient.invalidateQueries({queryKey: ["spatialite query ways"]})
 				queryClient.invalidateQueries({queryKey: ["spatialite", "nearby ways"]})
 				qUpdateCasings.mutate()
@@ -165,10 +414,11 @@ export default function MainPage() {
 			}
 		}
 	})
-	queryStatuses.qInsertWays = { mutate: qInsertWays.status }
 
-	const qInsertRelatedWays = ReactQuery.useMutation({
-		mutationFn: () => queries.current.doInsertRelatedWays(),
+	const qInsertRelatedWays = useDispatchingMutation(
+		(queryState: MutationState<unknown, boolean>) => dispatch({action: "set query", query: "insertRelatedWays", queryState}),
+		{
+		mutationFn: async () => (await queries.current.doInsertRelatedWays()) > 0,
 		onSuccess: (data) => {
 			if(data) {
 				queryClient.invalidateQueries({queryKey: ["spatialite query ways"]})
@@ -176,196 +426,77 @@ export default function MainPage() {
 			}
 		}
 	})
-	queryStatuses.qInsertRelatedWays = { mutate: qInsertRelatedWays.status }
 
+	const qUpdateCasings = useDispatchingMutation(
+		(queryState: MutationState<unknown, number>) => dispatch({action: "set query", query: "updateCasings", queryState}),
+		{
+		mutationFn: async () => (await queries.current.doAddCasingToWays()).changes,
+		onSuccess: (data) => {
+			console.log("we have updated some casings: ", data)
+			if(data) {
+				queryClient.invalidateQueries({queryKey: ["spatialite query ways"]})
+				queryClient.invalidateQueries({queryKey: ["spatialite", "nearby ways"]})
+				InteractionManager.runAfterInteractions(() => qUpdateCasings.mutate())
+			}
+		}
+	})
+
+	/* autotrigger mutations based on data state changes */
 	useEffect(() => {
 		if(!queries.current.insertRelatedWays) return
 		qInsertRelatedWays.mutate()
 	}, [queries.current.insertRelatedWays])
 
-	const qUpdateCasings = ReactQuery.useMutation({
-		mutationFn: () => queries.current.doAddCasingToWays(),
-		onSuccess: (data) => {
-			if(data.changes) {
-				queryClient.invalidateQueries({queryKey: ["spatialite query ways"]})
-				queryClient.invalidateQueries({queryKey: ["spatialite", "nearby ways"]})
-				setTimeout(() => qUpdateCasings.mutate(), 1)
-			}
-		}
-	})
-	queryStatuses.qUpdateCasings = { mutate: qUpdateCasings.status }
-
-
 	useEffect(() => {
-		if(!qOsmMap.isSuccess) return
-		qInsertBounds.mutate(qOsmMap.data)
-		qInsertNodes.mutate(qOsmMap.data)
-		qInsertWays.mutate(qOsmMap.data)
-	}, [qOsmMap.isSuccess, qOsmMap.data?.$json])
+		console.log("considering running the osm map trigger", state.queries.osmMap.status, state.queries.osmMap.data && sha256(bytesToBase64(JSON.stringify(state.queries.osmMap.data))))
+		if(state.queries.osmMap.status !== 'success') return console.log("i won't run it because", state.queries.osmMap.status)
+	 	const data = state.queries.osmMap.data
+	 	if (!data) return console.log("i won't run it because no data")
+		console.log("no i'm going ot run it")
+	 	qInsertBounds.mutate(data)
+	 	qInsertNodes.mutate(data)
+	 	qInsertWays.mutate(data)
+	}, [state.queries.osmMap.status, state.queries.osmMap.data])
 
-	const doublePaddedBounds = (() => {
-		const [$minlon, $minlat, $maxlon, $maxlat] = doublePad(visibleBounds)
-		return {$minlon, $minlat, $maxlon, $maxlat}
-	})()
-
-	const qGetSignNodes = ReactQuery.useQuery({
-		queryKey: ["spatialite query nodes", ...Object.values(doublePaddedBounds)],
-		enabled: !!(doublePaddedBounds.$minlon || doublePaddedBounds.$minlat || doublePaddedBounds.$maxlon || doublePaddedBounds.$maxlat),
-		queryFn: async ():Promise<GeoJSON.FeatureCollection<GeoJSON.Point, OsmApi.INode> | null> => {
-			const nodes = await fromAsync(queries.current.doQueryNodes(doublePaddedBounds))
-			return nodes.length ? {type: "FeatureCollection", features: nodes} : null
-		}
-	})
-	queryStatuses.qGetSignNodes = { query: qGetSignNodes.status, fetch: qGetSignNodes.fetchStatus }
-
-	const qGetSignWays = ReactQuery.useQuery({
-		queryKey: ["spatialite query ways", ...Object.values(doublePaddedBounds)],
-		enabled: !!(doublePaddedBounds.$minlon || doublePaddedBounds.$minlat || doublePaddedBounds.$maxlon || doublePaddedBounds.$maxlat),
-		placeholderData: (d) => d,
-		queryFn: async (): Promise<GeoJSON.FeatureCollection<GeoJSON.Polygon|GeoJSON.LineString, OsmApi.IWay>|null> => {
-			const ways = await fromAsync(queries.current.doQueryWays(doublePaddedBounds))
-			return ways.length ? {type: "FeatureCollection", features: ways } : null
-		}
-	})
-	queryStatuses.qGetSignWays = { query: qGetSignWays.status, fetch: qGetSignWays.fetchStatus }
-
-	const symbols = qGetSignNodes.data || null
-	const roadcasings = qGetSignWays.data || null
-
-	const mapView = useRef<{ o: MapLibreGL.MapViewRef | null }>({ o: null })
-
-	const qVersionList = ReactQuery.useQuery({
-		queryKey: ['osm query version'],
-		queryFn: OsmApi.getApiVersions,
-		staleTime: 7*24*60*60*1000,
-		placeholderData: (prev) => (prev || {api: {versions: ["0.6" as const]}})
-	})
-	const qCapabilitiesList = ReactQuery.useQuery({
-		queryKey: ['osm query capabilities', qVersionList.data],
-		enabled: qVersionList.isSuccess && qVersionList.data.api.versions.includes("0.6"),
-		queryFn: OsmApi.getApi06Capabilities,
-		staleTime: 7*24*60*60*1000,
-		placeholderData: (prev) => (prev || {
-		  api: {
-			  version: {minimum: "0.6" as const, maximum: "0.6" as const},
-			  area: {maximum: 0.125},
-			  note_area: {maximum: 1},
-			  tracepoints: {per_page: 0},
-			  waynodes: {maximum: 100},
-			  relationmembers: {maximum: 100},
-			  changesets: {maximum_elements: 8, default_query_limit: 10, maximum_query_limit: 10},
-			  notes: {default_query_limit: 10, maximum_query_limit: 10},
-			  timeout: {seconds: 100},
-			  status: {
-				  database: "offline" as const,
-				  api: "offline" as const,
-				  gpx: "offline" as const,
-				}
-			},
-		  policy: {imagery: {blacklist: []}},
-		} )
-	})
-	queryStatuses.qVersionList = { query: qVersionList.status, fetch: qVersionList.fetchStatus }
-	queryStatuses.qCapabilitiesList = { query: qCapabilitiesList.status, fetch: qCapabilitiesList.fetchStatus }
+	/* callbacks */
+	const setTappedLocation = (tappedLocation: GeoJSON.Point|null) => dispatch({ action: "tap location", tappedLocation})
+	const onPress = (event: GeoJSON.Feature<GeoJSON.Point>) => setTappedLocation(event.geometry)
+	const onPressCancelCurrentClick = () => { setTappedLocation(null) }
 
 	const onMapBoundChange = (feature: GeoJSON.Feature<GeoJSON.Point, RegionPayload>) => {
-		const c = qCapabilitiesList.isSuccess && qCapabilitiesList.data.api.area.maximum
-		if (!c) return;
-		consoleLog('observed map bounds change')
+		console.log('+++++++++++++++observed map bounds change', feature)
 		const [ne, sw] = feature.properties.visibleBounds
-		const $maxlon = ne[0]
-		const $maxlat = ne[1]
-		const $minlon = sw[0]
-		const $minlat = sw[1]
-		let needsUpdate = true
-		if(visibleBounds) {
-			const [minlon, minlat, maxlon, maxlat] = visibleBounds
-			needsUpdate = !(minlon == $minlon && minlat == $minlat && maxlon == $maxlon && maxlat == $maxlat)
+		const maxlon = ne[0]
+		const maxlat = ne[1]
+		const minlon = sw[0]
+		const minlat = sw[1]
+		dispatch({ action: "set visible bounds", visibleBounds: {minlon, minlat, maxlon, maxlat}})
+		if(feature.properties.zoomLevel !== 14 || feature.properties.isUserInteraction || !state.initialSetup) // repeated setting of zoom level at initiation
+		{
+			console.log("setting becaues ....", feature.properties.zoomLevel, feature.properties.isUserInteraction, state.initialSetup)
+			dispatch({action: "set zoom", zoom: feature.properties.zoomLevel})
+		} else {
+			console.log("not setting becaues ....", feature.properties.zoomLevel, feature.properties.isUserInteraction, state.initialSetup)
 		}
-
-		if (needsUpdate) setVisibleBounds([$minlon, $minlat, $maxlon, $maxlat])
-		const ew = ne[0] - sw[0]
-		const ns = ne[1] - sw[1]
-		const deg = ns * ew
-		if (typeof mapArea != "string" && mapArea[0] == deg)
-			return;
-		setMapArea([deg, c])
 	}
 
-
-	const onPressCancelCurrentClick = () => { setCurrentClick(null) }
-	const highwaystopSource = useRef<MapLibreGL.ShapeSourceRef>(null)
-	const pointsOnWayNearClickSource = useRef<MapLibreGL.ShapeSourceRef>(null)
-	const roadcasingsSource = useRef<MapLibreGL.ShapeSourceRef>(null)
-	const [, setAndroidPermissionGranted] = useState<boolean | null>(null);
-	useAndroidLocationPermission(setAndroidPermissionGranted)
-	const [imageTags, setImageTags] = useState<{nsiId: number, nsiLatLon: [number, number], nsiBasicTags: {[ix: string]: string}}|null>(null)
-
-	const fab = !!nearbyWays?.length || !!nearbyPoints?.length
-	const onPressFeature = (e: OnPressEvent) => {
-		setImageTags({nsiId: e.features[0].properties?.id, nsiLatLon: [e.coordinates.latitude, e.coordinates.longitude], nsiBasicTags: e.features[0].properties?.tags})
-	}
-	const imgUrl = imageTags && "https://trafficsigns.tmcl.dev/sign/from-json.png?" + new URLSearchParams({tags: JSON.stringify(imageTags)}).toString()
-	const [imgbody, setimgbody] = useState<string|null>(null)
-	useEffect( () => {
-		(async () => { 
-			if (!imgUrl) { setimgbody(null); return }
-			const result = await fetch(imgUrl, {headers: {Accept: "image/png"}})
-			if (!result.ok) return
-			const body = new Blob([await result.blob()], {type: "image/png"})
-			imgbody && URL.revokeObjectURL(imgbody)
-			const bodytxt = URL.createObjectURL(body)
-			setimgbody(bodytxt)
-		})()
-	}, [imgUrl])
-	const possiblyAffectedWays: [string, GeoJSON.Point][] = zip(nearbyWays || [], nearbyPoints || [])
-	const buildStatusStr = (m: typeof queryStatuses[keyof typeof queryStatuses]) => {
-			if ("mutate" in m) {
-				switch (m.mutate) {
-					case "idle": return "_"
-					case "error": return "E"
-					case "pending": return "P"
-					case "success" : return "S"
-				}
-			} else {
-				switch (m.query) {
-					case "success":
-						switch (m.fetch) {
-							case "idle": return "S"
-							case "paused": return "5"
-							case "fetching": return "s"
-							default: return "0"
-						}
-					case "error":
-						switch (m.fetch) {
-							case "idle": return "E"
-							case "paused": return "3"
-							case "fetching": return "e"
-							default: return "1"
-						}
-					case "pending":
-						switch (m.fetch) {
-							case "idle": return "P"
-							case "paused": return "B"
-							case "fetching": return "p"
-							default: return "1"
-						}
-				}
+	useEffect(
+		() => {
+			if (state.initialSetup) {
+				setTimeout(() => dispatch({ action: "post initial setup" }), 5_000)
 			}
-		}
-	const statusString = Object.entries(queryStatuses)
-		.map(([k, m]) => k.split('').filter(k => /[A-Z]/.test(k)).join('') + buildStatusStr(m))
-		.join(" ")
+		},
+		[]
+	)
+
 	return (
 		<View
 			style={styles.page}
 		>
-			{imgbody && <Image contentFit='contain' style={{position: "absolute", zIndex: 1, top: 10, left: 150, width: 100, height: 100}} source={{uri: imgbody, width:100 , height:100 }} /> }
-			{imgUrl && <Link href={imgUrl as any} asChild><Pressable><Text>View details</Text></Pressable></Link> }
 			<Text>{statusString}</Text>
 			<MapLibreGL.MapView
 				onRegionDidChange={onMapBoundChange}
-				ref={(r) => { mapView.current.o = r }}
+				ref={mapView}
 				style={styles.map}
 				logoEnabled={false}
 				styleURL="https://tiles.openfreemap.org/styles/liberty"
@@ -387,11 +518,10 @@ export default function MainPage() {
 					id="highwaystop"
 					shape={symbols}
 					ref={highwaystopSource}
-					onPress={onPressFeature}
 				>
 					<MapLibreGL.CircleLayer
 						id="points"
-						style={circleLayerStyle(imageTags ? imageTags.nsiId : undefined)}
+						style={circleLayerStyle(undefined)}
 					/>
 
 				</MapLibreGL.ShapeSource>}
@@ -411,15 +541,15 @@ export default function MainPage() {
 
 				</MapLibreGL.ShapeSource>}
 				<MapLibreGL.Camera
-					zoomLevel={16}
+					zoomLevel={state.zoom}
 					followUserMode={MapLibreGL.UserTrackingMode.Follow}
 					followUserLocation
 				/>
 
 			</MapLibreGL.MapView>
 			<FAB
-				visible={fab && !!currentClick}
-				onPress={() => currentClick && router.navigate("../Add sign?" + prepareSignArgs({traffic_sign: 'hazard hazard=?!', possibly_affected_ways: possiblyAffectedWays, point: currentClick}).toString() as any)}
+				visible={fab && !!tappedLocation1}
+				onPress={() => tappedLocation1 && router.navigate("../Add sign?" + prepareSignArgs({traffic_sign: 'hazard hazard=?!', possibly_affected_ways: possiblyAffectedWays, point: tappedLocation1}).toString() as any)}
 				placement="right"
 				title="Add Sign"
 				icon={{ name: 'diamond-turn-right', type: 'font-awesome-6', color: 'white' }}
@@ -427,4 +557,111 @@ export default function MainPage() {
 			/>
 		</View>
 	);
+}
+
+const sha256h: {h: number[]|undefined, k:number[]|undefined} = { h: undefined, k: undefined }
+const sha256: ((ascii: string) => string|undefined) = function sha256(ascii: string): string {
+    function rightRotate(value: number, amount: number) {
+        return (value>>>amount) | (value<<(32 - amount));
+    };
+
+    var mathPow = Math.pow;
+    var maxWord = mathPow(2, 32);
+    const lengthProperty = 'length'
+    var i, j; // Used as a counter across the whole file
+    var result = ''
+
+    var words: number[] = [];
+    var asciiBitLength = ascii[lengthProperty]*8;
+
+    /* caching results is optional - remove/add slash from front of this line to toggle
+    // Initial hash value: first 32 bits of the fractional parts of the square roots of the first 8 primes
+    // (we actually calculate the first 64, but extra values are just ignored)
+    var hash: number[] = sha256h.h = sha256h.h || [];
+    // Round constants: first 32 bits of the fractional parts of the cube roots of the first 64 primes
+    var k: number[] = sha256h.k = sha256h.k || [];
+    var primeCounter = k[lengthProperty];
+    /*/
+    var hash: number[] = [], k: number[] = [];
+    var primeCounter = 0;
+    //*/
+
+    var isComposite: Record<number, number> = {};
+    for (var candidate = 2; primeCounter < 64; candidate++) {
+        if (!isComposite[candidate]) {
+            for (i = 0; i < 313; i += candidate) {
+                isComposite[i] = candidate;
+            }
+            hash[primeCounter] = (mathPow(candidate, .5)*maxWord)|0;
+            k[primeCounter++] = (mathPow(candidate, 1/3)*maxWord)|0;
+        }
+    }
+
+    ascii += '\x80' // Append Ƈ' bit (plus zero padding)
+    while (ascii[lengthProperty]%64 - 56) ascii += '\x00' // More zero padding
+    for (i = 0; i < ascii[lengthProperty]; i++) {
+        j = ascii.charCodeAt(i);
+        if (j>>8) throw ["character out of range", i, j]; // ASCII check: only accept characters in range 0-255
+        words[i>>2] |= j << ((3 - i)%4)*8;
+    }
+    words[words[lengthProperty]] = ((asciiBitLength/maxWord)|0);
+    words[words[lengthProperty]] = (asciiBitLength)
+
+    // process each chunk
+    for (j = 0; j < words[lengthProperty];) {
+        var w = words.slice(j, j += 16); // The message is expanded into 64 words as part of the iteration
+        var oldHash = hash;
+        // This is now the undefinedworking hash", often labelled as variables a...g
+        // (we have to truncate as well, otherwise extra entries at the end accumulate
+        hash = hash.slice(0, 8);
+
+        for (i = 0; i < 64; i++) {
+            var i2 = i + j;
+            // Expand the message into 64 words
+            // Used below if
+            var w15 = w[i - 15], w2 = w[i - 2];
+
+            // Iterate
+            var a = hash[0], e = hash[4];
+            var temp1 = hash[7]
+                + (rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25)) // S1
+                + ((e&hash[5])^((~e)&hash[6])) // ch
+                + k[i]
+                // Expand the message schedule if needed
+                + (w[i] = (i < 16) ? w[i] : (
+                        w[i - 16]
+                        + (rightRotate(w15, 7) ^ rightRotate(w15, 18) ^ (w15>>>3)) // s0
+                        + w[i - 7]
+                        + (rightRotate(w2, 17) ^ rightRotate(w2, 19) ^ (w2>>>10)) // s1
+                    )|0
+                );
+            // This is only used once, so *could* be moved below, but it only saves 4 bytes and makes things unreadble
+            var temp2 = (rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22)) // S0
+                + ((a&hash[1])^(a&hash[2])^(hash[1]&hash[2])); // maj
+
+            hash = [(temp1 + temp2)|0].concat(hash); // We don't bother trimming off the extra ones, they're harmless as long as we're truncating when we do the slice()
+            hash[4] = (hash[4] + temp1)|0;
+        }
+
+        for (i = 0; i < 8; i++) {
+            hash[i] = (hash[i] + oldHash[i])|0;
+        }
+    }
+
+    for (i = 0; i < 8; i++) {
+        for (j = 3; j + 1; j--) {
+            var b = (hash[i]>>(j*8))&255;
+            result += ((b < 16) ? 0 : '') + b.toString(16);
+        }
+    }
+	console.log("hash result")
+    return result;
+};
+
+function bytesToBase64(str: string) {
+	const bytes = new TextEncoder().encode(str)
+  const binString = Array.from(bytes, (byte) =>
+    String.fromCodePoint(byte),
+  ).join("");
+  return btoa(binString);
 }

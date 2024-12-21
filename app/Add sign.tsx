@@ -10,29 +10,16 @@ import * as SQLite from 'expo-sqlite'
 import {
   doublePad,
   EditPageQueries,
-  IntersectingWayInfo,
+  IntersectingWayInfo, JsonBBox,
   mapMaybe,
-  Maybe,
-  QueryWaysWithIntersections, SqliteBBox,
-  TargetNode
+  Maybe, QueryDispatcher, QueryState,
+  QueryWaysWithIntersections,
+  TargetNode, useDispatchingQuery
 } from '@/components/queries';
 import {detailedMapStyle} from '@/constants/DetailedMapStyle'
 import {OnPressEvent} from '@maplibre/maplibre-react-native/src/types/OnPressEvent';
 import * as turf from '@turf/turf'
 import * as RNE from '@rneui/themed'
-
-type StandardQuery<T, TError, TResult, W extends ReactQuery.QueryKey> = Parameters<typeof ReactQuery.useQuery<T, TError, TResult, W>>
-type QueryState<TError, TResult> = {status: 'error'|'pending'|'success', fetchStatus: 'fetching'|'paused'|'idle', data: TResult|undefined, error: TError|null}
-type QueryDispatcher<TError, TResult> = (args: QueryState<TError, TResult>) => void
-const useDispatchingQuery =
-    function <T, TError, TResult, W extends ReactQuery.QueryKey>(
-        dispatcher: QueryDispatcher<TError, TResult>,
-        ...args: StandardQuery<T, TError, TResult, W>) {
-      const query = ReactQuery.useQuery(...args)
-      useEffect(() => {
-        dispatcher({status: query.status, fetchStatus: query.fetchStatus, data: query.data, error: query.error})
-      }, [query.status, query.fetchStatus, query.data])
-    }
 
 type NumberStr = `${number}`
 type Derived =`derived-${NumberStr}`
@@ -811,13 +798,13 @@ export default function AddSign() {
   const nearestPointsSource = useRef<MapLibreGL.ShapeSourceRef>(null)
 
   const [ne, sw] = mapBounds ? mapBounds.properties.visibleBounds : [[0, 0], [0, 0]]
-  const $maxlon = ne[0]
-  const $maxlat = ne[1]
-  const $minlon = sw[0]
-  const $minlat = sw[1]
+  const maxlon = ne[0]
+  const maxlat = ne[1]
+  const minlon = sw[0]
+  const minlat = sw[1]
 
-  const modifier: (bbox: SqliteBBox) => SqliteBBox = stateSettings.queryWays.data ? doublePad : function <T>(x: T) { return x }
-  const val = modifier({ $minlon, $minlat, $maxlat, $maxlon })
+  const modifier: (bbox: JsonBBox) => JsonBBox = stateSettings.queryWays.data ? doublePad : function <T>(x: T) { return x }
+  const val = modifier({ minlon, minlat, maxlat, maxlon })
   const targetWaysQuery = {$required_ids : stateSettings.selectedWays, ...val}
 
   const dispatchWaysQuery: QueryDispatcher<never, QueryWaysWithIntersections> = (args) => {
@@ -935,7 +922,7 @@ export default function AddSign() {
   const adequatelySpecifiedSign: AdequatelySpecifiedSign|{error: string} = adequatelySpecifySign(signType, formProps)
   const wanted = "error" in adequatelySpecifiedSign ? undefined : wants(adequatelySpecifiedSign)
 
-  const targetNodesQuery = wanted && { $needle: wanted.tags, $minlon, $minlat, $maxlat, $maxlon }
+  const targetNodesQuery = wanted && { $needle: wanted.tags, minlon, minlat, maxlat, maxlon }
   const qNodes = ReactQuery.useQuery({
     queryKey: ["spatialite", "nodes", "target nodes", JSON.stringify(targetNodesQuery), "m"],
     queryFn: targetNodesQuery && (() => queries1.current.doFindTargetNodes(targetNodesQuery)),

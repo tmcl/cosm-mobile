@@ -10,4 +10,4 @@ select json_object(
     ) as geojson
 from ways
 where st_EnvelopesIntersects(coalesce(geombuffered, geom), $minlon, $minlat, $maxlon, $maxlat)
-limit 1000
+limit $limit
