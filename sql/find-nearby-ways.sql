@@ -14,6 +14,5 @@ and rowid in (
     where f_table_name = 'ways'
     and f_geometry_column = 'geombuffered'
     and search_frame = st_envelope(makeline(makepoint($minlon, $minlat, 4326), makepoint($maxlon, $maxlat, 4326)))
-
     )
 limit 5

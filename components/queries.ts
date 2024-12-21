@@ -4,6 +4,14 @@ import type GeoJSON from "geojson";
 import * as OsmApi from "@/scripts/clients";
 import {SQLiteExecuteAsyncResult} from "expo-sqlite";
 import {WayId} from "@/app/Add sign";
+import {InteractionManager} from "react-native";
+
+export type QueryWaysWithIntersections = {
+	parsedCasings: GeoJSON.Feature<GeoJSON.Polygon, OsmApi.IWay>[]
+	parsedCentrelines: GeoJSON.Feature<GeoJSON.LineString, OsmApi.IWay>[]
+	parsedOthers: Record<WayId, IntersectingWayInfo>
+	parsedSameRoad: Record<WayId, WayId<number>[]>
+}
 
 export type TargetNode = GeoJSON.Feature<GeoJSON.Point, { ways: string[] } & OsmApi.INode>
 
@@ -13,7 +21,11 @@ export class EditPageQueries {
 	private _findTargetNodes: SQLite.SQLiteStatement | undefined
 	private _findAnglePointsForWayPoint: SQLite.SQLiteStatement | undefined
 
-	constructor() {};
+	private _tracker;
+
+	constructor() {
+		this._tracker = new ThingyTracker()
+	};
 
 	// noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
 	public get findAnglePointsForWayPoint(): never { throw "use the do- method" }
@@ -58,32 +70,48 @@ export class EditPageQueries {
 		}
     }
 
-	public set queryWaysWithIntersections(theQueryWays: SQLite.SQLiteStatement | undefined) {
+	public set queryWaysWithIntersections(complete: SQLite.SQLiteStatement | undefined) {
 		this._queryWaysWithIntersections?.finalizeAsync()
-		this._queryWaysWithIntersections = theQueryWays
+		this._queryWaysWithIntersections = complete
 	}
 
-    public async doQueryWaysWithIntersections(args: {$minlon: number, $minlat: number, $maxlon: number, $maxlat: number}) {
-        const waysResult = await this._queryWaysWithIntersections!.executeAsync<{ length: number|null, geojson: string, centreline: string, other_ways: string }>(args)
+    public async doQueryWaysWithIntersections(args: {$required_ids: WayId[], $minlon: number, $minlat: number, $maxlon: number, $maxlat: number}): Promise<QueryWaysWithIntersections> {
+		const allAtOnce = async () => {
+			console.log("wanting to query aow")
 
-		const parsedCasings: GeoJSON.Feature<GeoJSON.Polygon, OsmApi.IWay>[] = []
-		const parsedCentrelines: GeoJSON.Feature<GeoJSON.LineString, OsmApi.IWay>[] = []
-		const parsedOthers: Record<WayId, IntersectingWayInfo> = {}
+			const {$required_ids, ...envelope} = args
+			const serialArgs = {...envelope, $required_ids: JSON.stringify(args.$required_ids)}
+			const waysResult1 = await this._tracker.track("raw query", () => this._queryWaysWithIntersections!.executeAsync<{ length: number|null, geojson: string, centreline: string, other_ways: string, sameroad: string }>(serialArgs), true)
+			const waysResult = waysResult1.res
+			console.log("//////waysresult raw query", waysResult1.times)
+			try {
+				const geo_ = await this._tracker.track("fetch query", () => waysResult.getFirstAsync(), true)
+				const geo = geo_.res
+				console.log("+++ fetch query", geo_.times)
 
-		for await (const geo of waysResult) {
-			const casing: GeoJSON.Feature<GeoJSON.Polygon, OsmApi.IWay> = JSON.parse(geo.geojson)
-			const centreline: GeoJSON.Feature<GeoJSON.LineString, OsmApi.IWay> = JSON.parse(geo.centreline)
-			const other_ways = JSON.parse(geo.other_ways)
-			if(centreline.id) {
-				parsedOthers[centreline.id.toString()] = other_ways
+				const result = await this._tracker.track("parse query", async () => {
+					const parsedCasings: GeoJSON.Feature<GeoJSON.Polygon, OsmApi.IWay>[] = geo ? JSON.parse(geo.geojson) : []
+					const parsedCentrelines: GeoJSON.Feature<GeoJSON.LineString, OsmApi.IWay>[] = geo ? JSON.parse(geo.centreline) : []
+					const parsedOthers: Record<WayId, IntersectingWayInfo> = geo ? JSON.parse(geo.other_ways) : {}
+					const parsedSameRoad: Record<WayId, WayId<number>[]> = geo ? JSON.parse(geo.sameroad) : {}
+					return {parsedCasings, parsedCentrelines, parsedOthers, parsedSameRoad}
+				}, true)
+
+				console.log("+++parse query", result.times)
+
+				return result.res
+
+			} catch (e) {
+				console.log("there was an error hereabouts", e)
+				throw e
 			}
-			console.log("parsed others", other_ways )
-			console.log("parsed length (m)", geo.length )
-			parsedCasings.push(casing)
-			parsedCentrelines.push(centreline)
 		}
 
-		return {parsedCasings, parsedCentrelines, parsedOthers}
+		const aow = await this._tracker.track("*****all at once", allAtOnce, true)
+
+		console.log("********************times", "all at once", aow.times, ((aow.times.end || 0) - aow.times.ts)/1000 )
+
+		return aow.res
     }
 
 	// noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
@@ -94,10 +122,10 @@ export class EditPageQueries {
 	}
 
 	async setup(db: SQLite.SQLiteDatabase) {
-			this.findNearbyWays = await db.prepareAsync( require('@/sql/find-nearby-ways.sql.json') )
-			this.queryWaysWithIntersections = await db.prepareAsync( require('@/sql/query-ways-with-intersections.sql.json') )
-			this.findTargetNodes = await db.prepareAsync( require('@/sql/find-target-elements.sql.json') )
-			this.findAnglePointsForWayPoint = await db.prepareAsync( require('@/sql/find-angle-points-for-way-point.sql.json') )
+			this.findNearbyWays = await db.prepareAsync(require('@/sql/find-nearby-ways.sql.json'))
+			this.queryWaysWithIntersections = await db.prepareAsync(require('@/sql/query-ways-with-intersections-all-at-once.sql.json'))
+			this.findTargetNodes = await db.prepareAsync(require('@/sql/find-target-elements.sql.json'))
+			this.findAnglePointsForWayPoint = await db.prepareAsync(require('@/sql/find-angle-points-for-way-point.sql.json'))
 	}
 
 	finalize() {
@@ -108,11 +136,16 @@ export class EditPageQueries {
 	}
 }
 
+type TrackerInfo = {any: any, ts: number, state: "waiting"|"finished"|"failed", end?: number, e?: any, seconds?: number}
+
 class ThingyTracker {
-	private _trackees: {any: any, ts: number, state: "waiting"|"finished"|"failed", end?: number, e?: any}[] = []
+	private _trackees: TrackerInfo[] = []
 	private _timeout: number|undefined
 
-	public async track<T, R>(arg: T, f: (arg: T) => Promise<R>) {
+	public async track<T, R>(arg: T, f: (arg: T) => Promise<R>): Promise<R> ;
+	public async track<T, R>(arg: T, f: (arg: T) => Promise<R>, withTimes: false): Promise<R> ;
+	public async track<T, R>(arg: T, f: (arg: T) => Promise<R>, withTimes: true): Promise<{res: R, times: TrackerInfo}> ;
+	public async track<T, R>(arg: T, f: (arg: T) => Promise<R>, withTimes = false) {
 		const newLength = this._trackees.push({any: arg, ts: new Date().getTime(), state: "waiting"})
 		const i = newLength - 1
 		this.checktimeout()
@@ -121,10 +154,16 @@ class ThingyTracker {
 			const r = await f(arg)
 			this._trackees[i].state = "finished"
 			this._trackees[i].end = new Date().getTime()
-			return r
+			this._trackees[i].seconds = (this._trackees[i].end - this._trackees[i].ts) / 1000
+			if(withTimes) {
+				return {res: r, times: this._trackees[i]}
+			} else {
+				return r
+			}
 		} catch (e) {
 			this._trackees[i].state = "failed"
 			this._trackees[i].end = new Date().getTime()
+			this._trackees[i].seconds = (this._trackees[i].end - this._trackees[i].ts) / 1000
 			this._trackees[i].e = e
 			throw e
 		}
@@ -134,8 +173,19 @@ class ThingyTracker {
 		if (this._timeout) return
 		let interval: number;
 		interval = setInterval(() => {
+			const now = new Date().getTime()
 			let current
 			if (this._timeout === interval && (current = this._trackees.filter(f => f.state === "waiting")) && current?.length) {
+				console.log("waiting jobs", current.length)
+				const old = current.flatMap(f => {
+						const duration = f.ts < now - 1_000
+					if(duration) {
+						return [{...f, seconds: (now - f.ts)/1000}]
+					} else
+						return []
+					}
+				)
+				console.log("including the following old ones", old)
 			} else {
 				if(this._timeout == interval) {
 					this._timeout = undefined
@@ -151,6 +201,7 @@ export class MainPageQueries {
 	private _knownBounds: SQLite.SQLiteStatement | undefined
 	private _insertBounds: SQLite.SQLiteStatement | undefined
 	private _insertNodes: SQLite.SQLiteStatement | undefined
+	private _insertRelatedWays: SQLite.SQLiteStatement | undefined
 	private _insertNodesWays: SQLite.SQLiteStatement | undefined
 	private _queryNodes: SQLite.SQLiteStatement | undefined
 	private _insertWays: SQLite.SQLiteStatement | undefined
@@ -207,6 +258,29 @@ export class MainPageQueries {
 	public set insertNodesWays(theinsertWays: SQLite.SQLiteStatement | undefined) {
 		this._insertNodesWays?.finalizeAsync()
 		this._insertNodesWays = theinsertWays
+	}
+
+	public get insertRelatedWays() { return this._insertRelatedWays }
+	public set insertRelatedWays(theinsertWays: SQLite.SQLiteStatement | undefined) {
+		this._insertRelatedWays?.finalizeAsync()
+		this._insertRelatedWays = theinsertWays
+	}
+
+	public doInsertRelatedWays() {
+		const loop = async (changes: number, resolver: (val: number) => void) => {
+			const currentQuery = this._insertRelatedWays
+			const queryResult = await this._tracker.track("insert related ways", () => currentQuery!.executeAsync<never>())
+			console.log("queryResult.changes", queryResult.changes)
+			if (queryResult.changes) {
+				InteractionManager.runAfterInteractions(() => loop(changes + queryResult.changes, resolver))
+			} else {
+				resolver(changes)
+			}
+		}
+		const settler = (resolver: (val: number) => void, rejecter: (e?: any) => void) => {
+			loop(0, resolver)
+		}
+		return new Promise<number>(settler)
 	}
 
 	// noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
@@ -295,16 +369,17 @@ export class MainPageQueries {
     }
 
 	async setup(db: SQLite.SQLiteDatabase) {
-			this.findNearbyWays = await db.prepareAsync( require('@/sql/find-nearby-ways.sql.json') )
-			this.insertBounds = await db.prepareAsync(require('@/sql/insert-bounds.sql.json'))
-			this.insertNodes = await db.prepareAsync( require('@/sql/insert-nodes.sql.json') )
-			this.insertWays = await db.prepareAsync( require('@/sql/insert-ways.sql.json') )
-			this.knownBounds = await db.prepareAsync(require('@/sql/known-bounds.sql.json'))
-			this.addCasingToWays = await db.prepareAsync(require('@/sql/add-casing-to-ways.sql.json'))
+		this.findNearbyWays = await db.prepareAsync( require('@/sql/find-nearby-ways.sql.json') )
+		this.insertBounds = await db.prepareAsync(require('@/sql/insert-bounds.sql.json'))
+		this.insertNodes = await db.prepareAsync( require('@/sql/insert-nodes.sql.json') )
+		this.insertWays = await db.prepareAsync( require('@/sql/insert-ways.sql.json') )
+		this.knownBounds = await db.prepareAsync(require('@/sql/known-bounds.sql.json'))
+		this.addCasingToWays = await db.prepareAsync(require('@/sql/add-casing-to-ways.sql.json'))
+		this.insertRelatedWays = await db.prepareAsync(require('@/sql/insert-related-ways.sql.json'))
 
-			this.insertNodesWays = await db.prepareAsync( require('@/sql/insert-nodes-ways.sql.json') )
-			this.queryNodes = await db.prepareAsync( require('@/sql/query-nodes.sql.json'))
-			this.queryWays = await db.prepareAsync( require('@/sql/query-ways.sql.json') )
+		this.insertNodesWays = await db.prepareAsync( require('@/sql/insert-nodes-ways.sql.json') )
+		this.queryNodes = await db.prepareAsync( require('@/sql/query-nodes.sql.json'))
+		this.queryWays = await db.prepareAsync( require('@/sql/query-ways.sql.json') )
 	}
 
 	finalize() {
@@ -316,6 +391,7 @@ export class MainPageQueries {
 		this.queryNodes = undefined
 		this.insertWays = undefined
 		this.addCasingToWays = undefined
+		this.insertRelatedWays = undefined
 		this.queryWays = undefined
 	}
 }
@@ -343,4 +419,34 @@ export const mapMaybe = function <T, R>(tt: T[], f: (t: T) => Maybe<R>): R[] {
 	answer.length = i
 	return answer
 }
+
+export type SqliteBBox = { $minlon: number, $minlat: number, $maxlat: number, $maxlon : number}
+export type JsonBBox = { minlon: number, minlat: number, maxlat: number, maxlon : number}
+export type GeojsonBBox = [ number, number, number, number] | [ number, number, number, number, number, number]
+
 export type IntersectingWayInfo = {ix: number, node_tags: OsmApi.INode, others: WayId<number>, way_tags: OsmApi.IWay}[]
+export function doublePad (bbox: GeojsonBBox): GeojsonBBox
+export function doublePad (bbox: JsonBBox): JsonBBox
+export function doublePad (bbox: SqliteBBox): SqliteBBox
+export function doublePad <T extends GeojsonBBox|JsonBBox|SqliteBBox>
+  (args: T): T {
+	function doDoublePad({minlon, minlat, maxlon, maxlat}: JsonBBox) {
+		const $minlon = minlon - (maxlon - minlon)
+		const $maxlon = maxlon + (maxlon - minlon)
+		const $minlat = minlat - (maxlat - minlat)
+		const $maxlat = maxlat + (maxlat - minlat)
+		return {$minlon, $minlat, $maxlon, $maxlat}
+	}
+	if (args instanceof Array) {
+		const [minlon, minlat, maxlon, maxlat] = args
+		const {$minlon, $minlat, $maxlon, $maxlat} = doDoublePad({minlon, minlat, maxlon, maxlat})
+		return [$minlon, $minlat, $maxlon, $maxlat] as T
+	} else if ("$minlon" in args) {
+		const {$minlon: minlon, $minlat: minlat, $maxlon: maxlon, $maxlat: maxlat} = args
+		return doDoublePad({minlon, minlat, maxlon, maxlat}) as T
+	} else {
+		const {$minlon: minlon, $minlat: minlat, $maxlon: maxlon, $maxlat: maxlat} = doDoublePad(args)
+		return {minlon, minlat, maxlon, maxlat} as T
+	}
+}
+

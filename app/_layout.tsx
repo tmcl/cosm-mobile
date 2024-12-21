@@ -60,13 +60,11 @@ const activateDb = (db: SQLite.SQLiteDatabase) => {
 		  maxlat text
 		);
 		select AddGeometryColumn('bounds', 'geom', 4326, 'POLYGON');
-		create table if not exists test(id integer primary key not null);
 		-- drop table if exists nodes;
 		create table if not exists nodes(
 		  id integer primary key not null,
 		  observed datetime,
 		  version integer,
-		  geom blob,
 		  properties blob
 		);
 		select AddGeometryColumn('nodes', 'geom', 4326, 'POINT');
@@ -79,12 +77,28 @@ const activateDb = (db: SQLite.SQLiteDatabase) => {
 		  properties blob,
 		  width real
 		);
+        create index if not exists ix_way_name on ways (properties ->> '$.tags.name');
+        create index if not exists ix_way_highway on ways (properties ->> '$.tags.highway');
 		select AddGeometryColumn('ways', 'geom', 4326, 'LINESTRING');
 		select AddGeometryColumn('ways', 'geomgda', 7855, 'LINESTRING');
 		select AddGeometryColumn('ways', 'geombuffered', 4326, 'POLYGON');
         select AddGeometryColumn('ways', 'geombufferedgda', 7855, 'POLYGON');
 		select CreateSpatialIndex('ways', 'geombuffered');
 		select CreateSpatialIndex('ways', 'geom');
+        -- drop table ways_of_same_roads;
+        create table if not exists ways_of_same_roads(
+            way_id integer primary key not null,
+			road blob -- jsonb [WayId<number>] ways on the same road as this way is on
+        );
+        create trigger if not exists clear_ways_of_same_roads after update of version on ways
+            for each row begin
+                delete from ways_of_same_roads where way_id = old.id or 
+                    way_id in (select way_id from ways_of_same_roads, json_each(road) road where road.atom = old.id);
+            end;
+		create trigger if not exists clear_updated_ways_of_same_roads after insert on ways_of_same_roads
+			for each row begin
+			    delete from ways_of_same_roads where way_id in (select atom from json_each(new.road)) and ways_of_same_roads.road <> new.road;
+			end;
 		`)
 
   return projInterlinked

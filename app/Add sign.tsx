@@ -7,11 +7,32 @@ import MapLibreGL from '@maplibre/maplibre-react-native';
 import {StyleSheet, Text, View, ViewProps} from "react-native";
 import {useLocalSearchParams} from "expo-router";
 import * as SQLite from 'expo-sqlite'
-import {EditPageQueries, IntersectingWayInfo, mapMaybe, Maybe, TargetNode} from '@/components/queries';
+import {
+  doublePad,
+  EditPageQueries,
+  IntersectingWayInfo,
+  mapMaybe,
+  Maybe,
+  QueryWaysWithIntersections, SqliteBBox,
+  TargetNode
+} from '@/components/queries';
 import {detailedMapStyle} from '@/constants/DetailedMapStyle'
 import {OnPressEvent} from '@maplibre/maplibre-react-native/src/types/OnPressEvent';
 import * as turf from '@turf/turf'
 import * as RNE from '@rneui/themed'
+
+type StandardQuery<T, TError, TResult, W extends ReactQuery.QueryKey> = Parameters<typeof ReactQuery.useQuery<T, TError, TResult, W>>
+type QueryState<TError, TResult> = {status: 'error'|'pending'|'success', fetchStatus: 'fetching'|'paused'|'idle', data: TResult|undefined, error: TError|null}
+type QueryDispatcher<TError, TResult> = (args: QueryState<TError, TResult>) => void
+const useDispatchingQuery =
+    function <T, TError, TResult, W extends ReactQuery.QueryKey>(
+        dispatcher: QueryDispatcher<TError, TResult>,
+        ...args: StandardQuery<T, TError, TResult, W>) {
+      const query = ReactQuery.useQuery(...args)
+      useEffect(() => {
+        dispatcher({status: query.status, fetchStatus: query.fetchStatus, data: query.data, error: query.error})
+      }, [query.status, query.fetchStatus, query.data])
+    }
 
 type NumberStr = `${number}`
 type Derived =`derived-${NumberStr}`
@@ -41,6 +62,7 @@ const HStack = ({children, ...props}: React.PropsWithChildren<ViewProps>) =>
   <View {...props} style={Object.assign(props.style || {}, {width: "100%", flexDirection: 'row'})}>{children}</View>
 
 type State = DirectionState & {
+  queryWays: QueryState<unknown, QueryWaysWithIntersections>,
   selectedWays: WayId[]
   selectedNodes: NodeId[]
   nearestPoints: Record<WayId, NearestPoint>
@@ -52,9 +74,8 @@ type DirectionState = {
 type SelectWay = { 
 	action: "select ways",
  	wayId: WayId[],
- 	waysCentreline: GeoJSON.Feature<GeoJSON.LineString>[] | undefined,
 	signLocation: GeoJSON.Position,
-  targetPoints: TargetNode[] | undefined
+  targetPoints: TargetNode[] | undefined,
 }
 type DeselectWay = { action: "deselect ways", wayId: WayId[] }
 type DeselectNodes = { action: "deselect nodes", pointId: NodeId[] }
@@ -63,7 +84,9 @@ type UpdateNearestPoint = { action: "update nearest point", nearestPoint: Neares
 type LearnDirection = { type: DirectionOrigin, direction: Direction }
 type ForgetDirection = { type: DirectionOrigin, direction?: undefined }
 type DirectionAction = LearnDirection | ForgetDirection
+type QueryWaysUpdate = { action: "query ways update" } & QueryState<unknown, QueryWaysWithIntersections>
 type Action = (DirectionAction & {action: "set direction"}) | SelectWay | DeselectWay | SelectNodes | DeselectNodes | UpdateNearestPoint
+ | QueryWaysUpdate
 const correspondingWayId = (nodeId: Derived): WayId => {
   return nodeId.substring("derived-".length)
 }
@@ -78,38 +101,89 @@ const nodeIsOnWay = (nodeId: NodeId, wayId: WayId, targetNodes: TargetNode[]|und
 const wayHasSelectedNode = (wayId: WayId, state: State, targetNodes: TargetNode[]|undefined): boolean => {
   return state.selectedNodes.some(nodeId => nodeIsOnWay(nodeId, wayId, targetNodes))
 }
+
+const nearestPointOnGroupOfWays = ({wayId, waysCentrelines, wayGroup, relativePoint}: {
+    wayId: WayId,
+    waysCentrelines: GeoJSON.Feature<GeoJSON.LineString, {}|null>[],
+    wayGroup: WayId[],
+    relativePoint: GeoJSON.Position}
+) => {
+  const closestPoints = wayGroup.flatMap(localWayId => {
+    const way = waysCentrelines.find(w => w.id === localWayId)
+    if (!way) return []
+    const closestPoint = turf.nearestPointOnLine(way, relativePoint)
+    closestPoint.id = `derived-${wayId}`
+    closestPoint.properties = {...closestPoint.properties, distance: turf.distance(relativePoint, closestPoint), triggeringWayId: wayId, segmentWayId: localWayId}
+    return [closestPoint]
+  })
+  if(closestPoints.length == 0) {
+    return
+  }
+  const closestPoint = closestPoints
+      .sort((f, g) => f.properties.distance - g.properties.distance )
+      [0]
+  return {...closestPoint, properties: {
+      dist: closestPoint.properties.dist,
+      location: closestPoint.properties.location,
+      triggeringWayId: closestPoint.properties.triggeringWayId,
+      segmentWayId: closestPoint.properties.segmentWayId,
+      index: closestPoint.properties.index,
+    }}
+}
+
 const reducer = (state: State, action: Action): State => {
   switch (action.action) {
-    case "set direction" : return {...state, ...directionReducer(state, action)}
-    case "select ways": 
-			const newNearestPoints = {... state.nearestPoints}
-		  let madeNewPoint = false
+    case "query ways update":
+      const {action: actionText, ...queryWays} = action
+      return {...state, queryWays}
+    case "set direction" :
+      return {...state, ...directionReducer(state, action)}
+    case "select ways":
+      const newNearestPoints = {...state.nearestPoints}
+      let madeNewPoint = false
 
-        const createNewNearestPoint = (wayId: WayId) => {
-          if(newNearestPoints[wayId]) return
-          const way = action.waysCentreline?.find(w => w.id === wayId)
-          if(!way) return
-          const closestPoint = turf.nearestPointOnLine(way, action.signLocation)
-          closestPoint.id = `derived-${wayId}`
-          newNearestPoints[wayId] = {...closestPoint, properties: {...closestPoint.properties, originalWay:wayId}}
+      const createNewNearestPoint = (wayId: WayId) => {
+        if (newNearestPoints[wayId]) return
+
+        const nearestPoint = nearestPointOnGroupOfWays({
+          wayId,
+          waysCentrelines : state.queryWays.data?.parsedCentrelines || [],
+          wayGroup: state.queryWays.data?.parsedSameRoad[wayId].map(w => w.toString()) || [],
+          relativePoint: action.signLocation})
+        if (nearestPoint) {
+          newNearestPoints[wayId] = nearestPoint
           madeNewPoint = true
         }
+      }
 
-        const newSelections: NodeId[] = []
-        const selectTargetPoints = (way: WayId) => {
-              if(!wayHasSelectedNode(way, state, action.targetPoints)) {
-                const tp = action.targetPoints?.find(f => f.properties.ways.includes(way))
-                if (tp && typeof tp.id === "string" && isNumber(tp.id)) newSelections.push(tp.id)
-              }
+      const newSelections: NodeId[] = []
+      const selectTargetPoints = (way: WayId) => {
+        if (!wayHasSelectedNode(way, state, action.targetPoints)) {
+          const tp = action.targetPoints?.find(f => f.properties.ways.includes(way))
+          if (tp && typeof tp.id === "string" && isNumber(tp.id)) newSelections.push(tp.id)
         }
+      }
 
-			action.wayId.forEach(f => { createNewNearestPoint(f); selectTargetPoints(f) })
+      action.wayId.forEach(f => {
+        createNewNearestPoint(f);
+        selectTargetPoints(f)
+      })
 
-			return {...state, ...(newSelections.length ? {selectedNodes: [...state.selectedNodes, ...newSelections]} : {}), ...(madeNewPoint ? { nearestPoints: newNearestPoints } : {}), selectedWays: [...state.selectedWays, ...action.wayId]}
-    case "update nearest point": return {...state, nearestPoints: {...state.nearestPoints, [action.nearestPoint.properties.originalWay]: action.nearestPoint}}
-    case "deselect ways": return {...state, selectedWays: state.selectedWays.filter(f => !action.wayId.includes(f))}
-    case "deselect nodes": return {...state, selectedNodes: state.selectedNodes.filter(f => !action.pointId.some(g => (f === g)))}
-    case "select nodes": return {...state, selectedNodes: state.selectedNodes.concat(action.pointId)}
+      return {
+        ...state, ...(newSelections.length ? {selectedNodes: [...state.selectedNodes, ...newSelections]} : {}), ...(madeNewPoint ? {nearestPoints: newNearestPoints} : {}),
+        selectedWays: [...state.selectedWays, ...action.wayId]
+      }
+    case "update nearest point":
+      return {
+        ...state,
+        nearestPoints: {...state.nearestPoints, [action.nearestPoint.properties.triggeringWayId]: action.nearestPoint}
+      }
+    case "deselect ways":
+      return {...state, selectedWays: state.selectedWays.filter(f => !action.wayId.includes(f))}
+    case "deselect nodes":
+      return {...state, selectedNodes: state.selectedNodes.filter(f => !action.pointId.some(g => (f === g)))}
+    case "select nodes":
+      return {...state, selectedNodes: state.selectedNodes.concat(action.pointId)}
   }
 }
 const directionReducer = (state: DirectionState, action: DirectionAction): DirectionState => {
@@ -155,7 +229,8 @@ type NearestPoint = GeoJSON.Feature<GeoJSON.Point, {
     dist: number;
     index: number;
     location: number;
-    originalWay: WayId
+    triggeringWayId: WayId;
+    segmentWayId: WayId;
 }>
 
 const bound = (val: number, min: number, max: number) => {
@@ -170,10 +245,22 @@ const bound = (val: number, min: number, max: number) => {
   return result
 }
 
-const roadcasingsLayerStyle = (activeWayIds: string[]): MapLibreGL.FillLayerStyle => ({
+const roadcasingsLayerStyle = (selectedWayIds: string[], sameRoad: undefined|Record<WayId, WayId<number>[]>): MapLibreGL.FillLayerStyle => {
+  console.log("processing selections", selectedWayIds, sameRoad)
+  const activeWayIds = [...selectedWayIds]
+  if(sameRoad) {
+    selectedWayIds.forEach(wayId => {
+      const relatedWayIds = sameRoad[wayId]
+      if(relatedWayIds) {
+        activeWayIds.push(...relatedWayIds.map(w => w.toString()))
+      }
+    })
+  }
+  return {
   fillColor: ["case", ["in", ["id"], ["literal", activeWayIds]], "purple", "red"],
   fillOpacity: 0.24,
-})
+}
+}
 const nearestPointsCircleLayerStyle: (nodeIds: NodeId[]) => MapLibreGL.CircleLayerStyle = (nodeIds) => ({
     circleColor: ["case", ["in", ["id"], ["literal", nodeIds.filter(m => isDerived(m))]], "green", "gray"],
     circleOpacity: 0.84,
@@ -697,6 +784,7 @@ const adequatelySpecifySign = (signType: SignType, signProps: StandardSignFormTy
 export default function AddSign() {
   const searchParams = depareSignArgs(useLocalSearchParams() as TrafficSignArgsInternal)
   const db = SQLite.useSQLiteContext()
+  const [stateSettings, dispatchAction] = useReducer<Reducer<State, Action>>(reducer, {queryWays: { status: "pending", fetchStatus: "idle", data: undefined, error: undefined}, selectedWays: [], selectedNodes: [], nearestPoints: {}, direction: undefined, directions: {}})
 
   const queries1 = useRef(new EditPageQueries())
   useEffect(() => {
@@ -728,17 +816,24 @@ export default function AddSign() {
   const $minlon = sw[0]
   const $minlat = sw[1]
 
-  const targetWaysQuery = { $minlon, $minlat, $maxlat, $maxlon }
-  const qWays = ReactQuery.useQuery({
+  const modifier: (bbox: SqliteBBox) => SqliteBBox = stateSettings.queryWays.data ? doublePad : function <T>(x: T) { return x }
+  const val = modifier({ $minlon, $minlat, $maxlat, $maxlon })
+  const targetWaysQuery = {$required_ids : stateSettings.selectedWays, ...val}
+
+  const dispatchWaysQuery: QueryDispatcher<never, QueryWaysWithIntersections> = (args) => {
+    dispatchAction({...args, action: 'query ways update'})
+  }
+
+  useDispatchingQuery(dispatchWaysQuery, {
     queryKey: ["spatialite", "ways", "query ways with intersections", ...Object.values(targetWaysQuery)],
     enabled: !!mapBounds,
     placeholderData: d => d,
     queryFn: () => queries1.current.doQueryWaysWithIntersections(targetWaysQuery)
   })
 
-  const waysCasing: GeoJSON.Feature<GeoJSON.Polygon, OsmApi.IWay>[] | undefined = qWays.data && qWays.data.parsedCasings.length ? qWays.data.parsedCasings : undefined
-  const waysCentreline: GeoJSON.Feature<GeoJSON.LineString, OsmApi.IWay>[] | undefined = qWays.data && qWays.data.parsedCentrelines.length ? qWays.data.parsedCentrelines : undefined
-  const waysOthers: Record<WayId, IntersectingWayInfo> = qWays.data && qWays.data.parsedOthers || {}
+  const waysCasing: GeoJSON.Feature<GeoJSON.Polygon, OsmApi.IWay>[] | undefined = stateSettings.queryWays.data && stateSettings.queryWays.data.parsedCasings.length ? stateSettings.queryWays.data.parsedCasings : undefined
+  const waysCentreline: GeoJSON.Feature<GeoJSON.LineString, OsmApi.IWay>[] | undefined = stateSettings.queryWays.data && stateSettings.queryWays.data.parsedCentrelines.length ? stateSettings.queryWays.data.parsedCentrelines : undefined
+  const waysOthers: Record<WayId, IntersectingWayInfo> = stateSettings.queryWays.data && stateSettings.queryWays.data.parsedOthers || {}
 
   function any<T>(them: T[], pred: (t: T) => boolean): boolean {
     for (const it of them) {
@@ -751,7 +846,7 @@ export default function AddSign() {
     console.log("tapped road", feature.features)
 		const featureIds = feature.features.map(f => f.id!.toString())
     if(any(featureIds, f => !stateSettings.selectedWays.includes(f))) {
-      dispatchAction({action: "select ways", waysCentreline, signLocation, wayId: featureIds, targetPoints: qNodes.data})
+      dispatchAction({action: "select ways", signLocation, wayId: featureIds, targetPoints: qNodes.data})
     }
     else {
       dispatchAction({action: "deselect ways", wayId: featureIds})
@@ -781,7 +876,6 @@ export default function AddSign() {
   const mainSignAnnoPointRef = useRef<MapLibreGL.PointAnnotationRef>(null)
   const nearestPointAnnoPointRef = useRef<MapLibreGL.PointAnnotationRef>(null)
 
-  const [stateSettings, dispatchAction] = useReducer<Reducer<State, Action>>(reducer, {selectedWays: [], selectedNodes: [], nearestPoints: {}, direction: undefined, directions: {}})
 
   const affectableIsNext = function <T extends Affectable>(affectable: T | `next ${QualifiedDistance}`): affectable is `next ${QualifiedDistance}` { 
     return !affectableIsComplex(affectable) && affectable.startsWith("next ") 
@@ -803,21 +897,19 @@ export default function AddSign() {
     }
   }
 
-  const setNearestPointLocation = (nearestPoint: NearestPoint) => (event: FeaturePayload) => {
+  const setNearestPointLocation =
+      (nearestPoint: NearestPoint) =>
+      (event: FeaturePayload) => {
     console.log("!>!>>!>>>>>>>>>>>>>>>>>>>>>>I'd be setting the nearest point location, if I knew how", event, nearestPoint)
-    if(!waysCentreline) {
-      //without centreline wi just have to abort the operation
-      dispatchAction({action: "update nearest point", nearestPoint: {...nearestPoint}})
-    } else {
-      const way = waysCentreline.find(f => f.id === nearestPoint.properties.originalWay)!
-      const suppliedNearestPoint: TurfNearestPoint = turf.nearestPointOnLine(way, event.geometry.coordinates)
-      const newNearestPoint: NearestPoint = {
-        ...suppliedNearestPoint,
-        id: nearestPoint.id,
-        properties: {...suppliedNearestPoint.properties, originalWay: nearestPoint.properties.originalWay}
-      }
-      dispatchAction({action: "update nearest point", nearestPoint: newNearestPoint})
-    }
+    const newNearestPoint = nearestPointOnGroupOfWays(
+        {
+          wayId: nearestPoint.properties.triggeringWayId,
+          waysCentrelines : waysCentreline || [],
+          wayGroup: stateSettings.queryWays.data?.parsedSameRoad[nearestPoint.properties.triggeringWayId].map(w => w.toString()) || [],
+          relativePoint: event.geometry.coordinates}
+    )
+
+    dispatchAction({action: "update nearest point", nearestPoint: newNearestPoint ?? {...nearestPoint}})
   }
 
   const [signType, setSignType] = useState<SignType>("stop")
@@ -984,7 +1076,7 @@ export default function AddSign() {
               <MapLibreGL.FillLayer
                 id="roadcasingfill"
                 layerIndex={10}
-                style={roadcasingsLayerStyle(stateSettings.selectedWays)}
+                style={roadcasingsLayerStyle(stateSettings.selectedWays, stateSettings.queryWays.data?.parsedSameRoad)}
               />
 
             </MapLibreGL.ShapeSource>}

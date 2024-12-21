@@ -1,7 +1,7 @@
 import fromAsync from 'array-from-async';
 import React, {useEffect, useRef, useState} from 'react'
 import {FAB} from '@rneui/themed'
-import {Pressable, StyleSheet, Text, View} from "react-native";
+import {Text, View, Pressable, StyleSheet } from "react-native";
 import {Image} from 'expo-image'
 import {Link, router} from "expo-router";
 import MapLibreGL from '@maplibre/maplibre-react-native';
@@ -12,19 +12,11 @@ import {useDrizzleStudio} from "expo-drizzle-studio-plugin"
 import {useAndroidLocationPermission} from '@/components/AndroidLocationPermission';
 import {OnPressEvent} from '@maplibre/maplibre-react-native/src/types/OnPressEvent';
 import {prepareSignArgs} from '../Add sign';
-import {MainPageQueries as Queries, zip} from '@/components/queries';
+import {MainPageQueries as Queries, zip, doublePad} from '@/components/queries';
 import type GeoJSON from "geojson";
 import * as ReactQuery from '@tanstack/react-query'
 
 const consoleLog: typeof console.log = () => {}
-
-const doublePad = ([minlon, minlat, maxlon, maxlat]: GeoJSON.BBox): [number, number, number, number] => {
-	const $minlon = minlon - (maxlon - minlon)
-	const $maxlon = maxlon + (maxlon - minlon)
-	const $minlat = minlat - (maxlat - minlat)
-	const $maxlat = maxlat + (maxlat - minlat)
-	return [$minlon, $minlat, $maxlon, $maxlat]
-}
 
 const roadStrokesLayerStyle = (wayIds: string[]|null): MapLibreGL.LineLayerStyle => ({
 	lineColor: wayIds ? ["case", ["in", ["id"], ["literal", wayIds] ], "purple", "red"] : "red",
@@ -119,6 +111,7 @@ export default function MainPage() {
 	} : undefined
 
 	const [$minlon, $minlat, $maxlon, $maxlat] = visibleBounds
+	console.log("visibleBounds", {$minlon, $minlat, $maxlon, $maxlat})
 	const qUnkownBoundsEnabled = (() => {
 		if (typeof mapArea === "string") return false
 		const [deg, capability] = mapArea
@@ -168,10 +161,27 @@ export default function MainPage() {
 				queryClient.invalidateQueries({queryKey: ["spatialite query ways"]})
 				queryClient.invalidateQueries({queryKey: ["spatialite", "nearby ways"]})
 				qUpdateCasings.mutate()
+				qInsertRelatedWays.mutate()
 			}
 		}
 	})
 	queryStatuses.qInsertWays = { mutate: qInsertWays.status }
+
+	const qInsertRelatedWays = ReactQuery.useMutation({
+		mutationFn: () => queries.current.doInsertRelatedWays(),
+		onSuccess: (data) => {
+			if(data) {
+				queryClient.invalidateQueries({queryKey: ["spatialite query ways"]})
+				queryClient.invalidateQueries({queryKey: ["spatialite", "nearby ways"]})
+			}
+		}
+	})
+	queryStatuses.qInsertRelatedWays = { mutate: qInsertRelatedWays.status }
+
+	useEffect(() => {
+		if(!queries.current.insertRelatedWays) return
+		qInsertRelatedWays.mutate()
+	}, [queries.current.insertRelatedWays])
 
 	const qUpdateCasings = ReactQuery.useMutation({
 		mutationFn: () => queries.current.doAddCasingToWays(),
