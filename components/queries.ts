@@ -2,7 +2,6 @@ import fromAsync from 'array-from-async';
 import * as SQLite from 'expo-sqlite'
 import type GeoJSON from "geojson";
 import * as OsmApi from "@/scripts/clients";
-import {WayId} from "@/app/Add sign";
 import {InteractionManager} from "react-native";
 import * as ReactQuery from "@tanstack/react-query";
 import {useEffect, useRef} from "react";
@@ -214,6 +213,7 @@ export class MainPageQueries {
 	private _queryWays: SQLite.SQLiteStatement | undefined
 	private _findNearbyWays: SQLite.SQLiteStatement | undefined
 	private _addCasingsToWays: SQLite.SQLiteStatement | undefined
+	private _findSameRoads: SQLite.SQLiteStatement | undefined
 
 	private _tracker;
 
@@ -332,6 +332,24 @@ export class MainPageQueries {
 	}
 
 	// noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
+	public get findSameRoads():never { throw "this._findSameRoads" }
+	public set findSameRoads(thequery: SQLite.SQLiteStatement | undefined) {
+		this._findSameRoads?.finalizeAsync()
+		this._findSameRoads = thequery
+	}
+
+	public async doFindSameRoads(jsArgs: WayId[]): Promise<Record<WayId, WayId[]>> {
+		const sqliteArgs = {$required_ids: JSON.stringify(jsArgs)}
+		console.log("find same roads", jsArgs, sqliteArgs)
+		const query = await this._tracker.track("exec find sameRoads", () => this._findSameRoads!.executeAsync<{id: WayId, sameRoad: string}>(sqliteArgs))
+		const queryResult = await this._tracker.track("exec getall same roads", () => query.getAllAsync())
+		const result: Record<WayId, WayId[]> = {}
+		queryResult.forEach(r => {result[r.id] = (JSON.parse(r.sameRoad) as number[]).map(m => m.toString())})
+		console.log("same road res", queryResult, result)
+		return result
+	}
+
+	// noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
 	public get findNearbyWays():never { throw "this._findNearbyWays" }
 	public set findNearbyWays(thequery: SQLite.SQLiteStatement | undefined) {
 		this._findNearbyWays?.finalizeAsync()
@@ -377,6 +395,7 @@ export class MainPageQueries {
 		this.insertNodesWays = await db.prepareAsync( require('@/sql/insert-nodes-ways.sql.json') )
 		this.queryNodes = await db.prepareAsync( require('@/sql/query-nodes.sql.json'))
 		this.queryWays = await db.prepareAsync( require('@/sql/query-ways.sql.json') )
+		this.findSameRoads = await db.prepareAsync( require('@/sql/find-same-roads.sql.json') )
 	}
 
 	finalize() {
@@ -390,6 +409,7 @@ export class MainPageQueries {
 		this.addCasingToWays = undefined
 		this.insertRelatedWays = undefined
 		this.queryWays = undefined
+		this.findSameRoads = undefined
 	}
 }
 
@@ -504,3 +524,27 @@ export type FoundNearbyWays = {ways: WayId[], nodes: GeoJSON.Point[]}
 
 
 export const debug = (a: any, b: any) => { console.log(a, b); return b}
+export type WayId<T extends string|number = string> = T
+
+export const nub = <T>(arr: T[]): T[] => {
+	if(arr.length > 0) {
+		const sorted = arr.toSorted()
+		const nubbed = new Array(sorted.length)
+		nubbed[0] = sorted[0]
+		let j = 0
+		for (let i = 1; i < sorted.length; i++) {
+			if(nubbed[j] !== sorted[i]) {
+				j++
+				nubbed[j] = sorted[i]
+			}
+		}
+		nubbed.length = j+1
+		return nubbed
+	} else {
+		return [];
+	}
+}
+
+export const containsAll = <T>(aa: T[], bb: T[]): boolean => {
+	return !bb.some(b => !aa.includes(b))
+}

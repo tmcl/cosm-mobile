@@ -14,7 +14,7 @@ import {
   mapMaybe,
   Maybe, QueryDispatcher, QueryState,
   QueryWaysWithIntersections,
-  TargetNode, useDispatchingQuery
+  TargetNode, useDispatchingQuery, WayId
 } from '@/components/queries';
 import {detailedMapStyle} from '@/constants/DetailedMapStyle'
 import {OnPressEvent} from '@maplibre/maplibre-react-native/src/types/OnPressEvent';
@@ -126,40 +126,7 @@ const reducer = (state: State, action: Action): State => {
     case "set direction" :
       return {...state, ...directionReducer(state, action)}
     case "select ways":
-      const newNearestPoints = {...state.nearestPoints}
-      let madeNewPoint = false
-
-      const createNewNearestPoint = (wayId: WayId) => {
-        if (newNearestPoints[wayId]) return
-
-        const nearestPoint = nearestPointOnGroupOfWays({
-          wayId,
-          waysCentrelines : state.queryWays.data?.parsedCentrelines || [],
-          wayGroup: state.queryWays.data?.parsedSameRoad[wayId].map(w => w.toString()) || [],
-          relativePoint: action.signLocation})
-        if (nearestPoint) {
-          newNearestPoints[wayId] = nearestPoint
-          madeNewPoint = true
-        }
-      }
-
-      const newSelections: NodeId[] = []
-      const selectTargetPoints = (way: WayId) => {
-        if (!wayHasSelectedNode(way, state, action.targetPoints)) {
-          const tp = action.targetPoints?.find(f => f.properties.ways.includes(way))
-          if (tp && typeof tp.id === "string" && isNumber(tp.id)) newSelections.push(tp.id)
-        }
-      }
-
-      action.wayId.forEach(f => {
-        createNewNearestPoint(f);
-        selectTargetPoints(f)
-      })
-
-      return {
-        ...state, ...(newSelections.length ? {selectedNodes: [...state.selectedNodes, ...newSelections]} : {}), ...(madeNewPoint ? {nearestPoints: newNearestPoints} : {}),
-        selectedWays: [...state.selectedWays, ...action.wayId]
-      }
+      return {...state, selectedWays: action.wayId}
     case "update nearest point":
       return {
         ...state,
@@ -652,23 +619,19 @@ const styles = StyleSheet.create({
   },
 })
 
-export type WayId<T extends number|string = string> = T
-
-type TrafficSignArgsInternal = { "traffic_sign": string, point: string, possibly_affected_ways: string }
-export type TrafficSignArgs = { "traffic_sign": SignType, point: GeoJSON.Point, possibly_affected_ways: [WayId, GeoJSON.Point][] }
+type TrafficSignArgsInternal = { "traffic_sign": string, point: string }
+export type TrafficSignArgs = { "traffic_sign": SignType, point: GeoJSON.Point }
 
 export const prepareSignArgs = (args: TrafficSignArgs): string => {
   const params: TrafficSignArgsInternal = {
     point: JSON.stringify(args.point),
     traffic_sign: args.traffic_sign,
-    possibly_affected_ways: JSON.stringify(args.possibly_affected_ways)
   }
   return new URLSearchParams(params).toString()
 }
 export const depareSignArgs = (args: TrafficSignArgsInternal): Partial<TrafficSignArgs> => ({
   point: JSON.parse(args.point),
   traffic_sign: isValidValue(args.traffic_sign) ? args.traffic_sign : undefined,
-  possibly_affected_ways: JSON.parse(args.possibly_affected_ways),
 })
 
 const wants = (adeq: AdequatelySpecifiedSign): { type: "way" | "node", tags: Record<string, string>, erroneous_alternatives?: Record<string, string> } => {
@@ -1001,7 +964,7 @@ export default function AddSign() {
   const topgradeSign: Record<string, string>|false = !("error" in adequatelySpecifiedSign) && angle !== undefined &&
       (() => {
         const {sign, ...otherProps} = adequatelySpecifiedSign
-        return {... otherProps, traffic_sign: sign, direction: bound(angle+180, 0, 360).toFixed(0)}
+        return {... otherProps, traffic_sign: sign, direction: bound(angle-90, 0, 360).toFixed(0)}
       })()
 
   const highwaymarker: undefined|Record<string, string> = !stateSettings.selectedNodes.length && !("error" in adequatelySpecifiedSign) ? (() => {
@@ -1045,7 +1008,7 @@ export default function AddSign() {
           <Text>Welcome to the add sign view</Text>
           <Text>{JSON.stringify(searchParams)}</Text>
         </VStack>
-        <VStack className="v-half" >
+        <VStack style={{height: "50%"}} >
           <MapLibreGL.MapView
             style={styles.map}
             onRegionDidChange={onMapBoundChange}
@@ -1128,6 +1091,7 @@ export default function AddSign() {
               </View> 
             </MapLibreGL.PointAnnotation>
           </MapLibreGL.MapView>
+        <RNE.Button>Save Sign</RNE.Button>
         </VStack>
       </VStack>
     </View>

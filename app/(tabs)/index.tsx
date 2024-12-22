@@ -9,17 +9,20 @@ import * as OsmApi from "@/scripts/clients";
 import {useAndroidLocationPermission} from '@/components/AndroidLocationPermission';
 import {prepareSignArgs} from '../Add sign';
 import {
+	containsAll,
 	doublePad,
 	FoundNearbyWays, initialMutationState,
 	initialQueryState,
 	JsonBBox, MutationState,
 	QueryState, useDispatchingMutation,
 	useDispatchingQuery,
-	useMainPageQueries,
+	useMainPageQueries, WayId,
 	zip
 } from '@/components/queries';
 import type GeoJSON from "geojson";
 import {skipToken, useQueryClient} from '@tanstack/react-query'
+import * as Svg from "react-native-svg";
+import {OnPressEvent} from "@maplibre/maplibre-react-native/src/types/OnPressEvent";
 
 const MAX_FEATURES_QUERY = 3000
 
@@ -82,7 +85,9 @@ type State = {
 	initialSetup: boolean,
 	zoom: number
 	tappedLocation: GeoJSON.Point|null
+	selectedWays: WayId[]
 	visibleBounds: {minlat: number, minlon: number, maxlat: number, maxlon: number}|undefined
+	sameRoads: Record<WayId, WayId[]>
 	queries: {
 		queryNodes: QueryState<unknown, GeoJSON.FeatureCollection<GeoJSON.Point, OsmApi.INode> | null>
 		queryWays: QueryState<unknown, GeoJSON.FeatureCollection<GeoJSON.Polygon|GeoJSON.LineString, OsmApi.IWay>|null>
@@ -91,6 +96,7 @@ type State = {
 		osmVersions: QueryState<unknown, OsmApi.IJSONApiVersions>
 		osmMap: QueryState<unknown, { $json: string; $requestedBounds: {minlat: number, minlon: number, maxlat: number, maxlon: number}; }>
 		unknownBounds: QueryState<unknown, {minlat: number, minlon: number, maxlat: number, maxlon: number}|null>
+		sameRoad: QueryState<unknown, Record<WayId, WayId[]>>
 		insertBounds: MutationState<unknown, void>
 		insertNodes: MutationState<unknown, boolean>
 		insertWays: MutationState<unknown, boolean>
@@ -102,8 +108,10 @@ type State = {
 const initialState: State = {
 	initialSetup: true,
 	tappedLocation: null,
+	selectedWays: [],
 	visibleBounds: undefined,
 	zoom: 14,
+	sameRoads: {},
 	queries: {
 		queryNodes: initialQueryState(),
 		queryWays: initialQueryState(),
@@ -117,9 +125,11 @@ const initialState: State = {
 		insertWays: initialMutationState(),
 		insertRelatedWays: initialMutationState(),
 		updateCasings: initialMutationState(),
+		sameRoad: initialQueryState()
 	}
 }
 
+type SelectWay = { action: "select ways", ways: WayId[], select: boolean|"toggle" }
 type SetInitialSetup = { action: "post initial setup" }
 type SetZoom = { action: "set zoom", zoom: number }
 type TapLocation = { action: "tap location", tappedLocation: GeoJSON.Point|null }
@@ -127,9 +137,11 @@ type SetVisibleBounds = { action: "set visible bounds", visibleBounds: JsonBBox 
 type SetQuery<Query extends keyof State['queries']> = {action: "set query", query: Query, queryState: State['queries'][Query] }
 
 type Action = TapLocation
+	| SelectWay
 	| SetVisibleBounds
 	| SetZoom
 	| SetInitialSetup
+	| {action: "invalidate same roads"}
 	| SetQuery<"unknownBounds">
 	| SetQuery<"osmCapabilities">
 	| SetQuery<"nearbyWays">
@@ -142,9 +154,13 @@ type Action = TapLocation
 	| SetQuery<"insertWays">
 	| SetQuery<"insertRelatedWays">
 	| SetQuery<"updateCasings">
+	|SetQuery<"sameRoad">
 
 const reducer = (state: State, action: Action): State => {
 	switch (action.action) {
+		case "invalidate same roads": {
+			return {...state, sameRoads: {}}
+		}
 		case "post initial setup": {
 		   return  state.initialSetup ? {...state, initialSetup: false } : state
 		}
@@ -154,6 +170,11 @@ const reducer = (state: State, action: Action): State => {
 		}
 		case "tap location": {
 			return {...state, tappedLocation: action.tappedLocation }
+		}
+		case "select ways": {
+			const select = action.select === 'toggle' ? !containsAll(state.selectedWays, action.ways) : action.select
+			const selectedWays = select ? Object.keys(Object.fromEntries([/* ...state.selectedWays,*/ ...action.ways].map(f => [f, true]))).sort() : state.selectedWays.filter(f => !action.ways.includes(f))
+			return {...state, selectedWays}
 		}
 		case "set visible bounds": {
 			if (!state.visibleBounds
@@ -168,16 +189,34 @@ const reducer = (state: State, action: Action): State => {
 			}
 		}
 		case "set query": {
-			// noinspection FallThroughInSwitchStatementJS
+			let otherChanges: Partial<State> = {}
+			if(action.queryState.status === "error") {
+				console.log("error", action)
+			}
 			switch (action.query) {
+				case "sameRoad": {
+					if (action.queryState.status === "success" && action.queryState.data) {
+						const sameRoads = {...state.sameRoads, ...action.queryState.data}
+						let unincluded = 0
+						for (const sameRoadsKey in sameRoads) {
+							if(state.selectedWays.includes(sameRoadsKey) || unincluded++ < 5 || state.queries.queryWays.data?.features.find(f => f.id === sameRoadsKey)) {
+							} else {
+								delete sameRoads[sameRoadsKey]
+							}
+						}
+						otherChanges.sameRoads = sameRoads
+						console.log("same raods", otherChanges)
+					}
+					break;
+				}
 				case "queryWays":
 					if(state.zoom < 20 && action.queryState.status === "success" && action.queryState.fetchStatus == "idle" && action.queryState.data?.features.length === MAX_FEATURES_QUERY) {
 						console.log("because max features", action.queryState.data?.features.length, "zooming", state.zoom+1)
-						return {...state, zoom: Math.floor(state.zoom)+1, queries: {...state.queries, [action.query]: action.queryState }}
+						otherChanges.zoom = Math.floor(state.zoom)+1
 					}
-				default:
-					return {...state, queries: {...state.queries, [action.query]: action.queryState }}
+					break;
 			}
+			return {...state, queries: {...state.queries, [action.query]: action.queryState }, ...otherChanges}
 		}
 	}
 }
@@ -223,13 +262,13 @@ function buildStatusString(queries: Record<string, MutationState<unknown, unknow
 		} else {
 			switch (m.status) {
 				case "idle":
-					return "_"
+					return "_*"
 				case "error":
-					return "E"
+					return "e*"
 				case "pending":
-					return "P"
+					return "p*"
 				case "success" :
-					return "S"
+					return "S*"
 			}
 		}
 	}
@@ -248,10 +287,11 @@ export default function MainPage() {
 	const queries = useMainPageQueries()
 	const [state, xdispatch] = useReducer(reducer, initialState)
 	const dispatch = (a: Action) => { console.log("action", a.action, "query" in a && a.query); return xdispatch(a) }
-	const highwaystopSource = useRef<MapLibreGL.ShapeSourceRef>(null)
-	const pointsOnWayNearClickSource = useRef<MapLibreGL.ShapeSourceRef>(null)
-	const roadcasingsSource = useRef<MapLibreGL.ShapeSourceRef>(null)
-	const mapView = useRef<MapLibreGL.MapViewRef|null>(null)
+	const refHighwaystopSource = useRef<MapLibreGL.ShapeSourceRef>(null)
+	const refPointsOnWayNearClickSource = useRef<MapLibreGL.ShapeSourceRef>(null)
+	const refRoadcasingsSource = useRef<MapLibreGL.ShapeSourceRef>(null)
+	const refMapView = useRef<MapLibreGL.MapViewRef|null>(null)
+	const refTappedLoc = useRef<MapLibreGL.PointAnnotationRef>(null)
 
 	/* simple synonoms */
 	const visibleBounds = state.visibleBounds;
@@ -272,12 +312,24 @@ export default function MainPage() {
 	const symbols = state.queries.queryNodes.data || null
 	const roadcasings = state.queries.queryWays.data || null
 
-	const fab = !!nearbyWays?.length || !!nearbyPoints?.length
+	const fab = !!tappedLocation1
 	const possiblyAffectedWays: [string, GeoJSON.Point][] = zip(nearbyWays || [], nearbyPoints || [])
 	const statusString = buildStatusString(state.queries)
 
+	const radians = undefined //todo implement this somehow.
+	const highlightWays = state.selectedWays.concat(state.selectedWays.flatMap(f => state.sameRoads[f] || []))
+
+	const neededRoads = state.selectedWays.filter(f => !(f in state.sameRoads) || !state.sameRoads[f])
 
 	/* queries */
+	useDispatchingQuery(
+		(queryState: QueryState<unknown, Record<WayId, WayId[]>>) => dispatch({action: "set query", query: "sameRoad", queryState}),
+		{
+			queryKey: ["spatialite", "ways", "road ways", neededRoads],
+			enabled: neededRoads.length > 0,
+			queryFn: () => queries.current.doFindSameRoads(neededRoads),
+		}
+	)
 	useDispatchingQuery(
 		(queryState: QueryState<unknown, FoundNearbyWays>) => dispatch({action: "set query", query: "nearbyWays", queryState}),
 		{
@@ -421,6 +473,7 @@ export default function MainPage() {
 			if(data) {
 				queryClient.invalidateQueries({queryKey: ["spatialite query ways"]})
 				queryClient.invalidateQueries({queryKey: ["spatialite", "nearby ways"]})
+				dispatch({action: "invalidate same roads"})
 			}
 		}
 	})
@@ -458,7 +511,8 @@ export default function MainPage() {
 
 	/* callbacks */
 	const setTappedLocation = (tappedLocation: GeoJSON.Point|null) => dispatch({ action: "tap location", tappedLocation})
-	const onPress = (event: GeoJSON.Feature<GeoJSON.Point>) => setTappedLocation(event.geometry)
+	const onPressMap = (event: GeoJSON.Feature<GeoJSON.Point>) => { console.log("from map", event); setTappedLocation(state.tappedLocation ? null : event.geometry)}
+	const onPressWay = (event: OnPressEvent) => { console.log("from way", event); dispatch({action: "select ways", ways: event.features.map(i => i.id!.toString()), select: "toggle"}) }
 	const onPressCancelCurrentClick = () => { setTappedLocation(null) }
 
 	const onMapBoundChange = (feature: GeoJSON.Feature<GeoJSON.Point, RegionPayload>) => {
@@ -494,16 +548,16 @@ export default function MainPage() {
 			<Text>{statusString}</Text>
 			<MapLibreGL.MapView
 				onRegionDidChange={onMapBoundChange}
-				ref={mapView}
+				ref={refMapView}
 				style={styles.map}
 				logoEnabled={false}
 				styleURL="https://tiles.openfreemap.org/styles/liberty"
-				onPress={onPress}
+				onPress={onPressMap}
 			>
 				{pointsOnWayNearClick && <MapLibreGL.ShapeSource
 					id="pointsOnWayNearClick"
 					shape={pointsOnWayNearClick}
-					ref={pointsOnWayNearClickSource}
+					ref={refPointsOnWayNearClickSource}
 					onPress={onPressCancelCurrentClick}
 				>
 					<MapLibreGL.CircleLayer
@@ -515,7 +569,7 @@ export default function MainPage() {
 				{symbols && <MapLibreGL.ShapeSource
 					id="highwaystop"
 					shape={symbols}
-					ref={highwaystopSource}
+					ref={refHighwaystopSource}
 				>
 					<MapLibreGL.CircleLayer
 						id="points"
@@ -526,15 +580,16 @@ export default function MainPage() {
 				{roadcasings && <MapLibreGL.ShapeSource
 					id="roadcasing"
 					shape={roadcasings}
-					ref={roadcasingsSource}
+					ref={refRoadcasingsSource}
+					onPress={onPressWay}
 				>
 					<MapLibreGL.FillLayer
 						id="roadcasingfill"
-						style={roadcasingsLayerStyle(nearbyWays)}
+						style={roadcasingsLayerStyle(highlightWays)}
 					/>
 					<MapLibreGL.LineLayer
 						id="roadstrokeslines"
-						style={roadStrokesLayerStyle(nearbyWays)}
+						style={roadStrokesLayerStyle(highlightWays)}
 					/>
 
 				</MapLibreGL.ShapeSource>}
@@ -543,11 +598,30 @@ export default function MainPage() {
 					followUserMode={MapLibreGL.UserTrackingMode.Follow}
 					followUserLocation
 				/>
+				{tappedLocation1 && <MapLibreGL.PointAnnotation key={radians} ref={refTappedLoc} onSelected={() => setTappedLocation(null)} onDragEnd={e => setTappedLocation(e.geometry)} id="centrepoint" coordinate={tappedLocation1.coordinates} draggable={true} >
+					<View>
+						<Svg.Svg  height="25" width="25" viewBox="0 0 100 100" >
+							<Svg.Defs>
+								<Svg.Marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+									<Svg.Path d="M 0 0 L 10 5 L 0 10 z" />
+								</Svg.Marker>
+							</Svg.Defs>
+							<Svg.Circle cx="50" cy="50" r="43" stroke="blue" strokeWidth="14" fill="green" />
+							{radians !== undefined ?
+								<Svg.Line
+									markerEnd='url(#arrow)'
+									stroke={radians !== 0 ? "orange" : "black"} strokeWidth="10"
+									x1={50 + (43) * Math.cos(radians+Math.PI)} y1={50 + (43) * Math.sin(radians+Math.PI)}
+									x2={50 + (43) * Math.cos(radians)} y2={50 + (43) * Math.sin(radians)}></Svg.Line>
+								:  false }
+						</Svg.Svg>
+					</View>
+				</MapLibreGL.PointAnnotation>}
 
 			</MapLibreGL.MapView>
 			<FAB
-				visible={fab && !!tappedLocation1}
-				onPress={() => tappedLocation1 && router.navigate("../Add sign?" + prepareSignArgs({traffic_sign: 'hazard hazard=?!', possibly_affected_ways: possiblyAffectedWays, point: tappedLocation1}).toString() as any)}
+				visible={fab}
+				onPress={() => tappedLocation1 && router.navigate("../Add sign?" + prepareSignArgs({traffic_sign: 'stop', point: tappedLocation1}).toString() as any)}
 				placement="right"
 				title="Add Sign"
 				icon={{ name: 'diamond-turn-right', type: 'font-awesome-6', color: 'white' }}
@@ -557,7 +631,6 @@ export default function MainPage() {
 	);
 }
 
-const sha256h: {h: number[]|undefined, k:number[]|undefined} = { h: undefined, k: undefined }
 const sha256: ((ascii: string) => string|undefined) = function sha256(ascii: string): string {
     function rightRotate(value: number, amount: number) {
         return (value>>>amount) | (value<<(32 - amount));
