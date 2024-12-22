@@ -1,6 +1,7 @@
-{
+const IS_DEV = process.env.APP_VARIANT === 'development';
+export default {
   "expo": {
-    "name": "cosm",
+    "name": IS_DEV ? "cosm (Development)" : "cosm",
     "slug": "cosm",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -10,7 +11,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "dev.tmcl.cosm",
+      "bundleIdentifier": IS_DEV ? "dev.tmcl.cosm" : "dev.tmcl.cosm.dev",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "This program is intended to help you map on-the-go.",
       }
@@ -20,15 +21,11 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "dev.tmcl.cosm"
-    },
-    "web": {
-      "bundler": "metro",
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "package": IS_DEV ? "dev.tmcl.cosm" : "dev.tmcl.cosm.dev"
     },
     "plugins": [
       "expo-router",
+			["expo-dev-client", {"addGeneratedScheme": !IS_DEV}],
       ["expo-sqlite", {
         "customBuildFlags": "-DSQLITE_ENABLE_RTREE=1"
       }],
@@ -73,4 +70,4 @@
       "typedRoutes": true
     }
   }
-}
+};

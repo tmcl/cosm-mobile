@@ -6,6 +6,7 @@
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
+    "androidRelease": "expo run:android --variant Release",
     "ios": "expo run:ios",
     "test": "jest --watchAll",
     "lint": "expo lint"
