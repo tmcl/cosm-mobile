@@ -23,8 +23,6 @@ import {skipToken, useQueryClient} from '@tanstack/react-query'
 
 const MAX_FEATURES_QUERY = 3000
 
-const consoleLog: typeof console.log = () => {}
-
 const roadStrokesLayerStyle = (wayIds: string[]|null): MapLibreGL.LineLayerStyle => ({
 	lineColor: wayIds ? ["case", ["in", ["id"], ["literal", wayIds] ], "purple", "red"] : "red",
 	lineOpacity: ["case", ["in", ["geometry-type"], ["literal", "LineString"]], 1, 0]

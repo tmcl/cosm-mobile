@@ -72,9 +72,13 @@
     "typescript": "^5.3.3"
   },
   "resolutions": {
-    "expo-sqlite": "git+http://termite:3000/tristan/expo-spatialite#alternative-implementation"
+    "expo-sqlite": "git+http://termite:3000/tristan/expo-spatialite#alternative-implementation",
+		"cookie": "0.7.2"
   },
   "overrides": {
+		"@remix-run/server-runtime": {
+			"cookie": "^0.7.2"
+		},
     "spatialite": {
       "expo-sqlite": "$expo-sqlite"
     },
