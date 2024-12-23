@@ -8,11 +8,11 @@ import {StyleSheet, Text, View, ViewProps} from "react-native";
 import {useLocalSearchParams} from "expo-router";
 import * as SQLite from 'expo-sqlite'
 import {
+  bound,
   doublePad,
   EditPageQueries,
   IntersectingWayInfo, JsonBBox,
-  mapMaybe,
-  Maybe, QueryDispatcher, QueryState,
+  QueryDispatcher, QueryState,
   QueryWaysWithIntersections,
   TargetNode, useDispatchingQuery, WayId
 } from '@/components/queries';
@@ -186,18 +186,6 @@ type NearestPoint = GeoJSON.Feature<GeoJSON.Point, {
     triggeringWayId: WayId;
     segmentWayId: WayId;
 }>
-
-const bound = (val: number, min: number, max: number) => {
-  const difference = max - min
-  let result = val
-  while (result < min) {
-    result += difference
-  }
-  while (result >= max) {
-    result -= difference
-  }
-  return result
-}
 
 const roadcasingsLayerStyle = (selectedWayIds: string[], sameRoad: undefined|Record<WayId, WayId<number>[]>): MapLibreGL.FillLayerStyle => {
   console.log("processing selections", selectedWayIds, sameRoad)
@@ -805,14 +793,14 @@ export default function AddSign() {
 
   const tapAffectedNode = (feature: OnPressEvent) => {
     console.log("tapped node", feature.features)
-    const pointId = mapMaybe(feature.features,
-        (f): Maybe<NodeId> => {
+    const pointId = feature.features.flatMap(
+        (f) => {
           const theid = f.id
           if (f.geometry.type === "Point" && isNodeId(theid)) {
             const verifiedid: NodeId = theid
-            return {just: verifiedid, type: "just"}
+            return [verifiedid]
           } else {
-            return {type: "nothing"}
+            return []
           }
         })
 
@@ -836,8 +824,8 @@ export default function AddSign() {
 
   const onActivateNearestPoint = (feature: OnPressEvent) => {
     console.log("tapped nearest point", feature.features, "what information odes it have?")
-    const pointId = mapMaybe(feature.features, (f): Maybe<NodeId> => {
-      return f.geometry.type === "Point" && isNodeId(f.id) ? { type: "just", just: f.id } : { type: "nothing" }
+    const pointId = feature.features.flatMap((f) => {
+      return f.geometry.type === "Point" && isNodeId(f.id) ? [ f.id ] : []
     })
 
     if (pointId.some(p => !stateSettings.selectedNodes.some(q => p === q))) {
@@ -927,12 +915,14 @@ export default function AddSign() {
     }
   })()
 
-  const selectedNearestPoints = mapMaybe(Object.entries(stateSettings.nearestPoints), ([wayId, node]): Maybe<NearestPoint> => {
-    return node.id && typeof node.id === "string" && isNodeId(node.id) && stateSettings.selectedNodes.includes(node.id) && stateSettings.selectedWays.includes(wayId) ? {type: "just", just: node} : { type: "nothing" }
+  const selectedNearestPoints = Object.entries(stateSettings.nearestPoints).flatMap( ([wayId, node]) => {
+    return node.id && typeof node.id === "string" && isNodeId(node.id) && stateSettings.selectedNodes.includes(node.id) && stateSettings.selectedWays.includes(wayId)
+        ? [ node]
+        : []
   })
 
-  const nearestPointsOnSelectedWay = mapMaybe(Object.entries(stateSettings.nearestPoints), ([wayId, node]): Maybe<NearestPoint> => {
-    return stateSettings.selectedWays.includes(wayId) ? {type: "just", just: node} : { type: "nothing" }
+  const nearestPointsOnSelectedWay = Object.entries(stateSettings.nearestPoints).flatMap(([wayId, node]) => {
+    return stateSettings.selectedWays.includes(wayId) ? [node] : []
   })
   const implicitAngleAndDirection = ( (): {angle: number|undefined, direction: Direction|undefined} => {
     const ways = waysCentreline
@@ -1110,11 +1100,11 @@ const calculateAngleAtIndex = (way: GeoJSON.Feature<GeoJSON.LineString, OsmApi.I
 }
 
 const calculateDirectionToNearestIntersection = ({way, nearestPointOnLine}: {way: GeoJSON.Feature<GeoJSON.LineString, OsmApi.IWay>, nearestPointOnLine: TurfNearestPoint}, ix: number, intersectedWays: IntersectingWayInfo) => {
-  const wayIntersections: undefined|GeoJSON.Feature<GeoJSON.Point, {ix: number}>[] =
-      mapMaybe(intersectedWays, (wna): Maybe<GeoJSON.Feature<GeoJSON.Point, {ix: number}>> => {
+  const wayIntersections: GeoJSON.Feature<GeoJSON.Point, {ix: number}>[] =
+      intersectedWays.flatMap((wna) => {
         return wna.others
-            ? {type:"just", just: {type: "Feature", properties: {ix: wna.ix}, geometry: {type: "Point", coordinates: way.geometry.coordinates[wna.ix]}}}
-            : {type: "nothing"}
+            ? [{type: "Feature", properties: {ix: wna.ix}, geometry: {type: "Point", coordinates: way.geometry.coordinates[wna.ix]}}]
+            : []
       })
   if(!wayIntersections) return undefined
   console.log("theoretically nearest point", nearestPointOnLine)

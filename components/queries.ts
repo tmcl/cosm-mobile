@@ -52,25 +52,12 @@ export class EditPageQueries {
 
     public async doFindTargetNodes(jsArgs: {$needle: Record<string, string>, minlon: number, minlat: number, maxlon: number, maxlat: number}) {
 		const {minlon, minlat, maxlon, maxlat} = jsArgs
-		var x = "additional info: there is none"
-		try {
-		console.log("====================================================hunting nodes")
-		const argsModified = {$minlon: minlon, $minlat: minlat, $maxlat: maxlat, $maxlon: maxlon, $needle: JSON.stringify(jsArgs.$needle), $needleLength: Object.keys(jsArgs.$needle).length}
+		const argsModified = {$minlon: minlon, $minlat: minlat, $maxlat: maxlat, $maxlon: maxlon, $needles: JSON.stringify([jsArgs.$needle])}
         const r = await this._findTargetNodes!.executeAsync<{ geojson: string, ways: string }>(argsModified)
 		const r2 = await r.getAllAsync()
-		console.log("i found target nodes", r2, "target nodes gefunden habe ich")
 		return r2.map(geo => {
-			console.log("//////////////////////I would very much like to parse geo.geojson", geo.geojson)
-			x = geo.geojson
-				const r: TargetNode = JSON.parse(geo.geojson)
-				//const ways: (string | number)[] = JSON.parse(geo.ways)
-				console.log(r.properties, r, "something something")
-				//r.properties.ways = ways.map(w => w.toString())
-				return r
+				return JSON.parse(geo.geojson) as TargetNode
 			})
-		} catch (e) {
-			throw [e, x]
-		}
     }
 
 	public set queryWaysWithIntersections(complete: SQLite.SQLiteStatement | undefined) {
@@ -202,6 +189,9 @@ class ThingyTracker {
 	}
 }
 
+export type InterestingNodes = GeoJSON.FeatureCollection<GeoJSON.Point, {}>
+export type InterestingNodesParams = {$needles: Record<string, string>[], minlon: number, minlat: number, maxlon: number, maxlat: number}
+
 export class MainPageQueries {
 	private _knownBounds: SQLite.SQLiteStatement | undefined
 	private _insertBounds: SQLite.SQLiteStatement | undefined
@@ -214,12 +204,45 @@ export class MainPageQueries {
 	private _findNearbyWays: SQLite.SQLiteStatement | undefined
 	private _addCasingsToWays: SQLite.SQLiteStatement | undefined
 	private _findSameRoads: SQLite.SQLiteStatement | undefined
+	private _findIntersections: SQLite.SQLiteStatement | undefined
+	private _findTargetNodes: SQLite.SQLiteStatement | undefined
 
 	private _tracker;
 
 	constructor() {
 		this._tracker = new ThingyTracker()
 	};
+	// noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
+	public get findTargetNodes(): never { throw "use the do- method" }
+	public set findTargetNodes(theQueryWays: SQLite.SQLiteStatement | undefined) {
+		this._findTargetNodes?.finalizeAsync()
+		this._findTargetNodes = theQueryWays
+	}
+
+	public async doFindTargetNodes(jsArgs: InterestingNodesParams): Promise<InterestingNodes> {
+		const {minlon, minlat, maxlon, maxlat} = jsArgs
+		var x = "additional info: there is none"
+		try {
+			console.log("====================================================hunting nodes")
+			const argsModified = {$minlon: minlon, $minlat: minlat, $maxlat: maxlat, $maxlon: maxlon, $needles: JSON.stringify(jsArgs.$needles)}
+			const r = await this._findTargetNodes!.executeAsync<{ geojson: string, ways: string }>(argsModified)
+			const r2 = await r.getAllAsync()
+			//console.log("i found target nodes", r2, "target nodes gefunden habe ich")
+			const targetNodes = r2.map(geo => {
+				//console.log("//////////////////////I would very much like to parse geo.geojson", geo.geojson)
+				x = geo.geojson
+				const r: TargetNode = JSON.parse(geo.geojson)
+				// console.log(r.properties, r, "something something")
+				return r
+			})
+			return {
+				type: "FeatureCollection",
+				features: targetNodes
+			}
+		} catch (e) {
+			throw [e, x]
+		}
+	}
 
 	// noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
 	public get knownBounds(): never { throw "use the do function" }
@@ -256,13 +279,17 @@ export class MainPageQueries {
 		this._queryWays = theQueryWays
 	}
 
-    public async *doQueryWays(jsArgs: {$limit: number, minlon: number, minlat: number, maxlon: number, maxlat: number}) {
+    public async doQueryWays(jsArgs: {$limit: number, minlon: number, minlat: number, maxlon: number, maxlat: number}) {
 		const {minlon, minlat, maxlon, maxlat, ...others} = jsArgs
 		const sqliteArgs = {...others, $minlon: minlon, $minlat: minlat, $maxlat: maxlat, $maxlon: maxlon}
-		const result = this._queryWays!.executeSync<{ geojson: string }>(sqliteArgs)
+		const result = this._queryWays!.executeSync<{ geojson: string, centrelines: string }>(sqliteArgs)
+		const centrelines = []
+		const casings = []
 		for await (const geojson of result) {
-			yield JSON.parse(geojson.geojson) as GeoJSON.Feature<GeoJSON.Polygon|GeoJSON.LineString, OsmApi.IWay>
+			casings.push(JSON.parse(geojson.geojson) as GeoJSON.Feature<GeoJSON.Polygon|GeoJSON.LineString, OsmApi.IWay>)
+			centrelines.push(JSON.parse(geojson.centrelines) as GeoJSON.Feature<GeoJSON.LineString, OsmApi.IWay>)
 		}
+		return {centrelines, casings}
     }
 
 	// noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
@@ -331,6 +358,26 @@ export class MainPageQueries {
 		})
 	}
 
+
+	// noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
+	public get findIntersections():never { throw "this._findIntersections" }
+	public set findIntersections(thequery: SQLite.SQLiteStatement | undefined) {
+		this._findIntersections?.finalizeAsync()
+		this._findIntersections = thequery
+	}
+
+	public async doFindIntersections(jsArgs: WayId[]): Promise<Record<WayId, IntersectingWayInfo>> {
+		const sqliteArgs = {$required_ids: JSON.stringify(jsArgs)}
+		console.log("find intersections", jsArgs, sqliteArgs)
+		const query = await this._tracker.track("exec find intersections", () => this._findIntersections!.executeAsync<{intersections: string}>(sqliteArgs))
+		const queryResult = await this._tracker.track("exec getall intersections", () => query.getFirstAsync())
+		const result: Record<WayId, IntersectingWayInfo> = queryResult
+			? JSON.parse(queryResult.intersections)
+			: {}
+		console.log("intersections res", queryResult, result)
+		return result
+	}
+
 	// noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
 	public get findSameRoads():never { throw "this._findSameRoads" }
 	public set findSameRoads(thequery: SQLite.SQLiteStatement | undefined) {
@@ -340,12 +387,16 @@ export class MainPageQueries {
 
 	public async doFindSameRoads(jsArgs: WayId[]): Promise<Record<WayId, WayId[]>> {
 		const sqliteArgs = {$required_ids: JSON.stringify(jsArgs)}
-		console.log("find same roads", jsArgs, sqliteArgs)
+		console.log("!!!!!!!!!!!!!!!!!!!!!!!!!find same roads", jsArgs, sqliteArgs)
 		const query = await this._tracker.track("exec find sameRoads", () => this._findSameRoads!.executeAsync<{id: WayId, sameRoad: string}>(sqliteArgs))
 		const queryResult = await this._tracker.track("exec getall same roads", () => query.getAllAsync())
 		const result: Record<WayId, WayId[]> = {}
 		queryResult.forEach(r => {result[r.id] = (JSON.parse(r.sameRoad) as number[]).map(m => m.toString())})
 		console.log("same road res", queryResult, result)
+		if(Object.values(result).some(s => s.some(t => typeof t !== "string"))) {
+			console.log("%%%%%%%%%%%%0, this is wrong")
+		}
+
 		return result
 	}
 
@@ -396,6 +447,8 @@ export class MainPageQueries {
 		this.queryNodes = await db.prepareAsync( require('@/sql/query-nodes.sql.json'))
 		this.queryWays = await db.prepareAsync( require('@/sql/query-ways.sql.json') )
 		this.findSameRoads = await db.prepareAsync( require('@/sql/find-same-roads.sql.json') )
+		this.findIntersections = await db.prepareAsync( require('@/sql/find-intersections.sql.json') )
+		this.findTargetNodes = await db.prepareAsync(require('@/sql/find-target-elements.sql.json'))
 	}
 
 	finalize() {
@@ -410,6 +463,8 @@ export class MainPageQueries {
 		this.insertRelatedWays = undefined
 		this.queryWays = undefined
 		this.findSameRoads = undefined
+		this.findTargetNodes = undefined
+		this.findIntersections = undefined
 	}
 }
 
@@ -421,20 +476,6 @@ export const zip = function <A, B>(aa: A[], bb: B[]): [A, B][] {
         answer.push([aa[i], bb[i]])
     }
     return answer
-}
-
-export type Maybe<R> = {type: "nothing"}|{type: "just", just: R}
-export const mapMaybe = function <T, R>(tt: T[], f: (t: T) => Maybe<R>): R[] {
-	const answer: R[] = new Array(tt.length)
-	let i: number = 0
-	tt.forEach(t => {
-		const maybe = f(t)
-		if(maybe.type === "just") {
-			answer[i++] = maybe.just
-		}
-	})
-	answer.length = i
-	return answer
 }
 
 export type JsonBBox = { minlon: number, minlat: number, maxlat: number, maxlon : number}
@@ -526,25 +567,27 @@ export type FoundNearbyWays = {ways: WayId[], nodes: GeoJSON.Point[]}
 export const debug = (a: any, b: any) => { console.log(a, b); return b}
 export type WayId<T extends string|number = string> = T
 
-export const nub = <T>(arr: T[]): T[] => {
-	if(arr.length > 0) {
-		const sorted = arr.toSorted()
-		const nubbed = new Array(sorted.length)
-		nubbed[0] = sorted[0]
-		let j = 0
-		for (let i = 1; i < sorted.length; i++) {
-			if(nubbed[j] !== sorted[i]) {
-				j++
-				nubbed[j] = sorted[i]
-			}
-		}
-		nubbed.length = j+1
-		return nubbed
-	} else {
-		return [];
-	}
+export const nub = (arr: string[]): string[] => {
+	return Object.keys(Object.fromEntries(arr.map(f => [f, true])))
 }
 
 export const containsAll = <T>(aa: T[], bb: T[]): boolean => {
 	return !bb.some(b => !aa.includes(b))
+}
+export const bound = (val: number, min: number, max: number) => {
+	const difference = max - min
+	let result = val
+	while (result < min) {
+		result += difference
+	}
+	while (result >= max) {
+		result -= difference
+	}
+	return result
+}
+
+// like a memoizer, but only evaluated once.
+export const lazy = <T>(f: () => T): () => T => {
+	let result: undefined|T
+	return () => (result || (result = f()))
 }
