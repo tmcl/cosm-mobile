@@ -497,9 +497,6 @@ export default function MainPage() {
 			queryKey: ["spatialite query ways", (doublePaddedBounds || {})],
 			enabled: !!doublePaddedBounds,
 			placeholderData: (d) => d,
-			queryFn: doublePaddedBounds && (async (): Promise<GeoJSON.FeatureCollection<GeoJSON.Polygon|GeoJSON.LineString, OsmApi.IWay>|null> => {
-				const ways = await fromAsync(queries.current.doQueryWays({... doublePaddedBounds, $limit: MAX_FEATURES_QUERY}))
-				return ways.length ? {type: "FeatureCollection", features: ways } : null
 			queryFn: doublePaddedBounds && (async () => {
 				const result = await (queries.current.doQueryWays({... doublePaddedBounds, $limit: MAX_FEATURES_QUERY}))
 				const casings =  result.casings.length ? {type: "FeatureCollection" as const, features: result.casings } : null
