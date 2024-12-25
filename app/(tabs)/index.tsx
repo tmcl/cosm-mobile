@@ -1,6 +1,6 @@
 import {useDebouncedCallback} from "use-debounce"
 import fromAsync from 'array-from-async';
-import React, {useEffect, useReducer, useRef, useState} from 'react'
+import React, {useCallback, useEffect, useMemo, useReducer, useRef, useState} from 'react'
 import {FAB} from '@rneui/themed'
 import {InteractionManager, StyleSheet, Text, View} from "react-native";
 import MapLibreGL from '@maplibre/maplibre-react-native';
@@ -804,11 +804,11 @@ export default function MainPage() {
   {
     const neededIntersections = modalSelectedWays.filter(f => !(f in state.intersections) || !state.intersections[f])
     useDispatchingQuery(
-        (queryState: QueryState<unknown, PartialRecord<WayId, IntersectingWayInfo>>) => dispatch({
+        useCallback((queryState: QueryState<unknown, PartialRecord<WayId, IntersectingWayInfo>>) => dispatch({
           action: "set query",
           query: "intersections",
           queryState
-        }),
+        }), []),
         {
           queryKey: ["spatialite", "ways", "intersections", neededIntersections],
           enabled: neededIntersections.length > 0,
@@ -819,11 +819,11 @@ export default function MainPage() {
   {
     const neededRoads = allModeSelectedWays.filter(f => !(f in state.sameRoads) || !state.sameRoads[f])
     useDispatchingQuery(
-        (queryState: QueryState<unknown, PartialRecord<WayId, WayId[]>>) => dispatch({
+        useCallback((queryState: QueryState<unknown, PartialRecord<WayId, WayId[]>>) => dispatch({
           action: "set query",
           query: "sameRoads",
           queryState: queryState.data ? debug("this is a same roads query state", queryState) : queryState
-        }),
+        }), []),
         {
           queryKey: ["spatialite", "ways", "road ways", neededRoads],
           enabled: neededRoads.length > 0,
@@ -832,11 +832,11 @@ export default function MainPage() {
     )
   }
   useDispatchingQuery(
-      (queryState: QueryState<unknown, InterestingNodes>) => dispatch({
+      useCallback((queryState: QueryState<unknown, InterestingNodes>) => dispatch({
         action: "set query",
         query: "interestingNodes",
         queryState
-      }),
+      }), []),
       {
         queryKey: ["spatialite", "nearby ways", interestingNodesParams],
         enabled: hasInterestingNodes,
@@ -846,11 +846,11 @@ export default function MainPage() {
   )
 
   useDispatchingQuery(
-      (queryState: QueryState<unknown, JsonBBox | null>) => dispatch({
+      useCallback((queryState: QueryState<unknown, JsonBBox | null>) => dispatch({
         action: "set query",
         query: "unknownBounds",
         queryState
-      }),
+      }), []),
       {
         queryKey: ["spatialite known bounds", visibleBounds],
         enabled: !!mapArea && !!capability && !!visibleBounds && (mapArea * 10 <= capability),
@@ -867,11 +867,11 @@ export default function MainPage() {
   )
 
   useDispatchingQuery(
-      (queryState: QueryState<unknown, { $json: string; $requestedBounds: JsonBBox; }>) => {
+      useCallback((queryState: QueryState<unknown, { $json: string; $requestedBounds: JsonBBox; }>) => {
         const sha = queryState.data ? sha256(bytesToBase64(JSON.stringify(queryState.data))) : undefined
         console.log("***set query osmMap", queryState.status, queryState.fetchStatus, sha)
         dispatch({action: "set query", query: "osmMap", queryState})
-      }
+      }, [])
       ,
       {
         queryKey: ["osm map", osmMapArgs],
@@ -886,11 +886,11 @@ export default function MainPage() {
       })
 
   useDispatchingQuery(
-      (queryState: QueryState<unknown, GeoJSON.FeatureCollection<GeoJSON.Point, OsmApi.INode> | null>) => dispatch({
+      useCallback((queryState: QueryState<unknown, GeoJSON.FeatureCollection<GeoJSON.Point, OsmApi.INode> | null>) => dispatch({
         action: "set query",
         query: "queryNodes",
         queryState
-      })
+      }), [])
       , {
         queryKey: ["spatialite query nodes", (doublePaddedBounds || {})],
         enabled: !!doublePaddedBounds,
@@ -902,7 +902,8 @@ export default function MainPage() {
       })
 
   useDispatchingQuery(
-      (queryState) => dispatch({action: "set query", query: "queryWays", queryState}),
+      useCallback((queryState: QueryState<unknown, {   casings: GeoJSON.FeatureCollection<GeoJSON.LineString | GeoJSON.Polygon, OsmApi.IWay> | null;
+        centrelines: GeoJSON.FeatureCollection<GeoJSON.LineString, OsmApi.IWay> | null; }>) => dispatch({action: "set query", query: "queryWays", queryState}),[]),
       {
         queryKey: ["spatialite query ways", (doublePaddedBounds || {})],
         enabled: !!doublePaddedBounds,
@@ -921,11 +922,11 @@ export default function MainPage() {
       }
   )
   useDispatchingQuery(
-      (queryState: QueryState<unknown, OsmApi.IJSONApiVersions>) => dispatch({
+      useCallback((queryState: QueryState<unknown, OsmApi.IJSONApiVersions>) => dispatch({
         action: "set query",
         query: "osmVersions",
         queryState
-      }),
+      }), []),
       {
         queryKey: ['osm query version'],
         queryFn: OsmApi.getApiVersions,
@@ -936,11 +937,11 @@ export default function MainPage() {
 
   const neededForLoading = state.neededForLoading;
   useDispatchingQuery(
-      (queryState: QueryState<unknown, SavedChangeSet | null>) => dispatch({
+      useCallback((queryState: QueryState<unknown, SavedChangeSet | null>) => dispatch({
         action: "set query",
         query: "neededForLoading",
         queryState
-      }),
+      }), []),
       {
         queryKey: ['spatialite', 'needed for loading', neededForLoading],
         enabled: !!neededForLoading,
@@ -949,11 +950,11 @@ export default function MainPage() {
   )
 
   useDispatchingQuery(
-      (queryState: QueryState<unknown, OsmApi.IApiCapabilities>) => dispatch({
+      useCallback((queryState: QueryState<unknown, OsmApi.IApiCapabilities>) => dispatch({
         action: "set query",
         query: "osmCapabilities",
         queryState
-      }),
+      }), []),
       {
         queryKey: ['osm query capabilities', state.queries.osmVersions.data],
         enabled: state.queries.osmVersions.status
@@ -985,11 +986,11 @@ export default function MainPage() {
 
   /* mutations */
   const qSaveUpdateUserChanges = useDispatchingMutation(
-      (queryState: MutationState<unknown, number>) => dispatch({
-        action: "set query",
-        query: "saveUpdateUserDataChanges",
-        queryState
-      }),
+      useCallback((queryState: MutationState<unknown, number>) => dispatch({
+    action: "set query",
+    query: "saveUpdateUserDataChanges",
+    queryState
+  }), []),
       {
         mutationFn: ({id, args}: { id: number, args: MyChangeSet }) =>
             queries.current.doSaveUpdateChange(id, args),
@@ -1024,11 +1025,11 @@ export default function MainPage() {
   )
 
   const qSaveNewUserChanges = useDispatchingMutation(
-      (queryState: MutationState<unknown, SavedChangeSet>) => dispatch({
+      useCallback((queryState: MutationState<unknown, SavedChangeSet>) => dispatch({
         action: "set query",
         query: "saveNewUserDataChanges",
         queryState
-      }),
+      }), []),
       {
         mutationFn: (args: MyChangeSet) =>
             queries.current.doSaveNewChange(args),
@@ -1039,9 +1040,10 @@ export default function MainPage() {
   )
 
   const modeHasChanges = "changeId" in modeSettings ? modeSettings.changeId : null
+  const qSaveNewUserChangesMutate = qSaveNewUserChanges.mutate
   useEffect(() => {
     if ("changeId" in modeSettings && modeSettings.changeId === undefined && state.mode !== 'browse') {
-      qSaveNewUserChanges.mutate({
+      qSaveNewUserChangesMutate({
         type: state.mode,
         change: constructedSign.changes,
         state_extract: modeSettings.change
@@ -1050,7 +1052,7 @@ export default function MainPage() {
   }, [state.mode, modeSettings, constructedSign.changes, modeHasChanges, qSaveNewUserChanges])
 
   const qInsertBounds = useDispatchingMutation(
-      (queryState: MutationState<unknown, void>) => dispatch({action: "set query", query: "insertBounds", queryState}),
+      useCallback((queryState: MutationState<unknown, void>) => dispatch({action: "set query", query: "insertBounds", queryState}), []),
       {
         mutationFn: async (args: {
           $json: string,
@@ -1063,11 +1065,11 @@ export default function MainPage() {
   )
 
   const qInsertNodes = useDispatchingMutation(
-      (queryState: MutationState<unknown, boolean>) => dispatch({
+      useCallback((queryState: MutationState<unknown, boolean>) => dispatch({
         action: "set query",
         query: "insertNodes",
         queryState
-      }),
+      }), []),
       {
         mutationFn: async (param: { $json: string }) => (await queries.current.doInsertNodes(param)).changes > 0,
         onSuccess: (changes) => {
@@ -1079,7 +1081,7 @@ export default function MainPage() {
   )
 
   const qInsertWays = useDispatchingMutation(
-      (queryState: MutationState<unknown, boolean>) => dispatch({action: "set query", query: "insertWays", queryState}),
+      useCallback((queryState: MutationState<unknown, boolean>) => dispatch({action: "set query", query: "insertWays", queryState}), []),
       {
         mutationFn: async (param: {
           $json: string
@@ -1096,11 +1098,11 @@ export default function MainPage() {
   )
 
   const qInsertRelatedWays = useDispatchingMutation(
-      (queryState: MutationState<unknown, boolean>) => dispatch({
+      useCallback((queryState: MutationState<unknown, boolean>) => dispatch({
         action: "set query",
         query: "insertRelatedWays",
         queryState
-      }),
+      }), []),
       {
         mutationFn: async () => (await queries.current.doInsertRelatedWays()) > 0,
         onSuccess: (data) => {
@@ -1114,11 +1116,11 @@ export default function MainPage() {
   )
 
   const qUpdateCasings = useDispatchingMutation(
-      (queryState: MutationState<unknown, number>) => dispatch({
+      useCallback((queryState: MutationState<unknown, number>) => dispatch({
         action: "set query",
         query: "updateCasings",
         queryState
-      }),
+      }), []),
       {
         mutationFn: async () => (await queries.current.doAddCasingToWays()).changes,
         onSuccess: (data) => {
@@ -1134,11 +1136,17 @@ export default function MainPage() {
 
   /* autotrigger mutations based on data state changes */
   const queryInsertRelatedWays = queries.current.insertRelatedWays
+  const qInsertRelatedWaysMutate = qInsertRelatedWays.mutate
   useEffect(() => {
     if (!queryInsertRelatedWays) return
     qInsertRelatedWays.mutate()
   }, [queryInsertRelatedWays, qInsertRelatedWays])
+    qInsertRelatedWaysMutate()
+  }, [queryInsertRelatedWays, qInsertRelatedWaysMutate])
 
+  const qInsertBoundsMutate   = qInsertBounds.mutate
+  const qInsertNodesMutate    = qInsertNodes.mutate
+  const qInsertWaysMutate     = qInsertWays.mutate
   useEffect(() => {
     console.log(
         "considering running the osm map trigger",
@@ -1152,10 +1160,10 @@ export default function MainPage() {
     const data = state.queries.osmMap.data
     if (!data) return console.log("i won't run it because no data")
     console.log("no i'm going ot run it")
-    qInsertBounds.mutate(data)
-    qInsertNodes.mutate(data)
-    qInsertWays.mutate(data)
-  }, [state.queries.osmMap.status, state.queries.osmMap.data, qInsertBounds, qInsertNodes, qInsertWays])
+    qInsertBoundsMutate(data)
+    qInsertNodesMutate(data)
+    qInsertWaysMutate(data)
+  }, [state.queries.osmMap.status, state.queries.osmMap.data, qInsertBoundsMutate, qInsertNodesMutate, qInsertWaysMutate])
 
   /* callbacks */
   const setTappedLocation = (tappedLocation: GeoJSON.Point | null, toggle = false) => {
