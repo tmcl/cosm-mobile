@@ -12,7 +12,14 @@ import * as ReactQuery from '@tanstack/react-query'
 const queryClient = new ReactQuery.QueryClient()
 
 const activateDb = (db: SQLite.SQLiteDatabase) => {
-  db.getFirstSync( ` pragma journal_mode=WAL `) 
+  db.getFirstSync( ` pragma journal_mode=WAL `)
+  //  db.execSync(`
+  //  PRAGMA writable_schema = 1;
+  //  DELETE FROM sqlite_master;
+  //  PRAGMA writable_schema = 0;
+  //  VACUUM;
+  //  PRAGMA integrity_check;
+  //  `)
   Spatialite.initializeDb(db)
   db.getFirstSync( ` select bufferoptions_setendcapstyle('flat'); `) 
 
