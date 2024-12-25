@@ -1,6 +1,5 @@
 import React, {useState, useEffect} from 'react'
-import { Text, View, Pressable, Button } from "react-native";
-import { Link } from "expo-router";
+import { Text, View } from "react-native";
 import * as SQLite from 'expo-sqlite'
 import { useAndroidLocationPermission } from '@/components/AndroidLocationPermission';
 
@@ -31,7 +30,6 @@ export default function Settings() {
 			setLog(`hello all: ${reslt4.r0} ${reslt4.r1} ${reslt4.r2} ${reslt4.r3}`)
 		})()
 	}, [db])
-	var onPress = () => "hi"
 
   const [isAndroidPermissionGranted, setAndroidPermissionGranted] = useState<boolean|null>(null);
   useAndroidLocationPermission(setAndroidPermissionGranted)
@@ -47,7 +45,6 @@ export default function Settings() {
     >
 		  {permission}
       <Text>{log}</Text>
-	<Button title="My Button" onPress={onPress} />
     </View>
   );
 }

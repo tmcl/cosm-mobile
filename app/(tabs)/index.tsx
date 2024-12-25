@@ -9,7 +9,7 @@ import * as OsmApi from "@/scripts/clients";
 import {useAndroidLocationPermission} from '@/components/AndroidLocationPermission';
 import {
   bound,
-  containsAll, containsAny, debug,
+  debug,
   doublePad,
   initialMutationState,
   initialQueryState, InterestingNodes, InterestingNodesParams, IntersectingWayInfo,
@@ -24,12 +24,11 @@ import * as Svg from "react-native-svg";
 import {OnPressEvent} from "@maplibre/maplibre-react-native/src/types/OnPressEvent";
 import {IconNode} from "@rneui/base";
 import * as turf from "@turf/turf";
-import {IWay} from "@/scripts/clients";
 import {useLocalSearchParams} from "expo-router";
 
 const isStringRecord = (obj: object): obj is Record<string, string> => {
   return !Object.getOwnPropertyNames(obj)
-  .some(prop => typeof prop !== "string" || typeof (obj as any)[prop] !== "string")
+  .some(prop => typeof (prop as unknown) !== "string" || typeof (obj as any)[prop] !== "string")
 }
 
 const isPoint = (point: object): point is GeoJSON.Point => {
@@ -39,7 +38,7 @@ const isPoint = (point: object): point is GeoJSON.Point => {
   if (!coordinates || typeof coordinates !== "object" || !(coordinates instanceof Array)) return false
   if (coordinates.length < 2 || coordinates.length > 3) return false
   if (coordinates.some(s => typeof s !== 'number')) return false
-  const c: GeoJSON.Point = {type: point.type, coordinates}
+  verifyObjIsMemberOf<GeoJSON.Point>({type: point.type, coordinates})
   return true
 }
 const isNewHighwayLocation = (obj: object): obj is { point: GeoJSON.Point, way: WayId } => {
@@ -47,10 +46,7 @@ const isNewHighwayLocation = (obj: object): obj is { point: GeoJSON.Point, way: 
   if (typeof way !== "string") return false;
   const point = "point" in obj && !!obj.point && isPoint(obj.point) && obj.point
   if (!point) return false
-  const c: { point: GeoJSON.Point, way: WayId } = {
-    point,
-    way
-  }
+  verifyObjIsMemberOf<{ point: GeoJSON.Point, way: WayId }>({point, way})
   return true;
 }
 const isNewTappedLocation = (obj: object): obj is { newId: `new-${number}`, point: GeoJSON.Point, type: "new" } => {
@@ -65,14 +61,14 @@ const isNewTappedLocation = (obj: object): obj is { newId: `new-${number}`, poin
   if (suffixNum.toString() !== suffix) return false
   const point = "point" in obj && !!obj.point && isPoint(obj.point) && obj.point
   if (!point) return false
-  const c: { newId: `new-${number}`, point: GeoJSON.Point, type: "new" } = {
+  verifyObjIsMemberOf<{ newId: `new-${number}`, point: GeoJSON.Point, type: "new" }>({
     newId: `new-${suffixNum}`,
     point,
     type
-  }
+  })
   return true;
 }
-const isINode = (obj: {}): obj is OsmApi.INode => {
+const isINode = (obj: object): obj is OsmApi.INode => {
   const type = "type" in obj && obj.type
   if (type !== "node") return false
   const uid = "uid" in obj && obj.uid
@@ -129,7 +125,7 @@ const isTargetNode = (obj: object): obj is TargetNode => {
   }
   if (!isWays(properties)) return false
 
-  const c: TargetNode = {type, properties, geometry}
+  verifyObjIsMemberOf<TargetNode>({type, properties, geometry})
   return true;
 }
 
@@ -249,7 +245,7 @@ type State = {
   neededForLoading: number | undefined,
   mode: Mode
   modes: {
-    browse: {}
+    browse: object
     addStopSign: {
       changeId: number | undefined
       change: {
@@ -405,7 +401,7 @@ const reducer = (state: State, action: Action): State => {
     case "modal": {
       switch (action.mode) {
         case "browse": {
-          const c: never = action.modalAction
+          unusedButOkay(action.modalAction)
           return state
         }
         case "addStopSign": {
@@ -522,13 +518,13 @@ const reducer = (state: State, action: Action): State => {
               }
             }
             default: {
-              const c: never = modalAction
+              unusedButOkay(modalAction)
               return state
             }
           }
         }
         default: {
-          const c: never = action
+          unusedButOkay(action)
           return state
         }
       }
@@ -577,7 +573,7 @@ const reducer = (state: State, action: Action): State => {
                 case "browse":
                   break;
                 case "addStopSign": {
-                  const id = typeof data.id === "number" && data.id
+                  const id = typeof (data.id as unknown) === "number" && data.id
                   const state_extract = verifyAsStopSign(data.state_extract)
                   if (id && state_extract) {
                     updateState.modes.addStopSign.changeId = id
@@ -730,7 +726,7 @@ function buildStatusString(
 export default function MainPage() {
   /* standard/project effects */
   const params = useLocalSearchParams<{ id?: string }>()
-  useAndroidLocationPermission(() => {})
+  useAndroidLocationPermission(undefined)
   const queryClient = useQueryClient()
   const queries = useMainPageQueries()
   const [state, xdispatch] = useReducer(reducer, initialState)
@@ -744,8 +740,7 @@ export default function MainPage() {
   const refRoadcasingsSource = useRef<MapLibreGL.ShapeSourceRef>(null)
   const refMapView = useRef<MapLibreGL.MapViewRef | null>(null)
   const refTappedLoc = useRef<MapLibreGL.PointAnnotationRef>(null)
-  const setNeededForLoading = (id: number) =>
-      dispatch({action: "needed for loading", id})
+
 
   console.log(
       "params",
@@ -762,9 +757,10 @@ export default function MainPage() {
     try {
       const id = JSON.parse(idstr) as unknown
       if (typeof id !== "number") return
-      setNeededForLoading(id)
+      dispatch({action: "needed for loading", id})
 
     } catch (e) {
+      unusedKnownType(e)
       return
     }
 
@@ -997,7 +993,7 @@ export default function MainPage() {
       {
         mutationFn: ({id, args}: { id: number, args: MyChangeSet }) =>
             queries.current.doSaveUpdateChange(id, args),
-        onSuccess: (data, variables,) => {
+        onSuccess: () => {
           queryClient.invalidateQueries({queryKey: ['spatialite', 'needed for loading']})
         }
       }
@@ -1009,22 +1005,22 @@ export default function MainPage() {
       },
       250, {maxWait: 10_000}
   )
+
+  const modeSettings = state.modes[state.mode]
   useEffect(() => {
-        console.log("there has been observed a change to ", [state.mode, state.modes[state.mode]])
-        const modeSettings = state.modes[state.mode]
         if ("changeId" in modeSettings && typeof modeSettings.changeId === "number" && state.mode !== 'browse') {
           console.log("we have further got enough data to save", modeSettings.changeId)
           debSaveUpdateUserChanges({
             id: modeSettings.changeId, args: {
               type: state.mode,
               change: constructedSign.changes,
-              state_extract: state.modes[state.mode].change
+              state_extract: modeSettings.change
             }
           })
         }
       }
 
-      , [state.mode, state.modes[state.mode]]
+      , [state.mode, modeSettings, constructedSign.changes, debSaveUpdateUserChanges]
   )
 
   const qSaveNewUserChanges = useDispatchingMutation(
@@ -1036,23 +1032,22 @@ export default function MainPage() {
       {
         mutationFn: (args: MyChangeSet) =>
             queries.current.doSaveNewChange(args),
-        onSuccess: (data, variables,) => {
+        onSuccess: () => {
           queryClient.invalidateQueries({queryKey: ["spatialite", "needed for loading"]})
         }
       }
   )
 
-  const modeSettings = state.modes[state.mode]
+  const modeHasChanges = "changeId" in modeSettings ? modeSettings.changeId : null
   useEffect(() => {
-    const modeSettings = state.modes[state.mode]
     if ("changeId" in modeSettings && modeSettings.changeId === undefined && state.mode !== 'browse') {
       qSaveNewUserChanges.mutate({
         type: state.mode,
         change: constructedSign.changes,
-        state_extract: state.modes[state.mode].change
+        state_extract: modeSettings.change
       })
     }
-  }, [state.mode, "changeId" in modeSettings ? modeSettings.changeId : null])
+  }, [state.mode, modeSettings, constructedSign.changes, modeHasChanges, qSaveNewUserChanges])
 
   const qInsertBounds = useDispatchingMutation(
       (queryState: MutationState<unknown, void>) => dispatch({action: "set query", query: "insertBounds", queryState}),
@@ -1138,10 +1133,11 @@ export default function MainPage() {
   )
 
   /* autotrigger mutations based on data state changes */
+  const queryInsertRelatedWays = queries.current.insertRelatedWays
   useEffect(() => {
-    if (!queries.current.insertRelatedWays) return
+    if (!queryInsertRelatedWays) return
     qInsertRelatedWays.mutate()
-  }, [queries.current.insertRelatedWays])
+  }, [queryInsertRelatedWays, qInsertRelatedWays])
 
   useEffect(() => {
     console.log(
@@ -1159,7 +1155,7 @@ export default function MainPage() {
     qInsertBounds.mutate(data)
     qInsertNodes.mutate(data)
     qInsertWays.mutate(data)
-  }, [state.queries.osmMap.status, state.queries.osmMap.data])
+  }, [state.queries.osmMap.status, state.queries.osmMap.data, qInsertBounds, qInsertNodes, qInsertWays])
 
   /* callbacks */
   const setTappedLocation = (tappedLocation: GeoJSON.Point | null, toggle = false) => {
@@ -1181,7 +1177,7 @@ export default function MainPage() {
       case "browse":
         return;
       default:
-        const c: never = state.mode
+        unusedButOkay(state.mode)
         return;
     }
   }
@@ -1196,12 +1192,12 @@ export default function MainPage() {
         return dispatch({
           action: "modal",
           mode: "addStopSign",
-          modalAction: {action: "select ways", ways: event.features.map(i => i.id!.toString()), select: "toggle"}
+          modalAction: {action: "select ways", ways: event.features.map(i => i.id!.toString()), select: "toggle", point: [event.coordinates.longitude, event.coordinates.latitude]}
         })
       case "browse":
         return
       default:
-        const c: never = state.mode
+        unusedButOkay(state.mode)
         return;
     }
   }
@@ -1240,9 +1236,7 @@ export default function MainPage() {
 
   useEffect(
       () => {
-        if (state.initialSetup) {
           setTimeout(() => dispatch({action: "post initial setup"}), 30_000)
-        }
       },
       []
   )
@@ -1281,7 +1275,7 @@ export default function MainPage() {
       case "browse":
         return
       default:
-        const c: never = state.mode
+        unusedButOkay(state.mode)
         return
     }
   }
@@ -1509,7 +1503,6 @@ const sha256: ((ascii: string) => string | undefined) = function sha256(ascii: s
     hash = hash.slice(0, 8);
 
     for (i = 0; i < 64; i++) {
-      var i2 = i + j;
       // Expand the message into 64 words
       // Used below if
       var w15 = w[i - 15], w2 = w[i - 2];
@@ -1609,7 +1602,7 @@ const directionFromString = (maybeDirection: string | undefined | null | false):
   }
 }
 
-const calculateAngleAtIndex = (way: GeoJSON.Feature<GeoJSON.LineString, {}>, ix: number) => {
+const calculateAngleAtIndex = (way: GeoJSON.Feature<GeoJSON.LineString, object>, ix: number) => {
   const otherIx = ix + 1 >= way.geometry.coordinates.length ? ix - 1 : ix + 1
   const nextIx = Math.max(ix, otherIx)
   const prevIx = Math.min(ix, otherIx)
@@ -1619,7 +1612,7 @@ const calculateAngleAtIndex = (way: GeoJSON.Feature<GeoJSON.LineString, {}>, ix:
 }
 
 const calculateDirectionToNearestIntersection = (
-    {way, nearestPointOnLine}: { way: GeoJSON.Feature<GeoJSON.LineString, {}>, nearestPointOnLine: TurfNearestPoint },
+    {way, nearestPointOnLine}: { way: GeoJSON.Feature<GeoJSON.LineString, object>, nearestPointOnLine: TurfNearestPoint },
     ix: number,
     intersectedWays: IntersectingWayInfo | undefined
 ) => {
@@ -1649,7 +1642,7 @@ const calculateDirectionToNearestIntersection = (
 
 const inferDirectionAndAngle = (
     signLocation: GeoJSON.Point,
-    selectedWays: GeoJSON.Feature<GeoJSON.LineString, {}>[]
+    selectedWays: GeoJSON.Feature<GeoJSON.LineString, object>[]
     , waysOthers: PartialRecord<WayId, IntersectingWayInfo>
 )
     : {
@@ -1684,7 +1677,7 @@ type Change = { object: OsmObject, set_tags: PartialRecord<string, string> }
 
 const modalNotes = (
     state: State,
-    selectedWays: GeoJSON.Feature<GeoJSON.LineString, {}>[]
+    selectedWays: GeoJSON.Feature<GeoJSON.LineString, object>[]
 ): {
   signFaceAngle: number | undefined,
   changes: Change[],
@@ -1764,7 +1757,6 @@ const modalNotes = (
           if (tappedLocation.properties.tags && a_includes_b(tappedLocation.properties.tags, signTags)) {
             notes.push("A sign is selected, but it's all good")
           } else {
-            const old: PartialRecord<string, string> = tappedLocation.properties.tags || {}
             notes.push("Amending an existing sign")
             changes.push({object: {type: "node", node_id: tappedLocation.id as `${number}`}, set_tags: signTags})
           }
@@ -1828,7 +1820,7 @@ const currentModesSelectedWays = (state: State): WayId[] => {
     case "addStopSign":
       return state.modes.addStopSign.change.selectedWays
     default:
-      const c: never = state.mode
+      unusedButOkay(state.mode)
       return []
   }
 }
@@ -1845,7 +1837,7 @@ const allModesSelectedWays = (state: State): WayId[] => {
       case "browse":
         return []
       default:
-        const c: never = t
+        unusedButOkay(t)
         return []
     }
   })
@@ -1864,7 +1856,7 @@ const anyModeSelectsWay = (state: State, wayId: WayId) => {
         return false
       }
       default:
-        const c: never = t
+        unusedButOkay(t)
         return false
     }
   })
@@ -1880,30 +1872,13 @@ const a_includes_b = (
   return !Object.entries(b).some(([bkey, bval]) => isIncluded ? isIncluded(bkey, a[bkey], bval) : a[bkey] !== bval)
 }
 
-const twoConnectedWaysHaveSameDirection = (
-    wayId1: WayId, wayId2: WayId, wayInfo: PartialRecord<WayId, IWay>): boolean | null => {
-  if (wayId1 === wayId2) return true
-  const alreadyChecked: PartialRecord<WayId, true> = {}
-
-  const way1 = wayInfo[wayId1]
-  const way2 = wayInfo[wayId2]
-
-  if (!way1 || !way2) return null
-
-  const first1 = way1.nodes[0]
-  const last1 = way1.nodes[way1.nodes.length - 1]
-  const first2 = way2.nodes[0]
-  const last2 = way2.nodes[way2.nodes.length - 1]
-  if (first1 === first2) return false
-  if (first1 === last2) return true
-  if (last1 === first2) return true
-  if (last1 === last2) return false
-  return null
-}
-
 type MyChangeSet_<M extends Mode, Y, X extends State['modes'][M] & { change: Y }> = {
   type: M,
   change: Change[],
   state_extract: X['change']
 }
 type MyChangeSet = MyChangeSet_<"addStopSign", State['modes']["addStopSign"]["change"], State['modes']["addStopSign"]>
+
+const unusedKnownType = function (something: unknown): void {}
+const unusedButOkay = (never: never): void => {}
+const verifyObjIsMemberOf = function <T = never>(val: T) { return val }

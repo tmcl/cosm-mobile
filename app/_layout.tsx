@@ -2,7 +2,7 @@ import MapLibreGL from '@maplibre/maplibre-react-native';
 import { Stack } from "expo-router";
 import * as SQLite from "expo-sqlite"
 import { Asset } from 'expo-asset';
-import React, {useState, useEffect, useRef} from 'react'
+import React, {useEffect, StrictMode} from 'react'
 import * as Spatialite from "spatialite"
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
@@ -131,6 +131,7 @@ export default function RootLayout() {
   })
 
   return (
+		  <StrictMode>
 	<SafeAreaProvider>
         <ReactQuery.QueryClientProvider client={queryClient}>
           <SQLite.SQLiteProvider databaseName="tism" onInit={activateDb}>
@@ -148,5 +149,6 @@ export default function RootLayout() {
           </SQLite.SQLiteProvider>
         </ReactQuery.QueryClientProvider>
 	</SafeAreaProvider>
+		  </StrictMode>
   );
 }

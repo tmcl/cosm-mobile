@@ -235,7 +235,7 @@ class ThingyTracker {
         )
         console.log("including the following old ones", old)
       } else {
-        if (this._timeout == interval) {
+        if (this._timeout === interval) {
           this._timeout = undefined
         }
         clearInterval(interval)
@@ -245,7 +245,7 @@ class ThingyTracker {
   }
 }
 
-export type InterestingNodes = GeoJSON.FeatureCollection<GeoJSON.Point, {}>
+export type InterestingNodes = GeoJSON.FeatureCollection<GeoJSON.Point, object>
 export type InterestingNodesParams = {
   $needles: Record<string, string>[],
   minlon: number,
@@ -270,8 +270,8 @@ export type SavedChangeSet<JSON = object> =
 export type ChangeSet =
     {
       type: string,
-      state_extract: {},
-      change: {}
+      state_extract: object,
+      change: object
     }
 
 export class MainPageQueries {
@@ -713,7 +713,7 @@ export function doublePad({minlon, minlat, maxlon, maxlat}: JsonBBox): JsonBBox 
   return {minlon, minlat, maxlon, maxlat}
 }
 
-type AppKey = ReadonlyArray<unknown>
+type AppKey = readonly unknown[]
 
 export type StandardQuery<T, TError, TResult> = Parameters<typeof ReactQuery.useQuery<T, TError, TResult, AppKey>>
 export type QueryState<TError, TResult> =
@@ -738,9 +738,10 @@ export const useDispatchingQuery =
         ...args: StandardQuery<TResult, TError, TResult>
     ) {
       const query = ReactQuery.useQuery(...args)
+      const queryStatus = query.status
       useEffect(() => {
         // noinspection JSUnreachableSwitchBranches webstorm overenthusiastic?
-        switch (query.status) {
+        switch (queryStatus) {
           case "error":
             return dispatcher({
               status: query.status,
@@ -763,9 +764,9 @@ export const useDispatchingQuery =
               error: query.error
             })
           default:
-            const c: never = query
+            unreachable(queryStatus)
         }
-      }, [query.status, query.fetchStatus, query.data])
+      }, [queryStatus, query.status, query.fetchStatus, query.data, query.error, dispatcher])
     }
 
 export type MutationState<TError, TResult> =
@@ -789,9 +790,10 @@ export const useDispatchingMutation =
     function <TData, TError, TVariables = void, TContext = unknown>(
         dispatcher: MutationDispatcher<TError, TData>, ...args: StandardMutation<TData, TError, TVariables, TContext>) {
       const mutation = ReactQuery.useMutation(...args)
+      const mutationStatus = mutation.status
       useEffect(() => {
         // noinspection JSUnreachableSwitchBranches webstorm overenthusiastic?
-        switch (mutation.status) {
+        switch (mutationStatus) {
           case "idle":
             return dispatcher({status: mutation.status, data: mutation.data, error: mutation.error})
           case "error":
@@ -801,9 +803,9 @@ export const useDispatchingMutation =
           case "pending":
             return dispatcher({status: mutation.status, data: mutation.data, error: mutation.error})
           default:
-            const c: never = mutation
+            unreachable(mutationStatus)
         }
-      }, [mutation.status, mutation.data])
+      }, [mutationStatus, mutation.status, mutation.data, mutation.error, dispatcher])
       return mutation
     }
 
@@ -829,8 +831,9 @@ export const useReviewPageQueries = () => {
   const db = SQLite.useSQLiteContext()
   const queries = useRef(new ReviewPageQueries())
   useEffect(() => {
-    queries.current.setup(db)
-    return () => queries.current.finalize()
+    const currentQueries = queries.current
+    currentQueries.setup(db)
+    return () => currentQueries.finalize()
   }, [db])
   return queries
 }
@@ -839,8 +842,9 @@ export const useMainPageQueries = () => {
   const queries = useRef(new MainPageQueries())
   useDrizzleStudio(db)
   useEffect(() => {
-    queries.current.setup(db)
-    return () => queries.current.finalize()
+    const currentQueries = queries.current
+    currentQueries.setup(db)
+    return () => currentQueries.finalize()
   }, [db])
   return queries
 }
@@ -883,3 +887,4 @@ export const lazy = <T>(f: () => T): () => T => {
 }
 
 export type PartialRecord<A extends string | number | symbol, B> = Partial<Record<A, B>>
+export const unreachable = (x: never): never => { throw new Error(x) }

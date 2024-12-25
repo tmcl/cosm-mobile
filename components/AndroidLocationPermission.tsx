@@ -1,13 +1,13 @@
 
 import MapLibreGL from '@maplibre/maplibre-react-native';
-import React, {useState, useEffect, useRef} from 'react'
+import {useEffect} from 'react'
 
-export const useAndroidLocationPermission = (setAndroidPermissionGranted: (isGranted: boolean) => void) => {
+export const useAndroidLocationPermission = (setAndroidPermissionGranted: undefined|((isGranted: boolean) => void)) => {
 	useEffect(() => {
 		const getPermission = async () => {
 			const isGranted = await MapLibreGL.requestAndroidLocationPermissions();
-			setAndroidPermissionGranted(isGranted)
+			setAndroidPermissionGranted && setAndroidPermissionGranted(isGranted)
 		}
 		getPermission()
-	}, [])
+	}, [setAndroidPermissionGranted])
 }

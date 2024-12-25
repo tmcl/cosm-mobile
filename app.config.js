@@ -11,7 +11,7 @@ export default {
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": IS_DEV ? "dev.tmcl.cosm" : "dev.tmcl.cosm.dev",
+      "bundleIdentifier": IS_DEV ? "dev.tmcl.cosm.dev" : "dev.tmcl.cosm",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "This program is intended to help you map on-the-go.",
       }
@@ -21,7 +21,7 @@ export default {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": IS_DEV ? "dev.tmcl.cosm" : "dev.tmcl.cosm.dev"
+      "package": IS_DEV ? "dev.tmcl.cosm.dev" : "dev.tmcl.cosm"
     },
     "plugins": [
       "expo-router",

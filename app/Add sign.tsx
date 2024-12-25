@@ -6,7 +6,6 @@ import type {RegionPayload} from '@maplibre/maplibre-react-native/src/components
 import MapLibreGL from '@maplibre/maplibre-react-native';
 import {StyleSheet, Text, View, ViewProps} from "react-native";
 import {useLocalSearchParams} from "expo-router";
-import * as SQLite from 'expo-sqlite'
 import {
   bound,
   doublePad,
@@ -74,24 +73,10 @@ type DirectionAction = LearnDirection | ForgetDirection
 type QueryWaysUpdate = { action: "query ways update" } & QueryState<unknown, QueryWaysWithIntersections>
 type Action = (DirectionAction & {action: "set direction"}) | SelectWay | DeselectWay | SelectNodes | DeselectNodes | UpdateNearestPoint
  | QueryWaysUpdate
-const correspondingWayId = (nodeId: Derived): WayId => {
-  return nodeId.substring("derived-".length)
-}
-const nodeIsOnWay = (nodeId: NodeId, wayId: WayId, targetNodes: TargetNode[]|undefined): boolean => {
-  if (isDerived(nodeId)) {
-    return wayId === correspondingWayId(nodeId)
-  } else {
-    const t = targetNodes?.find(f => f.id === nodeId)
-    return !!t && t.properties.ways.includes(wayId)
-  }
-}
-const wayHasSelectedNode = (wayId: WayId, state: State, targetNodes: TargetNode[]|undefined): boolean => {
-  return state.selectedNodes.some(nodeId => nodeIsOnWay(nodeId, wayId, targetNodes))
-}
 
 const nearestPointOnGroupOfWays = ({wayId, waysCentrelines, wayGroup, relativePoint}: {
     wayId: WayId,
-    waysCentrelines: GeoJSON.Feature<GeoJSON.LineString, {}|null>[],
+    waysCentrelines: GeoJSON.Feature<GeoJSON.LineString, object|null>[],
     wayGroup: WayId[],
     relativePoint: GeoJSON.Position}
 ) => {
@@ -103,7 +88,7 @@ const nearestPointOnGroupOfWays = ({wayId, waysCentrelines, wayGroup, relativePo
     closestPoint.properties = {...closestPoint.properties, distance: turf.distance(relativePoint, closestPoint), triggeringWayId: wayId, segmentWayId: localWayId}
     return [closestPoint]
   })
-  if(closestPoints.length == 0) {
+  if(closestPoints.length === 0) {
     return
   }
   const closestPoint = closestPoints
@@ -152,15 +137,6 @@ const directionReducer = (state: DirectionState, action: DirectionAction): Direc
   const newDirection = newDirections.specified_tag || newDirections.specified_user || newDirections.inferred || "forward"
 
   return {directions: newDirections, direction: newDirection}
-}
-const ensureDirection = (directionStr: string|undefined): Direction|undefined => {
-  switch (directionStr) {
-    case "forward":
-    case "backward":
-      return directionStr
-    default:
-      return undefined
-  }
 }
 
 type Direction = "forward" | "backward"
@@ -667,14 +643,6 @@ const useOptionalDistanceState = (): DistanceProps<true> => {
   return {rawValue, onUpdateRawValue, isValid, unit, onChooseUnit, parsedValue}
 }
 
-const useMandatoryDistanceState = (): DistanceProps<false> => {
-  const [rawValue, onUpdateRawValue] = useState("")
-  const [unit, onChooseUnit] = useState<DistanceUnit>("m")
-  const isValid = isValidDistance(unit, rawValue)
-  const parsedValue = parseDistance(rawValue, unit)
-  return {rawValue, onUpdateRawValue, isValid, unit, onChooseUnit, parsedValue}
-}
-
 const adequatelySpecifySign = (signType: SignType, signProps: StandardSignFormType): AdequatelySpecifiedSign|{error: string} =>
 {
   switch (signType)
@@ -721,17 +689,9 @@ const adequatelySpecifySign = (signType: SignType, signProps: StandardSignFormTy
 // noinspection JSUnusedGlobalSymbols
 export default function AddSign() {
   const searchParams = depareSignArgs(useLocalSearchParams() as TrafficSignArgsInternal)
-  const db = SQLite.useSQLiteContext()
   const [stateSettings, dispatchAction] = useReducer<Reducer<State, Action>>(reducer, {queryWays: { status: "pending", fetchStatus: "idle", data: undefined, error: undefined}, selectedWays: [], selectedNodes: [], nearestPoints: {}, direction: undefined, directions: {}})
 
   const queries1 = useRef(new EditPageQueries())
-  useEffect(() => {
-    queries1.current.setup(db)
-    return () => {
-      queries1.current.finalize()
-    }
-  }, [db])
-
 
   const [signLocation, setSignLocation] = useState<GeoJSON.Position>(searchParams.point?.coordinates || [0, 0])
   const [mapBounds, onMapBoundChange] = useState<GeoJSON.Feature<GeoJSON.Point, RegionPayload> | undefined>(undefined)
@@ -947,7 +907,7 @@ export default function AddSign() {
 
   const wayAngle = implicitAngleAndDirection.angle
   const direction = stateSettings.direction || implicitAngleAndDirection.direction || "forward"
-  const orientation = direction == "forward" ? 180 : 0
+  const orientation = direction === "forward" ? 180 : 0
   const angle = wayAngle !== undefined ? (bound(wayAngle + 90 + orientation, 0, 360)) : undefined
   const radians = angle === undefined ? undefined : angle * Math.PI / 180
 
