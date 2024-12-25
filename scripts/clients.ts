@@ -180,7 +180,7 @@ export interface INode {
   changeset: number;
   user: string;
   uid: number;
-  tags?: {[k in string]?: string};
+  tags?: Partial<Record<string, string>>;
 }
 
 export interface INotesCapabilities {
@@ -303,5 +303,5 @@ export type Status = "offline" | "readonly" | "online";
 export function toQueryParamOsmStandardApiCapabilities(a : OsmStandard & ApiCapabilities) { return (((a) => a))(a) } 
 export function toQueryParamOsmStandardBoundedElements(a : OsmStandard & BoundedElements) { return (((a) => a))(a) } 
 export function toQueryParamOsmStandardJSONApiVersions(a : OsmStandard & JSONApiVersions) { return (((a) => a))(a) } 
-export function toQueryParamBbox(a : Bbox) { return ((a) => `${a.minlon},${a.minlat},${a.maxlon},${a.maxlat}`)(a) } 
+export function toQueryParamBbox(a : Bbox) { return ((a) => `${a.minlon},${a.minlat},${a.maxlon},${a.maxlat}`)(a) }
 

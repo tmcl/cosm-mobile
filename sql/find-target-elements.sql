@@ -21,7 +21,7 @@ FROM nodes
          JOIN tagmatchingnodes ON tagmatchingnodes.matchingrowid = nodes.rowid
          JOIN nodes_ways ON nodes.id = nodes_ways.node_id
 WHERE st_EnvelopesIntersects(geom, $minlon, $minlat, $maxlon, $maxlat)
-  and ways.rowid in (select rowid
+  and nodes.rowid in (select rowid
                      from SpatialIndex
                      where f_table_name = 'nodes'
                        and f_geometry_column = 'geom'

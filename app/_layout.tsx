@@ -39,6 +39,17 @@ const activateDb = (db: SQLite.SQLiteDatabase) => {
 	}
 	db.execSync(
 		`
+		create table if not exists user_data_changes
+        (
+            id INTEGER PRIMARY KEY,
+			  type text not null,
+			  state_extract blob,
+			  change blob,
+			  created_date integer not null,
+			  modified_date integer,
+			  ready_date integer,
+			  commit_date integer
+        );
 		create table if not exists nodes_ways ( 
 			observed text,
 			node_id int,
@@ -68,6 +79,7 @@ const activateDb = (db: SQLite.SQLiteDatabase) => {
 		  properties blob
 		);
 		select AddGeometryColumn('nodes', 'geom', 4326, 'POINT');
+        select CreateSpatialIndex('nodes', 'geom');
 		-- drop table if exists ways;
 		create table if not exists ways(
 		  id integer primary key not null,

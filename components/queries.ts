@@ -192,6 +192,26 @@ class ThingyTracker {
 export type InterestingNodes = GeoJSON.FeatureCollection<GeoJSON.Point, {}>
 export type InterestingNodesParams = {$needles: Record<string, string>[], minlon: number, minlat: number, maxlon: number, maxlat: number}
 
+type StatementOrError = {q: SQLite.SQLiteStatement} | {e: unknown}
+
+export type SavedChangeSet<JSON = object> =
+	{
+		id: number,
+		type: string,
+		state_extract: JSON,
+		change: JSON,
+		created_date: number,
+		modified_date: number|null,
+		ready_date: number|null,
+		commit_date: number|null,
+	}
+export type ChangeSet =
+	{
+		type: string,
+		state_extract: {},
+		change: {}
+	}
+
 export class MainPageQueries {
 	private _knownBounds: SQLite.SQLiteStatement | undefined
 	private _insertBounds: SQLite.SQLiteStatement | undefined
@@ -200,12 +220,15 @@ export class MainPageQueries {
 	private _insertNodesWays: SQLite.SQLiteStatement | undefined
 	private _queryNodes: SQLite.SQLiteStatement | undefined
 	private _insertWays: SQLite.SQLiteStatement | undefined
-	private _queryWays: SQLite.SQLiteStatement | undefined
+	private _queryWays: StatementOrError | undefined
 	private _findNearbyWays: SQLite.SQLiteStatement | undefined
 	private _addCasingsToWays: SQLite.SQLiteStatement | undefined
 	private _findSameRoads: SQLite.SQLiteStatement | undefined
 	private _findIntersections: SQLite.SQLiteStatement | undefined
-	private _findTargetNodes: SQLite.SQLiteStatement | undefined
+	private _findTargetNodes: StatementOrError | undefined
+	private _saveNewChange: StatementOrError | undefined
+	private _saveUpdateChange: StatementOrError | undefined
+	private _selectUserChange: StatementOrError | undefined
 
 	private _tracker;
 
@@ -213,34 +236,96 @@ export class MainPageQueries {
 		this._tracker = new ThingyTracker()
 	};
 	// noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
+	public get selectUserChange(): never { throw "use the do- method" }
+	public set selectUserChange(theQuery: StatementOrError | undefined) {
+		this._selectUserChange && "q" in this._selectUserChange && this._selectUserChange.q.finalizeAsync()
+		this._selectUserChange = theQuery
+	}
+
+	public async doselectUserChange(id: number): Promise<SavedChangeSet|null> {
+		console.log("doing select user change", this._selectUserChange)
+		if (this._selectUserChange && "q" in this._selectUserChange) {
+			const sqlChange = {$id: id,}
+			const r = await this._selectUserChange.q.executeAsync<SavedChangeSet<string>>(sqlChange)
+			const res = (await r.getFirstAsync())
+			const result= res && {...res, state_extract: JSON.parse(res.state_extract), change: JSON.parse(res.change) }
+			console.log("didding select user change", res, result)
+			return result
+		} else {
+			throw (this._selectUserChange || "select user change was not defined")
+		}
+	}
+	// noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
+	public get saveUpdateChange(): never { throw "use the do- method" }
+	public set saveUpdateChange(theQuery: StatementOrError | undefined) {
+		this._saveUpdateChange && "q" in this._saveUpdateChange && this._saveUpdateChange.q.finalizeAsync()
+		this._saveUpdateChange = theQuery
+	}
+
+	public async doSaveUpdateChange(id: number, changeset: ChangeSet): Promise<number> {
+		if (this._saveUpdateChange && "q" in this._saveUpdateChange) {
+			const sqlChange = {
+				$id: id,
+				$type: changeset.type,
+				$state_extract: JSON.stringify(changeset.state_extract),
+				$change: JSON.stringify(changeset.change),
+			}
+			const r = await this._saveUpdateChange.q.executeAsync<SavedChangeSet>(sqlChange)
+			return r.changes
+		} else {
+			throw this._saveUpdateChange || "save Update change was not defined"
+		}
+	}
+
+	// noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
+	public get saveNewChange(): never { throw "use the do- method" }
+	public set saveNewChange(theQuery: StatementOrError | undefined) {
+		this._saveNewChange && "q" in this._saveNewChange && this._saveNewChange.q.finalizeAsync()
+		this._saveNewChange = theQuery
+	}
+
+	public async doSaveNewChange(changeset: ChangeSet): Promise<SavedChangeSet> {
+		if (this._saveNewChange && "q" in this._saveNewChange) {
+			const sqlChange = {
+				$type: changeset.type,
+				$state_extract: JSON.stringify(changeset.state_extract),
+				$change: JSON.stringify(changeset.change),
+			}
+			const r = await this._saveNewChange.q.executeAsync<SavedChangeSet>(sqlChange)
+			return (await r.getFirstAsync())!
+		} else {
+			throw this._saveNewChange || "save new change was not defined"
+		}
+	}
+
 	public get findTargetNodes(): never { throw "use the do- method" }
-	public set findTargetNodes(theQueryWays: SQLite.SQLiteStatement | undefined) {
-		this._findTargetNodes?.finalizeAsync()
+	public set findTargetNodes(theQueryWays: StatementOrError | undefined) {
+		this._findTargetNodes && "q" in this._findTargetNodes && this._findTargetNodes.q.finalizeAsync()
 		this._findTargetNodes = theQueryWays
 	}
 
 	public async doFindTargetNodes(jsArgs: InterestingNodesParams): Promise<InterestingNodes> {
-		const {minlon, minlat, maxlon, maxlat} = jsArgs
-		var x = "additional info: there is none"
-		try {
-			console.log("====================================================hunting nodes")
-			const argsModified = {$minlon: minlon, $minlat: minlat, $maxlat: maxlat, $maxlon: maxlon, $needles: JSON.stringify(jsArgs.$needles)}
-			const r = await this._findTargetNodes!.executeAsync<{ geojson: string, ways: string }>(argsModified)
-			const r2 = await r.getAllAsync()
-			//console.log("i found target nodes", r2, "target nodes gefunden habe ich")
-			const targetNodes = r2.map(geo => {
-				//console.log("//////////////////////I would very much like to parse geo.geojson", geo.geojson)
-				x = geo.geojson
-				const r: TargetNode = JSON.parse(geo.geojson)
-				// console.log(r.properties, r, "something something")
-				return r
-			})
-			return {
-				type: "FeatureCollection",
-				features: targetNodes
-			}
-		} catch (e) {
-			throw [e, x]
+		if (this._findTargetNodes && "q" in this._findTargetNodes) {
+			const {minlon, minlat, maxlon, maxlat} = jsArgs
+				const argsModified = {
+					$minlon: minlon,
+					$minlat: minlat,
+					$maxlat: maxlat,
+					$maxlon: maxlon,
+					$needles: JSON.stringify(jsArgs.$needles)
+				}
+				const r = await this._findTargetNodes.q.executeAsync<{ geojson: string, ways: string }>(argsModified)
+				const r2 = await r.getAllAsync()
+				//console.log("i found target nodes", r2, "target nodes gefunden habe ich")
+				const targetNodes = r2.map(geo => {
+					return JSON.parse(geo.geojson) as TargetNode
+				})
+				return {
+					type: "FeatureCollection",
+					features: targetNodes
+				}
+		} else {
+			throw this._findTargetNodes || "find target nodes was not defined"
 		}
 	}
 
@@ -274,22 +359,26 @@ export class MainPageQueries {
 		}
 	}
 
-	public set queryWays(theQueryWays: SQLite.SQLiteStatement | undefined) {
-		this._queryWays?.finalizeAsync()
+	public set queryWays(theQueryWays: {q: SQLite.SQLiteStatement} | { e: unknown} | undefined) {
+		this._queryWays && "q" in this._queryWays && this._queryWays.q.finalizeAsync()
 		this._queryWays = theQueryWays
 	}
 
     public async doQueryWays(jsArgs: {$limit: number, minlon: number, minlat: number, maxlon: number, maxlat: number}) {
-		const {minlon, minlat, maxlon, maxlat, ...others} = jsArgs
-		const sqliteArgs = {...others, $minlon: minlon, $minlat: minlat, $maxlat: maxlat, $maxlon: maxlon}
-		const result = this._queryWays!.executeSync<{ geojson: string, centrelines: string }>(sqliteArgs)
-		const centrelines = []
-		const casings = []
-		for await (const geojson of result) {
-			casings.push(JSON.parse(geojson.geojson) as GeoJSON.Feature<GeoJSON.Polygon|GeoJSON.LineString, OsmApi.IWay>)
-			centrelines.push(JSON.parse(geojson.centrelines) as GeoJSON.Feature<GeoJSON.LineString, OsmApi.IWay>)
+		if(this._queryWays && "q" in this._queryWays) {
+			const {minlon, minlat, maxlon, maxlat, ...others} = jsArgs
+			const sqliteArgs = {...others, $minlon: minlon, $minlat: minlat, $maxlat: maxlat, $maxlon: maxlon}
+			const result = this._queryWays.q.executeSync<{ geojson: string, centrelines: string }>(sqliteArgs)
+			const centrelines = []
+			const casings = []
+			for await (const geojson of result) {
+				casings.push(JSON.parse(geojson.geojson) as GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString, OsmApi.IWay>)
+				centrelines.push(JSON.parse(geojson.centrelines) as GeoJSON.Feature<GeoJSON.LineString, OsmApi.IWay>)
+			}
+			return {centrelines, casings}
+		} else {
+			throw JSON.stringify(this._queryWays) || "query ways not defined"
 		}
-		return {centrelines, casings}
     }
 
 	// noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
@@ -445,10 +534,13 @@ export class MainPageQueries {
 
 		this.insertNodesWays = await db.prepareAsync( require('@/sql/insert-nodes-ways.sql.json') )
 		this.queryNodes = await db.prepareAsync( require('@/sql/query-nodes.sql.json'))
-		this.queryWays = await db.prepareAsync( require('@/sql/query-ways.sql.json') )
+		this.queryWays = await (async () => { try { return { q: await db.prepareAsync( require('@/sql/query-ways.sql.json') ) } } catch (e) { return { e: e} }})()
 		this.findSameRoads = await db.prepareAsync( require('@/sql/find-same-roads.sql.json') )
 		this.findIntersections = await db.prepareAsync( require('@/sql/find-intersections.sql.json') )
-		this.findTargetNodes = await db.prepareAsync(require('@/sql/find-target-elements.sql.json'))
+		this.findTargetNodes = await (async () => { try { return { q: await db.prepareAsync( require('@/sql/find-target-elements.sql.json') ) } } catch (e) { return { e: e} }})()
+		this.saveNewChange = await (async () => { try { return { q: await db.prepareAsync( require('@/sql/save-user-data-changes.sql.json') ) } } catch (e) { return { e: e} }})()
+		this.saveUpdateChange = await (async () => { try { return { q: await db.prepareAsync( require('@/sql/update-user-data-changes.sql.json') ) } } catch (e) { return { e: e} }})()
+		this.selectUserChange = await (async () => { try { return { q: await db.prepareAsync( require('@/sql/select-user-change.sql.json') ) } } catch (e) { return { e: e} }})()
 	}
 
 	finalize() {
@@ -465,6 +557,9 @@ export class MainPageQueries {
 		this.findSameRoads = undefined
 		this.findTargetNodes = undefined
 		this.findIntersections = undefined
+		this.saveNewChange = undefined
+		this.saveUpdateChange = undefined
+		this.selectUserChange = undefined
 	}
 }
 
@@ -490,7 +585,9 @@ export function doublePad({minlon, minlat, maxlon, maxlat}: JsonBBox): JsonBBox 
 		return {minlon, minlat, maxlon, maxlat}
 }
 
-export type StandardQuery<T, TError, TResult, W extends ReactQuery.QueryKey> = Parameters<typeof ReactQuery.useQuery<T, TError, TResult, W>>
+type AppKey = ReadonlyArray<unknown>
+
+export type StandardQuery<T, TError, TResult> = Parameters<typeof ReactQuery.useQuery<T, TError, TResult, AppKey>>
 export type QueryState<TError, TResult> =
  	 {status: 'error', fetchStatus: 'fetching'|'paused'|'idle', data: TResult|undefined, error: TError}
    | {status: 'pending', fetchStatus: 'fetching'|'paused'|'idle', data: TResult|undefined, error: TError|null}
@@ -498,9 +595,9 @@ export type QueryState<TError, TResult> =
 export const initialQueryState = <TError, TResult>(): QueryState<TError, TResult> => ({status: 'pending', fetchStatus: 'idle', data: undefined, error: null})
 export type QueryDispatcher<TError, TResult> = (args: QueryState<TError, TResult>) => void
 export const useDispatchingQuery =
-	function <TError, TResult, W extends ReactQuery.QueryKey>(
+	function <TError, TResult>(
 		dispatcher: QueryDispatcher<TError, TResult>,
-		...args: StandardQuery<TResult, TError, TResult, W>) {
+		...args: StandardQuery<TResult, TError, TResult>) {
 		const query = ReactQuery.useQuery(...args)
 		useEffect(() => {
 			// noinspection JSUnreachableSwitchBranches webstorm overenthusiastic?
@@ -551,6 +648,33 @@ export const useDispatchingMutation =
 		return mutation
 	}
 
+class ReviewPageQueries {
+	private _db: SQLite.SQLiteDatabase | undefined
+
+	setup(db: SQLite.SQLiteDatabase) {
+		this._db = db
+	}
+
+	finalize() {
+		this._db = undefined
+	}
+
+	async queryChanges() {
+		const sql = await this._db!.prepareAsync(require('@/sql/select-user-changes.sql.json'))
+		const query = await sql.executeAsync<SavedChangeSet>();
+		return await query.getAllAsync()
+	}
+}
+
+export const useReviewPageQueries = () => {
+	const db = SQLite.useSQLiteContext()
+	const queries = useRef(new ReviewPageQueries())
+	useEffect(() => {
+		queries.current.setup(db)
+		return () => queries.current.finalize()
+	}, [db])
+	return queries
+}
 export const useMainPageQueries = () => {
 	const db = SQLite.useSQLiteContext()
 	const queries = useRef(new MainPageQueries())
@@ -571,8 +695,12 @@ export const nub = (arr: string[]): string[] => {
 	return Object.keys(Object.fromEntries(arr.map(f => [f, true])))
 }
 
-export const containsAll = <T>(aa: T[], bb: T[]): boolean => {
-	return !bb.some(b => !aa.includes(b))
+export const containsAny = <T>(haystack: T[], needles: T[]): boolean => {
+	return needles.some(needle => haystack.includes(needle))
+}
+
+export const containsAll = <T>(haystack: T[], needles: T[]): boolean => {
+	return !needles.some(needle => !haystack.includes(needle))
 }
 export const bound = (val: number, min: number, max: number) => {
 	const difference = max - min
@@ -591,3 +719,5 @@ export const lazy = <T>(f: () => T): () => T => {
 	let result: undefined|T
 	return () => (result || (result = f()))
 }
+
+export type PartialRecord<A extends string|number|symbol, B> = Partial<Record<A, B>>
