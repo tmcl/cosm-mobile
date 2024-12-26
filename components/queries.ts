@@ -266,6 +266,8 @@ export type SavedChangeSet<JSON = object> =
       modified_date: number | null,
       ready_date: number | null,
       commit_date: number | null,
+      commentary1: string | null,
+      commentary2: string | null,
     }
 export type ChangeSet =
     {
@@ -328,13 +330,15 @@ export class MainPageQueries {
     this._saveUpdateChange = theQuery
   }
 
-  public async doSaveUpdateChange(id: number, changeset: ChangeSet): Promise<number> {
+  public async doSaveUpdateChange(id: number, changeset: ChangeSet, commentary: [string, string|undefined]): Promise<number> {
     if (this._saveUpdateChange && "q" in this._saveUpdateChange) {
       const sqlChange = {
         $id: id,
         $type: changeset.type,
         $state_extract: JSON.stringify(changeset.state_extract),
         $change: JSON.stringify(changeset.change),
+        $commentary1: commentary[0],
+        $commentary2: commentary[1] || null
       }
       const r = await this._saveUpdateChange.q.executeAsync<SavedChangeSet>(sqlChange)
       return r.changes

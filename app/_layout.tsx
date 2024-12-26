@@ -2,7 +2,7 @@ import MapLibreGL from '@maplibre/maplibre-react-native';
 import { Stack } from "expo-router";
 import * as SQLite from "expo-sqlite"
 import { Asset } from 'expo-asset';
-import React, {useEffect, StrictMode} from 'react'
+import React, {useEffect} from 'react'
 import * as Spatialite from "spatialite"
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
@@ -55,7 +55,9 @@ const activateDb = (db: SQLite.SQLiteDatabase) => {
 			  created_date integer not null,
 			  modified_date integer,
 			  ready_date integer,
-			  commit_date integer
+			  commit_date integer,
+			  commentary1 text,
+				commentary2 text
         );
 		create table if not exists nodes_ways ( 
 			observed text,
@@ -131,7 +133,6 @@ export default function RootLayout() {
   })
 
   return (
-		  <StrictMode>
 	<SafeAreaProvider>
         <ReactQuery.QueryClientProvider client={queryClient}>
           <SQLite.SQLiteProvider databaseName="tism" onInit={activateDb}>
@@ -149,6 +150,5 @@ export default function RootLayout() {
           </SQLite.SQLiteProvider>
         </ReactQuery.QueryClientProvider>
 	</SafeAreaProvider>
-		  </StrictMode>
   );
 }

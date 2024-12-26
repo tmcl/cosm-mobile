@@ -3,5 +3,7 @@ Update user_data_changes
         type = $type,
         state_extract = jsonb($state_extract),
         change = jsonb($change),
-        modified_date = UNIXEPOCH()
+        modified_date = UNIXEPOCH(),
+        commentary1 = $commentary1,
+        commentary2 = $commentary2
 where id = $id and ready_date is null and commit_date is null
