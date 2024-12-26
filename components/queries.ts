@@ -651,7 +651,7 @@ export const useMainPageQueries = () => {
 export type FoundNearbyWays = { ways: WayId[], nodes: GeoJSON.Point[] }
 
 
-export const debug = (a: any, b: any) => {
+export const debug = <A, B>(a: A, b: B): B => {
   console.log(a, b);
   return b
 }

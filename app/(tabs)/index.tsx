@@ -25,6 +25,18 @@ import {OnPressEvent} from "@maplibre/maplibre-react-native/src/types/OnPressEve
 import {IconNode} from "@rneui/base";
 import * as turf from "@turf/turf";
 import {useLocalSearchParams} from "expo-router";
+import {CircleLayerProps} from "@maplibre/maplibre-react-native/src/components/CircleLayer";
+
+const CircleLayer: React.FC<CircleLayerProps & {id: LayerId}> = MapLibreGL.CircleLayer as React.FC<CircleLayerProps & {id: LayerId}>
+
+type LayerId = keyof typeof LayerIndexLookup
+const LayerIndexLookup  = {
+  roadcasingfill: 103,
+  roadcasinglines: 104,
+  points: 106,
+  pointsOnWayNearClicks: 107,
+  nearestPointLayer: 108,
+}
 
 const isStringRecord = (obj: object): obj is Record<string, string> => {
   return !Object.getOwnPropertyNames(obj)
@@ -807,7 +819,8 @@ function MapAddStopSign({state, setCommentary, highlightWays, setNotes, setChang
               shape={nearestPointShape}
               ref={refNearestPointShape}
           >
-              <MapLibreGL.CircleLayer
+              <CircleLayer
+                  layerIndex={LayerIndexLookup['nearestPointLayer']}
                   id="nearestPointLayer"
                   style={pointsOnWayNearClickLayerStyle(nearestPointId)}
               />
@@ -1447,7 +1460,8 @@ export default function MainPage() {
               ref={refPointsOnWayNearClickSource}
               onPress={onPressSelectInterestingPoint}
           >
-              <MapLibreGL.CircleLayer
+              <CircleLayer
+                  layerIndex={LayerIndexLookup.pointsOnWayNearClicks}
                   id="pointsOnWayNearClicks"
                   style={pointsOnWayNearClickLayerStyle(selectedInterestingPoints)}
               />
@@ -1458,8 +1472,9 @@ export default function MainPage() {
               shape={symbols}
               ref={refHighwaystopSource}
           >
-              <MapLibreGL.CircleLayer
+              <CircleLayer
                   id="points"
+                  layerIndex={LayerIndexLookup.points}
                   style={circleLayerStyle(undefined)}
               />
 
@@ -1472,10 +1487,12 @@ export default function MainPage() {
           >
               <MapLibreGL.FillLayer
                   id="roadcasingfill"
+                  layerIndex={LayerIndexLookup.roadcasingfill}
                   style={roadcasingsLayerStyle(highlightWays)}
               />
               <MapLibreGL.LineLayer
                   id="roadstrokeslines"
+                  layerIndex={LayerIndexLookup.roadcasinglines}
                   style={roadStrokesLayerStyle(highlightWays)}
               />
 
