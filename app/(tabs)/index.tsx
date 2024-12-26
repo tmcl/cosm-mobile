@@ -1998,7 +1998,6 @@ type MyChangeSet = MyChangeSet_<"addStopSign", State['modes']["addStopSign"]["ch
 
 const unusedKnownType = function (something: unknown): void {}
 const unusedButOkay = (never: never): undefined => undefined
-const unreachable = (never: never): never => {throw new Error("expected never to get here", never)}
 const verifyObjIsMemberOf = function <T = never>(val: T) { return val }
 
 type FeaturePayload = GeoJSON.Feature<
