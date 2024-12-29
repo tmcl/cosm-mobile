@@ -30,6 +30,13 @@ export default {
         "customBuildFlags": "-DSQLITE_ENABLE_RTREE=1"
       }],
       "@maplibre/maplibre-react-native",
+        [
+            "expo-location",
+          {
+                      "locationWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location.",
+            "isAndroidForegroundServiceEnabled": true,
+          }
+        ],
       [
         "expo-asset",
         {

@@ -26,6 +26,7 @@ import {IconNode} from "@rneui/base";
 import * as turf from "@turf/turf";
 import {useLocalSearchParams} from "expo-router";
 import {CircleLayerProps} from "@maplibre/maplibre-react-native/src/components/CircleLayer";
+import * as ExLoc from 'expo-location'
 
 const CircleLayer: React.FC<CircleLayerProps & {id: LayerId}> = MapLibreGL.CircleLayer as React.FC<CircleLayerProps & {id: LayerId}>
 
@@ -43,7 +44,7 @@ const isStringRecord = (obj: object): obj is Record<string, string> => {
   .some(prop => typeof (prop as unknown) !== "string" || typeof (obj as any)[prop] !== "string")
 }
 
-const isPoint = (point: object): point is GeoJSON.Point => {
+const isPoint = (point: unknown): point is GeoJSON.Point => {
   if (!point || typeof point !== "object") return false
   if (!("type" in point) || point.type !== "Point") return false
   const coordinates = "coordinates" in point && point.coordinates
@@ -53,14 +54,42 @@ const isPoint = (point: object): point is GeoJSON.Point => {
   verifyObjIsMemberOf<GeoJSON.Point>({type: point.type, coordinates})
   return true
 }
-const isNewHighwayLocation = (obj: object): obj is { point: GeoJSON.Point, way: WayId, type: "new" } => {
+
+const isNearestPoint = (point: object): point is NearestPoint => {
+  if (!point || typeof point !== "object") return false
+  if (!("type" in point) || point.type !== "Feature") return false
+  if (!("geometry" in point) || !isPoint(point.geometry)) return false
+  if (!("properties" in point)) return false
+  const properties = point.properties
+  if(!properties || typeof properties !== "object") return false
+  if(!("dist" in properties) ) return false
+  const dist = properties.dist
+  if(typeof dist !== "number") return false
+  if(!("index" in properties) || typeof properties.index !== "number") return false
+  const index = properties.index
+  if(typeof index !== "number") return false
+  if(!("location" in properties) || typeof properties.location !== "number") return false
+  const location = properties.location
+  if(typeof location !== "number") return false
+  if(!("triggeringWayId" in properties)|| typeof properties.triggeringWayId !== "number") return false
+  const triggeringWayId = properties.triggeringWayId
+  if(typeof triggeringWayId !== "string") return false
+  if(!("segmentWayId" in properties)|| typeof properties.segmentWayId !== "number") return false
+  const segmentWayId = properties.segmentWayId
+  if(typeof segmentWayId !== "string") return false
+
+  verifyObjIsMemberOf<NearestPoint>({type: point.type, geometry: point.geometry, properties: {dist, index, location, triggeringWayId, segmentWayId}})
+  return true
+}
+
+const isNewHighwayLocation = (obj: object): obj is { point: NearestPoint, way: WayId, type: "new" } => {
   const way = "way" in obj && obj.way
   if (typeof way !== "string") return false;
-  const point = "point" in obj && !!obj.point && isPoint(obj.point) && obj.point
+  const point = "point" in obj && !!obj.point && isNearestPoint(obj.point) && obj.point
   if (!point) return false
   const type = "type" in obj && obj.type
   if(type !== "new") return false
-  verifyObjIsMemberOf<{ point: GeoJSON.Point, way: WayId, type: "new" }>({point, way, type})
+  verifyObjIsMemberOf<{ point: NearestPoint, way: WayId, type: "new" }>({point, way, type})
   return true;
 }
 const isNewTappedLocation = (obj: object): obj is { newId: `new-${number}`, point: GeoJSON.Point, type: "new" } => {
@@ -265,7 +294,7 @@ type State = {
       change: {
         type: "add stop sign"
         tappedLocation: { newId: `new-${number}`, point: GeoJSON.Point, type: "new" } | TargetNode | null
-        highwayLocation: { way: WayId, point: GeoJSON.Point, type: "new" } | TargetNode | null
+        highwayLocation: { way: WayId, point: NearestPoint, type: "new" } | TargetNode | null
         direction: "forward" | "backward" | undefined
         selectedWays: WayId[]
       }
@@ -408,6 +437,36 @@ const make_id = (() => {
   return () => id++
 })()
 
+const mkNewHighwayNode = (wayId: WayId, state: State, relativePoint: GeoJSON.Position|GeoJSON.Point) => {
+  const wayGroup = state.modes.addStopSign.change.selectedWays.flatMap(w => state.sameRoads[w] || [])
+  const waysCentrelines = state.queries.queryWays.data?.centrelines?.features || []
+  const closestPoints = wayGroup.flatMap(localWayId => {
+    const way = waysCentrelines.find(w => w.id === localWayId)
+    if (!way) return []
+    const closestPoint = turf.nearestPointOnLine(way, relativePoint)
+    closestPoint.id = `derived-${wayId}`
+    closestPoint.properties = {...closestPoint.properties, distance: turf.distance(relativePoint, closestPoint), triggeringWayId: wayId, segmentWayId: localWayId}
+    return [closestPoint]
+  })
+  if(closestPoints.length === 0) {
+    console.log(wayId, wayGroup, waysCentrelines, closestPoints)
+    return undefined
+  }
+  const closestPoint = closestPoints
+  .sort((f, g) => f.properties.distance - g.properties.distance )
+      [0]
+  const bestPoint = {...closestPoint, properties: {
+      dist: closestPoint.properties.dist,
+      location: closestPoint.properties.location,
+      triggeringWayId: closestPoint.properties.triggeringWayId,
+      segmentWayId: closestPoint.properties.segmentWayId,
+      index: closestPoint.properties.index,
+    }}
+  const way = bestPoint.properties.segmentWayId
+
+  return {type: "new" as const, way: way, point: bestPoint}
+}
+
 const reducer = (state: State, action: Action): State => {
   switch (action.action) {
     case "needed for loading": {
@@ -502,8 +561,10 @@ const reducer = (state: State, action: Action): State => {
               if(isAlreadySelected && highwayNodeWays) {
                 return {...state, modes: {...state.modes, addStopSign: {...state.modes.addStopSign, change: {...state.modes.addStopSign.change, highwayLocation: null, selectedWays: []}}}}
               } else {
-                const newHighwayNode = {type: "new" as const, way: way, point: {type: "Point" as const, id: way, coordinates: modalAction.point}}
-                return {...state, modes: {...state.modes, addStopSign: {...state.modes.addStopSign, change: {...state.modes.addStopSign.change, highwayLocation: newHighwayNode, selectedWays: [way]}}}}
+                const feature = {type: "Feature" as const, geometry: {type: "Point" as const, id: way, coordinates: modalAction.point}, properties: {}}
+                const newHighwayNode = mkNewHighwayNode(way, state, modalAction.point)
+                console.log("new higway node", newHighwayNode)
+                return {...state, modes: {...state.modes, addStopSign: {...state.modes.addStopSign, change: {...state.modes.addStopSign.change, highwayLocation: newHighwayNode||null, selectedWays: [way]}}}}
               }
             }
             case "add stop sign": {
@@ -524,34 +585,11 @@ const reducer = (state: State, action: Action): State => {
               }
             }
             case "updated highway location" : {
-              const wayId = state.modes.addStopSign.change.selectedWays[0]
-              const wayGroup = state.modes.addStopSign.change.selectedWays.flatMap(w => state.sameRoads[w] || [])
-              const waysCentrelines = state.queries.queryWays.data?.centrelines?.features || []
-              const relativePoint = modalAction.point
-                const closestPoints = wayGroup.flatMap(localWayId => {
-                  const way = waysCentrelines.find(w => w.id === localWayId)
-                  if (!way) return []
-                  const closestPoint = turf.nearestPointOnLine(way, relativePoint)
-                  closestPoint.id = `derived-${wayId}`
-                  closestPoint.properties = {...closestPoint.properties, distance: turf.distance(relativePoint, closestPoint), triggeringWayId: wayId, segmentWayId: localWayId}
-                  return [closestPoint]
-                })
-                if(closestPoints.length === 0) {
-                  return state
-                }
-                const closestPoint = closestPoints
-                .sort((f, g) => f.properties.distance - g.properties.distance )
-                    [0]
-                const bestPoint = {...closestPoint, properties: {
-                    dist: closestPoint.properties.dist,
-                    location: closestPoint.properties.location,
-                    triggeringWayId: closestPoint.properties.triggeringWayId,
-                    segmentWayId: closestPoint.properties.segmentWayId,
-                    index: closestPoint.properties.index,
-                  }}
-                const way = bestPoint.properties.segmentWayId
-              const newHighwayNode = {type: "new" as const, way: way, point: {type: "Point" as const, id: way, coordinates: bestPoint.geometry.coordinates}}
-              return {...state, modes: {...state.modes, addStopSign: {...state.modes.addStopSign, change: {...state.modes.addStopSign.change, highwayLocation: newHighwayNode, selectedWays: [way]}}}}
+            const wayId = state.modes.addStopSign.change.selectedWays[0]
+            const newHighwayNode = mkNewHighwayNode(wayId, state, modalAction.point)
+              return (newHighwayNode === undefined) ?
+                  state
+              : {...state, modes: {...state.modes, addStopSign: {...state.modes.addStopSign, change: {...state.modes.addStopSign.change, highwayLocation: newHighwayNode, selectedWays: [newHighwayNode.way]}}}}
               }
             default: {
               unusedButOkay(modalAction)
@@ -792,7 +830,7 @@ function MapAddStopSign({state, setCommentary, highlightWays, setNotes, setChang
   ? state.modes.addStopSign.change.highwayLocation
       : undefined
 
-  const nearestPointShape: GeoJSON.Feature<GeoJSON.Point, object>|undefined = nearestPoint ? {type: "Feature" as const, id:nearestPoint.way, properties: {}, geometry: nearestPoint.point} : undefined
+  const nearestPointShape: GeoJSON.Feature<GeoJSON.Point, object>|undefined = nearestPoint ? nearestPoint.point : undefined
   const nearestPointId = nearestPointShape?.id ? [nearestPointShape.id.toString()] : []
 
   const dragEndSignLocation = useCallback((e: FeaturePayload) => setTappedLocation(e.geometry), [setTappedLocation])
@@ -806,7 +844,7 @@ function MapAddStopSign({state, setCommentary, highlightWays, setNotes, setChang
         onSelected={e => console.log("selected", e)}
         onDragEnd={setNearestPointLocation}
         id={`nearestpoint-${nearestPoint.way}`}
-        coordinate={nearestPoint.point.coordinates}
+        coordinate={nearestPoint.point.geometry.coordinates}
         draggable={true} >
       <View style={{zIndex: 3, elevation: 3}}>
         <Svg.Svg  height="10" width="10" viewBox="0 0 100 100" >
@@ -1433,6 +1471,30 @@ export default function MainPage() {
 
   const selectedInterestingPoints = selectedInterestingPointsForMode(state)
 
+  const locFab = state.mode === "addStopSign" && !state.modes.addStopSign.change.tappedLocation
+    && (async () => {
+      let { status } =await ExLoc.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        console.log('Permission to access location was denied');
+        return;
+      }
+
+      let location = await ExLoc.getCurrentPositionAsync({});
+      dispatch({
+        action: "modal",
+        mode: "addStopSign",
+        modalAction: {
+          action: "add stop sign",
+          newId: `new-${7}` as const,
+          tappedLocation: {
+            type: "Point",
+            coordinates: [location.coords.longitude, location.coords.latitude]
+          }
+        }
+
+      })
+      })
+
   return (
       <View
           style={styles.page}
@@ -1514,6 +1576,22 @@ export default function MainPage() {
                                                               key={i}>{JSON.stringify(note)}</Text>)}
             </View>
         }
+        {locFab && <FAB
+              style={{
+                left: 0,
+                alignItems: "flex-start",
+                position: 'absolute',
+                margin: 16,
+                marginTop: 32,
+                rowGap: 32,
+                bottom: 0,
+              }}
+              visible={true}
+              onPress={locFab}
+              title={"+"}
+              icon={undefined}
+              color="green"
+          />}
         <View
             style={{
               right: 0,
@@ -1763,7 +1841,7 @@ const calculateDirectionToNearestIntersection = (
 }
 
 const inferDirectionAndAngle = (
-    signLocation: GeoJSON.Point,
+    signLocation: GeoJSON.Point|NearestPoint,
     selectedWays: GeoJSON.Feature<GeoJSON.LineString, object>[]
     , waysOthers: PartialRecord<WayId, IntersectingWayInfo>
 )
@@ -1912,6 +1990,29 @@ const modalNotes = (
           line = 'new'
           const street = selectedWays.map(w => w.properties.tags?.name).filter(f => !!f)[0]
           notes.push("Adding a new stop line" + (street ? ` on ${street}` : ""))
+          const newNodeId = `new-${+highwayLocation.way}` as const
+          changes.push({
+            object: {type: "node", position: highwayLocation.point.geometry.coordinates, node_id: newNodeId},
+            set_tags: {
+               "highway": "stop", ...(highwayDirection
+                  ? {"direction": highwayDirection}
+                  : {})
+            }
+          })
+          const waynodes = selectedWays.find(w => highwayLocation.way)?.properties.nodes
+          if (waynodes) {
+            const loc = Math.floor(highwayLocation.point.properties.location)
+            const index = Math.floor(highwayLocation.point.properties.index)+1
+            const early = waynodes.slice(0, index)
+            const late = waynodes.slice(index)
+            const complete = [...early, newNodeId, ...late]
+            console.log("the loc", loc, early, late, waynodes, complete, highwayLocation.point.properties, index)
+            changes.push({
+              object: {type: "way", way_id: highwayLocation.way as `${number}`, nodes: complete.map(m => m.toString())},
+              set_tags: {}
+            })
+
+          }
         }
       }
       if (tappedLocation === null || highwayLocation === null) {
@@ -1933,7 +2034,7 @@ type TurfNearestPoint = GeoJSON.Feature<GeoJSON.Point, {
   index: number;
   location: number;
 }>
-/*
+
 type NearestPoint = GeoJSON.Feature<GeoJSON.Point, {
   dist: number;
   index: number;
@@ -1941,7 +2042,7 @@ type NearestPoint = GeoJSON.Feature<GeoJSON.Point, {
   triggeringWayId: WayId;
   segmentWayId: WayId;
 }>
- */
+
 
 const rmUndef = (r: PartialRecord<string, string | undefined>): PartialRecord<string, string> => {
   return Object.fromEntries(Object.entries(r).flatMap(([key, val]) => val === undefined ? [] : [[key, val]]))
