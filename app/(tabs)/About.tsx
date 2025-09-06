@@ -1,11 +1,13 @@
 import React, {useState, useEffect} from 'react'
-import { Text, View } from "react-native";
+import { Text, View, Button } from "react-native";
 import * as SQLite from 'expo-sqlite'
 import { useAndroidLocationPermission } from '@/components/AndroidLocationPermission';
+import {getApi06PermissionsXml} from "@/scripts/clients.2";
 
 
 export default function Settings() {
 	const [log, setLog] = useState("log")
+	const [permissions, setPermissions] = useState("no permissions yet")
 	const db = SQLite.useSQLiteContext()
 	useEffect(() => {
 		(async () => {
@@ -35,6 +37,18 @@ export default function Settings() {
   useAndroidLocationPermission(setAndroidPermissionGranted)
   const permission = <Text>{isAndroidPermissionGranted === null ? "checking permission" : (isAndroidPermissionGranted ? "got permission" : "refused permission")}</Text>
 
+	const buttonPress = async () => {
+		try {
+			console.log('x')
+			const r = await getApi06PermissionsXml()
+			console.log(r)
+			setPermissions(JSON.stringify(r))
+		} catch (e) {
+			console.log(e)
+			setPermissions(JSON.stringify(e))
+		}
+	}
+
   return (
     <View 
       style={{
@@ -45,6 +59,9 @@ export default function Settings() {
     >
 		  {permission}
       <Text>{log}</Text>
+		 <Button title="Check Permissions" onPress={buttonPress} />
+		 <Text>{permissions}</Text>
+
     </View>
   );
 }

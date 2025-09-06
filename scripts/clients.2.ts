@@ -1,92 +1,60 @@
-import * as moo from "ts-xml-object-parser"
-import * as xmldom from "xmldom"
 
-export function getApi06PermissionsXml(): Promise<OsmStandard & InaRecord_permissions_Permission> {
+export function getApi06MapText(bbox?: Bbox): Promise<string> {
   let options: RequestInit = {
     credentials: "same-origin" as RequestCredentials,
     method: "GET",
     headers: {"Accept": "text/xml"}
   };
-
-  let params = {};
-  return ( window.fetch)(`https://openstreetmap.org/api/0.6/permissions` + "?" + new URLSearchParams(params).toString(), options).then((response) => {
+  
+  let params = {bbox: bbox && toQueryParamBbox(bbox)};
+  return (fetchFn || window.fetch)(`localhost/api/0.6/map` + "?" + new URLSearchParams(params).toString(), options).then((response) => {
     return new Promise((resolve, reject) => {
       if (response.status !== 200) {
         return response.text().then((text) => reject({text, status: response.status}));
       } else {
-        return response.text().then((xml) => {
-          console.log(xml)
-          try {
-            const doc = new xmldom.DOMParser().parseFromString(xml)
-          //console.log(jsdom1)
-          //const dom = jsdom1.window
-          //console.log(dom)
-          console.log(1)
-            //const root = dom.document
-            console.log(doc)
-          const parseResult = moo.parseRoot('osm', parseOsmStandardAndPermissions)(doc)
-          console.log(2)
-          if("success" in parseResult) {
-            console.log(3)
-            resolve(parseResult.success)
-            console.log(4)
-          }
-          else { console.log(5)
-            reject(parseResult)
-          console.log(6) }
-          console.log(7)
-          } catch (e) {
-            console.log(8)
-            console.log(e)
-            console.log(9)
-            reject(e)
-          }
-        });
+        return response.text().then((text) => resolve(text));
       }
     });
   });
 }
 
-const asPermission = (string: string): moo.Result<Permission>  => {
-  switch (string) {
-
-    case "allow_read_prefs" :
-    case  "allow_write_prefs" :
-    case  "allow_write_diary" :
-    case  "allow_write_api" :
-    case  "allow_write_redactions" :
-    case  "allow_read_gpx" :
-    case  "allow_write_gpx" :
-    case  "allow_write_notes":
-      return {success: string}
-    default:
-      return {error: `value error`, message: `unknown ${string}`}
-  }
+export function putApi06ChangesetCreateText(): Promise<string> {
+  let options: RequestInit = {
+    credentials: "same-origin" as RequestCredentials,
+    method: "PUT",
+    headers: {"Accept": "text/xml"}
+  };
+  
+  let params = {};
+  return (fetchFn || window.fetch)(`localhost/api/0.6/changeset/create` + "?" + new URLSearchParams(params).toString(), options).then((response) => {
+    return new Promise((resolve, reject) => {
+      if (response.status !== 200) {
+        return response.text().then((text) => reject({text, status: response.status}));
+      } else {
+        return response.text().then((text) => resolve(text));
+      }
+    });
+  });
 }
 
-const ParsePermissionString: moo.Parser<Permission> = (nodes) => {
-  console.log("from parse permission string", nodes)
-  const r = moo.parseString(nodes)
-
-  if ("success" in r) {
-    return asPermission(r.success)
-  } else {
-    return r
-  }
+export function getApi06PermissionsText(): Promise<string> {
+  let options: RequestInit = {
+    credentials: "same-origin" as RequestCredentials,
+    method: "GET",
+    headers: {"Accept": "text/xml"}
+  };
+  
+  let params = {};
+  return (fetchFn || window.fetch)(`localhost/api/0.6/permissions` + "?" + new URLSearchParams(params).toString(), options).then((response) => {
+    return new Promise((resolve, reject) => {
+      if (response.status !== 200) {
+        return response.text().then((text) => reject({text, status: response.status}));
+      } else {
+        return response.text().then((text) => resolve(text));
+      }
+    });
+  });
 }
-const ParsePermissionName: moo.Parser<Permission> = moo.parseInline({type: "attribute", xmlname: "name", parser: ParsePermissionString})
-
-const ParseOsmStandardAndPermissions: moo.ParserObject<OsmStandard & InaRecord_permissions_Permission> = {
-  permissions: {type:"element", xmlname: "permissions", parser: moo.parseInline({ type: "element", xmlname: "permission", parser: moo.parseArray<Permission>(ParsePermissionName) })},
-
-  version: {type:"attribute", if_absent: "optional key", parser: moo.parseString},
-  generator: {type:"attribute", if_absent: "optional key", parser: moo.parseString},
-  copyright: {type:"attribute", if_absent: "optional key", parser: moo.parseString},
-  attribution: {type:"attribute", if_absent: "optional key", parser: moo.parseString},
-  license: {type:"attribute", if_absent: "optional key", parser: moo.parseString},
-}
-
-const parseOsmStandardAndPermissions: moo.Parser<OsmStandard & InaRecord_permissions_Permission> = moo.parseObject(ParseOsmStandardAndPermissions)
 
 export function getApi06CapabilitiesText(): Promise<string> {
   let options: RequestInit = {
@@ -96,7 +64,7 @@ export function getApi06CapabilitiesText(): Promise<string> {
   };
   
   let params = {};
-  return ( window.fetch)(`localhost/api/0.6/capabilities` + "?" + new URLSearchParams(params).toString(), options).then((response) => {
+  return (fetchFn || window.fetch)(`localhost/api/0.6/capabilities` + "?" + new URLSearchParams(params).toString(), options).then((response) => {
     return new Promise((resolve, reject) => {
       if (response.status !== 200) {
         return response.text().then((text) => reject({text, status: response.status}));
@@ -115,7 +83,7 @@ export function getApiVersionsText(): Promise<string> {
   };
   
   let params = {};
-  return ( window.fetch)(`localhost/api/versions` + "?" + new URLSearchParams(params).toString(), options).then((response) => {
+  return (fetchFn || window.fetch)(`localhost/api/versions` + "?" + new URLSearchParams(params).toString(), options).then((response) => {
     return new Promise((resolve, reject) => {
       if (response.status !== 200) {
         return response.text().then((text) => reject({text, status: response.status}));

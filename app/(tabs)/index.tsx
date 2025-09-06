@@ -313,7 +313,7 @@ type State = {
     }>
     interestingNodes: QueryState<unknown, InterestingNodes>
     osmCapabilities: QueryState<unknown, OsmApi.IApiCapabilities>
-    osmVersions: QueryState<unknown, OsmApi.IJSONApiVersions>
+    osmVersions: QueryState<unknown, OsmApi.IInaRecord_api>
     osmMap: QueryState<unknown, {
       $json: string;
       $requestedBounds: { minlat: number, minlon: number, maxlat: number, maxlon: number };
@@ -1091,7 +1091,7 @@ export default function MainPage() {
       }
   )
   useDispatchingQuery(
-      useCallback((queryState: QueryState<unknown, OsmApi.IJSONApiVersions>) => dispatch({
+      useCallback((queryState: QueryState<unknown, OsmApi.IInaRecord_api>) => dispatch({
         action: "set query",
         query: "osmVersions",
         queryState

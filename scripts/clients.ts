@@ -1,14 +1,15 @@
-export function getApi06Map(bbox?: Bbox, fetchFn?: (input: RequestInfo, init?: RequestInit) => Promise<Response>): Promise<OsmStandard & BoundedElements> {
+
+
+  
+export function getApi06Map(bbox?: Bbox): Promise<OsmStandard & BoundedElements> {
   let options: RequestInit = {
     credentials: "same-origin" as RequestCredentials,
     method: "GET",
     headers: {"Accept": "application/json;charset=utf-8"}
   };
   
-  let params: {bbox?: string} = {}
-  bbox && (params.bbox = toQueryParamBbox(bbox));
-
-  return (fetchFn || window.fetch)(`https://openstreetmap.org/api/0.6/map` + "?" + new URLSearchParams(params).toString(), options).then((response) => {
+  let params = {bbox: bbox && toQueryParamBbox(bbox)};
+  return (window.fetch)(`localhost/api/0.6/map` + "?" + new URLSearchParams(removeUndefined(params)).toString(), options).then((response) => {
     return new Promise((resolve, reject) => {
       if (response.status !== 200) {
         return response.text().then((text) => reject({text, status: response.status}));
@@ -19,24 +20,61 @@ export function getApi06Map(bbox?: Bbox, fetchFn?: (input: RequestInfo, init?: R
   });
 }
 
-export async function getApi06MapText(bbox?: Bbox, fetchFn?: (input: RequestInfo, init?: RequestInit) => Promise<Response>): Promise<string> {
+export function getApi06MapText(bbox?: Bbox): Promise<string> {
   let options: RequestInit = {
     credentials: "same-origin" as RequestCredentials,
     method: "GET",
     headers: {"Accept": "application/json;charset=utf-8"}
   };
   
-  let params: {bbox?: string} = {}
-  bbox && (params.bbox = toQueryParamBbox(bbox));
+  let params = {bbox: bbox && toQueryParamBbox(bbox)};
+  return (window.fetch)(`https://master.apis.dev.openstreetmap.org/api/0.6/map` + "?" + new URLSearchParams(removeUndefined(params)).toString(), options).then((response) => {
+    return new Promise((resolve, reject) => {
+      if (response.status !== 200) {
+        return response.text().then((text) => reject({text, status: response.status}));
+      } else {
+        return response.text().then((text) => resolve(text));
+      }
+    });
+  });
+}
 
-	let url = `https://openstreetmap.org/api/0.6/map` + "?" + new URLSearchParams(params).toString()
-	const response = await (fetchFn || window.fetch)(url, options)
-    if (response.status !== 200) {
-        const text = await response.text()
-        throw ({text, status: response.status});
-    } else {
-        return await response.text()
-    }
+export function getApi06Permissions(): Promise<OsmStandard & InaRecord_permissions_Permission> {
+  let options: RequestInit = {
+    credentials: "same-origin" as RequestCredentials,
+    method: "GET",
+    headers: {"Accept": "application/json;charset=utf-8"}
+  };
+  
+  let params = {};
+  return (window.fetch)(`localhost/api/0.6/permissions` + "?" + new URLSearchParams(removeUndefined(params)).toString(), options).then((response) => {
+    return new Promise((resolve, reject) => {
+      if (response.status !== 200) {
+        return response.text().then((text) => reject({text, status: response.status}));
+      } else {
+        return response.json().then((json) => resolve(json));
+      }
+    });
+  });
+}
+
+export function getApi06PermissionsText(): Promise<string> {
+  let options: RequestInit = {
+    credentials: "same-origin" as RequestCredentials,
+    method: "GET",
+    headers: {"Accept": "application/json;charset=utf-8"}
+  };
+  
+  let params = {};
+  return (window.fetch)(`https://master.apis.dev.openstreetmap.org/api/0.6/permissions` + "?" + new URLSearchParams(removeUndefined(params)).toString(), options).then((response) => {
+    return new Promise((resolve, reject) => {
+      if (response.status !== 200) {
+        return response.text().then((text) => reject({text, status: response.status}));
+      } else {
+        return response.text().then((text) => resolve(text));
+      }
+    });
+  });
 }
 
 export function getApi06Capabilities(): Promise<OsmStandard & ApiCapabilities> {
@@ -47,7 +85,7 @@ export function getApi06Capabilities(): Promise<OsmStandard & ApiCapabilities> {
   };
   
   let params = {};
-  return window.fetch(`https://openstreetmap.org/api/0.6/capabilities` + "?" + new URLSearchParams(params).toString(), options).then((response) => {
+  return (window.fetch)(`localhost/api/0.6/capabilities` + "?" + new URLSearchParams(removeUndefined(params)).toString(), options).then((response) => {
     return new Promise((resolve, reject) => {
       if (response.status !== 200) {
         return response.text().then((text) => reject({text, status: response.status}));
@@ -58,7 +96,7 @@ export function getApi06Capabilities(): Promise<OsmStandard & ApiCapabilities> {
   });
 }
 
-export function getApi06CapabilitiesText(fetchFn?: (input: RequestInfo, init?: RequestInit) => Promise<Response>): Promise<string> {
+export function getApi06CapabilitiesText(): Promise<string> {
   let options: RequestInit = {
     credentials: "same-origin" as RequestCredentials,
     method: "GET",
@@ -66,7 +104,7 @@ export function getApi06CapabilitiesText(fetchFn?: (input: RequestInfo, init?: R
   };
   
   let params = {};
-  return (fetchFn || window.fetch)(`https://openstreetmap.org/api/0.6/capabilities` + "?" + new URLSearchParams(params).toString(), options).then((response) => {
+  return (window.fetch)(`https://master.apis.dev.openstreetmap.org/api/0.6/capabilities` + "?" + new URLSearchParams(removeUndefined(params)).toString(), options).then((response) => {
     return new Promise((resolve, reject) => {
       if (response.status !== 200) {
         return response.text().then((text) => reject({text, status: response.status}));
@@ -77,7 +115,7 @@ export function getApi06CapabilitiesText(fetchFn?: (input: RequestInfo, init?: R
   });
 }
 
-export function getApiVersions(): Promise<OsmStandard & JSONApiVersions> {
+export function getApiVersions(): Promise<OsmStandard & InaRecord_api_InaRecord_versions_ApiVersion> {
   let options: RequestInit = {
     credentials: "same-origin" as RequestCredentials,
     method: "GET",
@@ -85,7 +123,7 @@ export function getApiVersions(): Promise<OsmStandard & JSONApiVersions> {
   };
   
   let params = {};
-  return window.fetch(`https://openstreetmap.org/api/versions` + "?" + new URLSearchParams(params).toString(), options).then((response) => {
+  return (window.fetch)(`localhost/api/versions` + "?" + new URLSearchParams(removeUndefined(params)).toString(), options).then((response) => {
     return new Promise((resolve, reject) => {
       if (response.status !== 200) {
         return response.text().then((text) => reject({text, status: response.status}));
@@ -96,7 +134,7 @@ export function getApiVersions(): Promise<OsmStandard & JSONApiVersions> {
   });
 }
 
-export function getApiVersionsText(fetchFn?: (input: RequestInfo, init?: RequestInit) => Promise<Response>): Promise<string> {
+export function getApiVersionsText(): Promise<string> {
   let options: RequestInit = {
     credentials: "same-origin" as RequestCredentials,
     method: "GET",
@@ -104,7 +142,7 @@ export function getApiVersionsText(fetchFn?: (input: RequestInfo, init?: Request
   };
   
   let params = {};
-  return (fetchFn || window.fetch)(`https://openstreetmap.org/api/versions` + "?" + new URLSearchParams(params).toString(), options).then((response) => {
+  return (window.fetch)(`https://master.apis.dev.openstreetmap.org/api/versions` + "?" + new URLSearchParams(removeUndefined(params)).toString(), options).then((response) => {
     return new Promise((resolve, reject) => {
       if (response.status !== 200) {
         return response.text().then((text) => reject({text, status: response.status}));
@@ -114,30 +152,36 @@ export function getApiVersionsText(fetchFn?: (input: RequestInfo, init?: Request
     });
   });
 }
+
+type FullyDefined<T> = Partial<{
+  [key in keyof T]: Exclude<T[key], undefined>
+}>
+
+function removeUndefined<T extends object>(t: T): FullyDefined<T> {
+  const filter = <K extends keyof T>(arg: [string|number|symbol, T[K]]): arg is [K, Exclude<T[K], undefined>] => arg[1] !== undefined
+  return Object.fromEntries(
+      Object.entries(t)
+      .filter(filter)
+  ) as FullyDefined<T>
+}
+
+
 export interface IApiCapabilities {
   api: ApiCapabilitiesApi;
-  policy: ApiCapabilitiesPolicyBlacklist1;
+  policy: InaRecord_imagery_InaRecord_blacklist_InaRecord_regex_string;
 }
 
 export interface IApiCapabilitiesApi {
-  version: Range<ApiVersion>;
-  area: Maximum<number>;
-  note_area: Maximum<number>;
-  tracepoints: PerPage<number>;
-  waynodes: Maximum<number>;
-  relationmembers: Maximum<number>;
+  version: Range;
+  area: InaRecord_maximum_number;
+  note_area: InaRecord_maximum_number;
+  tracepoints: InaRecord_per_page_number;
+  waynodes: InaRecord_maximum_number;
+  relationmembers: InaRecord_maximum_number;
   changesets: ChangeSetCapabilities;
   notes: NotesCapabilities;
-  timeout: Seconds<number>;
+  timeout: InaRecord_seconds_number;
   status: Stati;
-}
-
-export interface IApiCapabilitiesPolicyBlacklist1 {
-  imagery: ApiCapabilitiesPolicyBlacklist2;
-}
-
-export interface IApiCapabilitiesPolicyBlacklist2 {
-  blacklist: RegexText[];
 }
 
 export interface IBbox {
@@ -158,16 +202,40 @@ export interface IChangeSetCapabilities {
   maximum_query_limit: number;
 }
 
-export interface IJSONApiVersions {
-  api: JSONApiVersions1;
+export interface IInaRecord_api {
+  api: InaRecord_versions_ApiVersion;
 }
 
-export interface IJSONApiVersions1 {
+export interface IInaRecord_blacklist {
+  blacklist: InaRecord_regex_string[];
+}
+
+export interface IInaRecord_imagery {
+  imagery: InaRecord_blacklist_InaRecord_regex_string;
+}
+
+export interface IInaRecord_maximum {
+  maximum: number;
+}
+
+export interface IInaRecord_per_page {
+  per_page: number;
+}
+
+export interface IInaRecord_permissions {
+  permissions: Permission[];
+}
+
+export interface IInaRecord_regex {
+  regex: string;
+}
+
+export interface IInaRecord_seconds {
+  seconds: number;
+}
+
+export interface IInaRecord_versions {
   versions: ApiVersion[];
-}
-
-export interface IMaximum<T> {
-  maximum: T;
 }
 
 export interface INode {
@@ -180,7 +248,7 @@ export interface INode {
   changeset: number;
   user: string;
   uid: number;
-  tags?: Partial<Record<string, string>>;
+  tags?: {[k in string]?: string};
 }
 
 export interface INotesCapabilities {
@@ -189,20 +257,16 @@ export interface INotesCapabilities {
 }
 
 export interface IOsmStandard {
-  version?: string | null;
-  generator?: string | null;
-  copyright?: string | null;
-  attribution?: string | null;
-  license?: string | null;
+  version?: string;
+  generator?: string;
+  copyright?: string;
+  attribution?: string;
+  license?: string;
 }
 
-export interface IPerPage<T> {
-  per_page: T;
-}
-
-export interface IRange<T> {
-  minimum: T;
-  maximum: T;
+export interface IRange {
+  minimum: ApiVersion;
+  maximum: ApiVersion;
 }
 
 export interface IRelation {
@@ -235,10 +299,6 @@ export interface IRmWay {
   role: string;
 }
 
-export interface ISeconds<T> {
-  seconds: T;
-}
-
 export interface IStati {
   database: Status;
   api: Status;
@@ -261,11 +321,7 @@ export type ApiCapabilities = IApiCapabilities;
 
 export type ApiCapabilitiesApi = IApiCapabilitiesApi;
 
-export type ApiCapabilitiesPolicyBlacklist1 = IApiCapabilitiesPolicyBlacklist1;
-
-export type ApiCapabilitiesPolicyBlacklist2 = IApiCapabilitiesPolicyBlacklist2;
-
-export type ApiVersion = "0.6" | "0.6";
+export type ApiVersion = "0.6";
 
 export type Bbox = IBbox;
 
@@ -275,33 +331,40 @@ export type ChangeSetCapabilities = IChangeSetCapabilities;
 
 export type Element = INode | IWay | IRelation;
 
-export type IRegexText = string;
+export type InaRecord_api_InaRecord_versions_ApiVersion = IInaRecord_api;
 
-export type JSONApiVersions = IJSONApiVersions;
+export type InaRecord_blacklist_InaRecord_regex_string = IInaRecord_blacklist;
 
-export type JSONApiVersions1 = IJSONApiVersions1;
+export type InaRecord_imagery_InaRecord_blacklist_InaRecord_regex_string = IInaRecord_imagery;
 
-export type Maximum<T> = IMaximum<T>;
+export type InaRecord_maximum_number = IInaRecord_maximum;
+
+export type InaRecord_per_page_number = IInaRecord_per_page;
+
+export type InaRecord_permissions_Permission = IInaRecord_permissions;
+
+export type InaRecord_regex_string = IInaRecord_regex;
+
+export type InaRecord_seconds_number = IInaRecord_seconds;
+
+export type InaRecord_versions_ApiVersion = IInaRecord_versions;
 
 export type NotesCapabilities = INotesCapabilities;
 
 export type OsmStandard = IOsmStandard;
 
-export type PerPage<T> = IPerPage<T>;
+export type Permission = "allow_read_prefs" | "allow_write_prefs" | "allow_write_diary" | "allow_write_api" | "allow_write_redactions" | "allow_read_gpx" | "allow_write_gpx" | "allow_write_notes";
 
-export type Range<T> = IRange<T>;
-
-export type RegexText = IRegexText;
+export type Range = IRange;
 
 export type RelationMember = IRmWay | IRmNode | IRmRelation;
-
-export type Seconds<T> = ISeconds<T>;
 
 export type Stati = IStati;
 
 export type Status = "offline" | "readonly" | "online";
 export function toQueryParamOsmStandardApiCapabilities(a : OsmStandard & ApiCapabilities) { return (((a) => a))(a) } 
 export function toQueryParamOsmStandardBoundedElements(a : OsmStandard & BoundedElements) { return (((a) => a))(a) } 
-export function toQueryParamOsmStandardJSONApiVersions(a : OsmStandard & JSONApiVersions) { return (((a) => a))(a) } 
-export function toQueryParamBbox(a : Bbox) { return ((a) => `${a.minlon},${a.minlat},${a.maxlon},${a.maxlat}`)(a) }
+export function toQueryParamOsmStandardInaRecordapiInaRecordversionsApiVersion(a : OsmStandard & InaRecord_api_InaRecord_versions_ApiVersion) { return (((a) => a))(a) } 
+export function toQueryParamOsmStandardInaRecordpermissionsPermission(a : OsmStandard & InaRecord_permissions_Permission) { return (((a) => a))(a) } 
+export function toQueryParamBbox(a : Bbox) { return ((a) => `${a.minlon},${a.minlat},${a.maxlon},${a.maxlat}`)(a) } 
 
