@@ -41,7 +41,7 @@
     "expo-location": "~18.0.4",
     "expo-router": "~4.0.9",
     "expo-splash-screen": "~0.29.13",
-    "expo-sqlite": "git+http://termite:3000/tristan/expo-spatialite#alternative-implementation",
+    "expo-sqlite": "git+https://git.tmcl.dev/tristan/expo-spatialite#alternative-implementation",
     "expo-status-bar": "~2.0.0",
     "expo-symbols": "~0.2.0",
     "expo-system-ui": "~4.0.4",
@@ -59,7 +59,7 @@
     "react-native-vector-icons": "^10.2.0",
     "react-native-web": "~0.19.13",
     "react-native-webview": "13.12.2",
-    "spatialite": "git+http://termite:3000/tristan/spatialite#main",
+    "spatialite": "git+https://git.tmcl.dev/tristan/spatialite#main",
     "ts-xml-object-parser": "../signs-alt/ts-xml-object-parser",
     "use-debounce": "^10.0.4",
     "xmldom": "^0.6.0"
@@ -79,7 +79,7 @@
     "typescript": "^5.3.3"
   },
   "resolutions": {
-    "expo-sqlite": "git+http://termite:3000/tristan/expo-spatialite#alternative-implementation",
+    "expo-sqlite": "git+https://git.tmcl.dev/tristan/expo-spatialite#alternative-implementation",
     "cookie": "0.7.2"
   },
   "overrides": {

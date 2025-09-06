@@ -66,7 +66,7 @@ export default {
               {
                 "name": "libspatialite",
                 "version": "5.1.0",
-                "source": "gitea@termite:tristan/cocoapods.git"
+                "source": "git+https://git.tmcl.dev/tristan/cocoapods.git"
               }
             ]
           }

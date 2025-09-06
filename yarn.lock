@@ -5876,10 +5876,10 @@ expo-splash-screen@~0.29.13:
   dependencies:
     "@expo/prebuild-config" "^8.0.23"
 
-expo-sqlite@^15.0.3, "expo-sqlite@git+http://termite:3000/tristan/expo-spatialite#alternative-implementation":
+expo-sqlite@^15.0.3, "expo-sqlite@git+https://git.tmcl.dev/tristan/expo-spatialite#alternative-implementation":
   version "15.0.3"
   uid a6c665c17bf8857aaff937cd32826dec84fc7e6d
-  resolved "git+http://termite:3000/tristan/expo-spatialite#a6c665c17bf8857aaff937cd32826dec84fc7e6d"
+  resolved "git+https://git.tmcl.dev/tristan/expo-spatialite#a6c665c17bf8857aaff937cd32826dec84fc7e6d"
 
 expo-status-bar@~2.0.0:
   version "2.0.0"
@@ -9929,9 +9929,9 @@ source-map@^0.7.3:
   resolved "https://registry.yarnpkg.com/source-map/-/source-map-0.7.4.tgz#a9bbe705c9d8846f4e08ff6765acf0f1b0898656"
   integrity sha512-l3BikUxvPOcn5E74dZiq5BGsTb5yEwhaTSzccU6t4sDOH8NWJCstKO5QT2CvtFoK6F0saL7p9xHAqHOlCPJygA==
 
-"spatialite@git+http://termite:3000/tristan/spatialite#main":
+"spatialite@git+https://git.tmcl.dev/tristan/spatialite#main":
   version "0.1.0"
-  resolved "git+http://termite:3000/tristan/spatialite#0cb80d428a8707d8984440795d847a9a630f5605"
+  resolved "git+https://git.tmcl.dev/tristan/spatialite#0cb80d428a8707d8984440795d847a9a630f5605"
 
 splaytree@^3.1.0:
   version "3.1.2"
