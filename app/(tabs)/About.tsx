@@ -2,7 +2,7 @@ import React, {useState, useEffect} from 'react'
 import { Text, View, Button } from "react-native";
 import * as SQLite from 'expo-sqlite'
 import { useAndroidLocationPermission } from '@/components/AndroidLocationPermission';
-import {getApi06PermissionsXml} from "@/scripts/clients.2";
+import {getApi06Permissions} from "@/scripts/clients";
 
 
 export default function Settings() {
@@ -40,7 +40,7 @@ export default function Settings() {
 	const buttonPress = async () => {
 		try {
 			console.log('x')
-			const r = await getApi06PermissionsXml()
+			const r = await getApi06Permissions()
 			console.log(r)
 			setPermissions(JSON.stringify(r))
 		} catch (e) {

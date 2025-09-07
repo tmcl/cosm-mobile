@@ -60,7 +60,7 @@
     web = pkgs.stdenv.mkDerivation {
       name = "interpret";
       APP_VARIANT="production";
-      src = ./js/podcasts-expo;
+      src = root_path;
       buildInputs = [
         pkgs.nodejs
         pkgs.yarn
@@ -79,12 +79,12 @@
       '';
     };
     package_json = pkgs.writeText "package.json" (builtins.toJSON (builtins.removeAttrs package_json_info ["scripts"]));
-    package_json_info= (builtins.fromJSON (builtins.readFile ./js/podcasts-expo/package.json));
+    package_json_info= (builtins.fromJSON (builtins.readFile "${root_path}/package.json"));
     node_modules = pkgs.mkYarnModules {
       pname = "interpret-nodemodules";
       version = "1.0.0";
       packageJSON = package_json;
-      yarnLock = ./js/podcasts-expo/yarn.lock;
+      yarnLock = "${root_path}/yarn.lock";
     };
     android-build = mode: src: builder:
       builder
@@ -246,6 +246,11 @@
             npm view expo-template-bare-minimum@sdk-52 dist --json
             EXPO_OFFLINE=1 ${pkgs.yarn}/bin/yarn --offline expo prebuild  --no-install
             ls -l
+            find sql -type f -name '*.sql' -exec sh -c '
+              for file do
+                ${pkgs.jq}/bin/jq -Rs . "$file" > "$file.json"
+              done
+            ' sh {} +
             cd android
           ''
         ];

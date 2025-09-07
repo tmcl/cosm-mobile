@@ -9931,7 +9931,7 @@ source-map@^0.7.3:
 
 "spatialite@git+https://git.tmcl.dev/tristan/spatialite#main":
   version "0.1.0"
-  resolved "git+https://git.tmcl.dev/tristan/spatialite#0cb80d428a8707d8984440795d847a9a630f5605"
+  resolved "git+https://git.tmcl.dev/tristan/spatialite#35bf76150809ee00a3051668d156711b4d78563a"
 
 splaytree@^3.1.0:
   version "3.1.2"
@@ -10472,8 +10472,9 @@ ts-interface-checker@^0.1.9:
   resolved "https://registry.yarnpkg.com/ts-interface-checker/-/ts-interface-checker-0.1.13.tgz#784fd3d679722bc103b1b4b8030bcddb5db2a699"
   integrity sha512-Y/arvbn+rrz3JCKl9C4kVNfTfSm2/mEp5FSz5EsZSANGPSlQrpRI5M4PKF+mJnE52jOO90PnPSc3Ur3bTQw0gA==
 
-ts-xml-object-parser@../signs-alt/ts-xml-object-parser:
+"ts-xml-object-parser@git+https://git.tmcl.dev/tristan/ts-xml-object-parser":
   version "1.0.0"
+  resolved "git+https://git.tmcl.dev/tristan/ts-xml-object-parser#ca2c5fa80482f9db13210d40ccf4f455175c9123"
 
 tsconfig-paths@^3.15.0:
   version "3.15.0"
