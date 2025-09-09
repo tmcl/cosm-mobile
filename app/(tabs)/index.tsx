@@ -4,7 +4,7 @@ import React, {useCallback, useEffect, useMemo, useReducer, useRef, useState} fr
 import {FAB} from '@rneui/themed'
 import {InteractionManager, StyleSheet, Text, View} from "react-native";
 import MapLibreGL from '@maplibre/maplibre-react-native';
-import type {RegionPayload} from '@maplibre/maplibre-react-native/src/components/MapView';
+//import type {RegionPayload} from '@maplibre/maplibre-react-native/src/components/MapView';
 import * as OsmApi from "@/scripts/clients";
 import {useAndroidLocationPermission} from '@/components/AndroidLocationPermission';
 import {
@@ -21,14 +21,27 @@ import {
 import type GeoJSON from "geojson";
 import {skipToken, useQueryClient} from '@tanstack/react-query'
 import * as Svg from "react-native-svg";
-import {OnPressEvent} from "@maplibre/maplibre-react-native/src/types/OnPressEvent";
+//import {OnPressEvent} from "@maplibre/maplibre-react-native";
 import {IconNode} from "@rneui/base";
 import * as turf from "@turf/turf";
 import {useLocalSearchParams} from "expo-router";
-import {CircleLayerProps} from "@maplibre/maplibre-react-native/src/components/CircleLayer";
+//import {CircleLayerProps} from "@maplibre/maplibre-react-native";
 import * as ExLoc from 'expo-location'
+import {CircleLayer} from "@maplibre/maplibre-react-native";
 
-const CircleLayer: React.FC<CircleLayerProps & {id: LayerId}> = MapLibreGL.CircleLayer as React.FC<CircleLayerProps & {id: LayerId}>
+//const CircleLayer: React.FC<CircleLayerProps & {id: LayerId}> = MapLibreGL.CircleLayer as React.FC<CircleLayerProps & {id: LayerId}>
+
+interface OnPressEvent {
+  features: GeoJSON.Feature[];
+  coordinates: {
+    latitude: number;
+    longitude: number;
+  };
+  point: {
+    x: number;
+    y: number;
+  };
+}
 
 type LayerId = keyof typeof LayerIndexLookup
 const LayerIndexLookup  = {
@@ -1382,7 +1395,7 @@ export default function MainPage() {
   }
   const statusString = buildStatusString([debSaveUpdateUserChanges.isPending()], state.queries)
 
-  const onMapBoundChange = (feature: GeoJSON.Feature<GeoJSON.Point, RegionPayload>) => {
+  const onMapBoundChange = (feature: GeoJSON.Feature<GeoJSON.Point, MapLibreGL.RegionPayload>) => {
     console.log('+++++++++++++++observed map bounds change', feature)
     const [ne, sw] = feature.properties.visibleBounds
     const maxlon = ne[0]

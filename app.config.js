@@ -17,7 +17,9 @@ export default {
       }
     },
     "android": {
+        "edgeToEdgeEnabled": true,
       "adaptiveIcon": {
+
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
@@ -25,6 +27,7 @@ export default {
     },
     "plugins": [
       "expo-router",
+			"expo-web-browser",
 			["expo-dev-client", {"addGeneratedScheme": !IS_DEV}],
       ["expo-sqlite", {
         "customBuildFlags": "-DSQLITE_ENABLE_RTREE=1"

@@ -1,0 +1,57 @@
+import org.gradle.util.GradleVersion
+
+//def reactNativeAndroidDir = new File(
+//  providers.exec {
+//    workingDir(rootDir)
+//    commandLine("node", "--print", "require.resolve('react-native/package.json')")
+//  }.standardOutput.asText.get().trim(),
+//  "../android"
+//)
+
+static boolean versionAtLeast(String version) {
+    return GradleVersion.current() >= GradleVersion.version(version)
+}
+
+static void configureRepos(RepositoryHandler repositories) {
+    repositories.configureEach { ArtifactRepository repo ->
+        if (repo instanceof MavenArtifactRepository) {
+            def currentUrl = repo.url
+            // Only override if repo is NOT already local (scheme not 'file')
+            if (!currentUrl || !currentUrl.toString().startsWith("file:")) {
+                repo.setArtifactUrls(new HashSet<URI>())
+                repo.url 'file:@mavenRepo@'
+                repo.metadataSources {
+                    gradleMetadata()
+                    mavenPom()
+                    artifact()
+                }
+            }
+        } else if (repo instanceof IvyArtifactRepository) {
+            def currentUrl = repo.url
+            if (!currentUrl || !currentUrl.toString().startsWith("file:")) {
+                repo.url 'file:@mavenRepo@'
+                repo.layout('maven')
+                repo.metadataSources {
+                    gradleMetadata()
+                    ivyDescriptor()
+                    artifact()
+                }
+            }
+        } else if (repo instanceof UrlArtifactRepository) {
+            repo.url 'file:/homeless-shelter'
+        }
+    }
+}
+
+beforeSettings { settings ->
+    configureRepos(settings.pluginManagement.repositories)
+    configureRepos(settings.buildscript.repositories)
+    if (versionAtLeast("6.8")) {
+        configureRepos(settings.dependencyResolutionManagement.repositories)
+    }
+}
+
+beforeProject { project ->
+    configureRepos(project.buildscript.repositories)
+    configureRepos(project.repositories)
+}

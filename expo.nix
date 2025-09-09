@@ -19,6 +19,7 @@
     gradle2nix,
     android-sdk,
   }: let
+    expo-major="53";
     management-root-fileset =
       pkgs.lib.fileset.fileFilter (
         file:
@@ -109,35 +110,35 @@
           else throw "unknown mode ${mode}";
         autoLockStandard = builtins.fromJSON (builtins.readFile ./gradle-lock/${mode}/gradle.lock.json);
         autoLockLintVitalRelease = builtins.fromJSON (builtins.readFile ./gradle-lock/${mode}/gradle.lock.app.lintvitalrelease.json);
-        aapt2bundle = pkgs.stdenv.mkDerivation {
-          name = "aapt2bundle";
-          src = builtins.fetchurl {
-            url = "https://dl.google.com/dl/android/maven2/com/android/tools/build/aapt2/8.6.0-11315950/aapt2-8.6.0-11315950-linux.jar";
-            sha256 = "sha256-aCkmzxAfAhpQY5Ee0squwUCMF8xJaD/QNVIkUYeGQ5U=";
-          };
+        #aapt2bundle = pkgs.stdenv.mkDerivation {
+        #  name = "aapt2bundle";
+        #  src = builtins.fetchurl {
+        #    url = "https://dl.google.com/dl/android/maven2/com/android/tools/build/aapt2/8.6.0-11315950/aapt2-8.6.0-11315950-linux.jar";
+        #    sha256 = "sha256-aCkmzxAfAhpQY5Ee0squwUCMF8xJaD/QNVIkUYeGQ5U=";
+        #  };
 
-          # Specify build inputs if needed
-          nativeBuildInputs = [pkgs.coreutils pkgs.unzip pkgs.zip];
-          android_sdk = android-sdk;
+        #  # Specify build inputs if needed
+        #  nativeBuildInputs = [pkgs.coreutils pkgs.unzip pkgs.zip];
+        #  android_sdk = android-sdk;
 
-          # The build phase where we run our commands
-          unpackPhase = "cp $src ./aapt2-8.6.0-11315950-linux.jar";
-          buildPhase = ''
-            ls
-            echo $src
-            ls $src
-            mkdir build
-            unzip aapt2-8.6.0-11315950-linux.jar -d build
-            cp $android_sdk/share/android-sdk/build-tools/34.0.0/aapt2 build
-            cd build
-            zip aapt2-8.6.0-11315950-linux.jar * */*
-            cd ..
-          '';
+        #  # The build phase where we run our commands
+        #  unpackPhase = "cp $src ./aapt2-8.6.0-11315950-linux.jar";
+        #  buildPhase = ''
+        #    ls
+        #    echo $src
+        #    ls $src
+        #    mkdir build
+        #    unzip aapt2-8.6.0-11315950-linux.jar -d build
+        #    cp $android_sdk/share/android-sdk/build-tools/34.0.0/aapt2 build
+        #    cd build
+        #    zip aapt2-8.6.0-11315950-linux.jar * */*
+        #    cd ..
+        #  '';
 
-          installPhase = ''
-            install build/aapt2-8.6.0-11315950-linux.jar $out
-          '';
-        };
+        #  installPhase = ''
+        #    install build/aapt2-8.6.0-11315950-linux.jar $out
+        #  '';
+        #};
         #standardise-dates = pkgs.writeScriptBin "standardise-dates" ''
         #  #!${pkgs.bash}/bin/bash
         #  first_part=$(mktemp)
@@ -179,7 +180,7 @@
         #    cd $out
         #    export NPM_CONFIG_CACHE=$out
         #    export npm_config_registry=https://registry.yarnpkg.com
-        #    npm view expo-template-bare-minimum@sdk-52 dist --json
+        #    npm view expo-template-bare-minimum@sdk-${expo-major} dist --json
         #    find $out/_cacache/index-v5 -type f -print -exec cat '{}' ';' -exec ${standardise-dates}/bin/standardise-dates '{}' ';'
         #    npm cache verify --loglevel=verbose
         #    ls -l
@@ -208,6 +209,21 @@
         version = "0.1.0";
         inherit lockFile src;
         overrides = {
+          "com.android.tools.build:aapt2:8.8.2-12006047" = {
+            "aapt2-8.8.2-12006047-linux.jar" = src:
+              pkgs.runCommandCC src.name {
+                nativeBuildInputs = [pkgs.openjdk17 pkgs.autoPatchelfHook];
+                buildInputs = [pkgs.glibc pkgs.stdenv pkgs.gcc];
+                dontAutoPatchelf = true;
+              } ''
+                cp ${src} aapt2.jar
+                jar xf aapt2.jar aapt2
+                cp ${android-sdk}/share/android-sdk/build-tools/34.0.0/aapt2 aapt2
+                chmod +x aapt2
+                jar uf aapt2.jar aapt2
+                cp aapt2.jar $out
+              '';
+          };
           "com.android.tools.build:aapt2:8.6.0-11315950" = {
             "aapt2-8.6.0-11315950-linux.jar" = src:
               pkgs.runCommandCC src.name {
@@ -243,7 +259,7 @@
             find ~/.npm -exec touch '{}' ';'
             cp -av ${./expo-prebuild-template-cache} ~/.expo
             export NPM_CONFIG_OFFLINE=true
-            npm view expo-template-bare-minimum@sdk-52 dist --json
+            npm view expo-template-bare-minimum@sdk-${expo-major} dist --json
             EXPO_OFFLINE=1 ${pkgs.yarn}/bin/yarn --offline expo prebuild  --no-install
             ls -l
             find sql -type f -name '*.sql' -exec sh -c '
@@ -275,7 +291,19 @@
     inherit web node_modules;
     maven-repo = android-build "development" root_path buildMavenRepo;
     android-production =
-      multioutput-combiner (android-build "production" root_path buildGradlePackage);
+      multioutput-combiner ((android-build "production" root_path buildGradlePackage).overrideAttrs (
+      finalAttrs: prevAttrs:
+      {
+        gradleInitScript = pkgs.substitute {
+      src = ./init.gradle;
+          substitutions = [
+            "--replace"
+            "@mavenRepo@"
+            "${prevAttrs.passthru.offlineRepo}"
+          ];
+        }
+        ;
+      }));
     android-development =
       multioutput-combiner (android-build "development" development-inputs buildGradlePackage);
 
@@ -297,9 +325,9 @@
         export NPM_CONFIG_CACHE=$git_root/npm-cache
         rm -rf $NPM_CONFIG_CACHE
         mkdir -p $NPM_CONFIG_CACHE
-        npm view expo-template-bare-minimum@sdk-52 dist --json
+        npm view expo-template-bare-minimum@sdk-${expo-major} dist --json
         export npm_config_registry=https://registry.yarnpkg.com
-        npm view expo-template-bare-minimum@sdk-52 dist --json
+        npm view expo-template-bare-minimum@sdk-${expo-major} dist --json
         rm -rf $NPM_CONFIG_CACHE/_logs
       )
 
@@ -311,6 +339,7 @@
       cd $expo_root/android
       export GRADLE2NIX_OPTS="${GRADLE_OPTS}"
       mkdir -p $git_root/gradle-lock/$1/
+      ${gradle2nix}/bin/gradle2nix -t :app:build"$Variant"PreBundle -l $git_root/gradle-lock/$1/gradle.lock.rrcp.json
       if [[ $Variant == Debug ]]; then
        ${gradle2nix}/bin/gradle2nix -t :expo:extractDebugAnnotations -l $git_root/gradle-lock/$1/gradle.lock.app.lintvitalrelease.json
       else

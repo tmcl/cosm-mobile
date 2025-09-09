@@ -82,6 +82,8 @@
             #(if system == "x86_64-linux" then system-images-android-34-google-apis-x86-64 else system-images-android-34-google-apis-arm64-v8a)
             ndk-26-1-10909125
             ndk-25-1-8937393
+            ndk-27-1-12297006
+            ndk-27-0-12077973
           ]);
           mkExpo = system: pkgs: expo.buildOutputs rec {
                                root_relative = ".";

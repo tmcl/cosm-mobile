@@ -19,16 +19,6 @@
       "hash": "sha256-5j0Vfx/yv2jFHTFcdJ+b1ZLpR00DRUXOJRC5eDgccm4="
     }
   },
-  "com.android.tools.build:aapt2:8.8.2-12006047": {
-    "aapt2-8.8.2-12006047-linux.jar": {
-      "url": "https://dl.google.com/dl/android/maven2/com/android/tools/build/aapt2/8.8.2-12006047/aapt2-8.8.2-12006047-linux.jar",
-      "hash": "sha256-vlSLXsIj/IZqyAJbx4JjVTHe1vJvNoHi/skcaOlWCLo="
-    },
-    "aapt2-8.8.2-12006047.pom": {
-      "url": "https://dl.google.com/dl/android/maven2/com/android/tools/build/aapt2/8.8.2-12006047/aapt2-8.8.2-12006047.pom",
-      "hash": "sha256-1g5bKoWytdw0iNjbubOqzisYFFbWId3nk/GWHixHzw8="
-    }
-  },
   "com.android.tools.build:aapt2:8.6.0-11315950": {
     "aapt2-8.6.0-11315950-linux.jar": {
       "url": "https://dl.google.com/dl/android/maven2/com/android/tools/build/aapt2/8.6.0-11315950/aapt2-8.6.0-11315950-linux.jar",
