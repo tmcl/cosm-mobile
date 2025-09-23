@@ -2,11 +2,11 @@ const IS_DEV = process.env.APP_VARIANT === 'development';
 export default {
   "expo": {
     "name": IS_DEV ? "cosm (Development)" : "cosm",
-    "slug": "cosm",
+    "slug": IS_DEV ? "cosmdev" : "cosm",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "cosm",
+    "scheme": IS_DEV ? "cosmdev" : "cosm",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {

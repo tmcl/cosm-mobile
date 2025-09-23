@@ -5,7 +5,7 @@
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
-    "android": "tsc --noEmit && APP_VARIANT=development yarn expo run:android --binary=$(nom build .#android.development --out-link development-apk --print-out-paths)/out/fake-signed-debug-apk.apk",
+    "android": "tsc --noEmit && REACT_NATIVE_PACKAGER_HOSTNAME=silverfish.tmcl.dev APP_VARIANT=development yarn expo run:android  --app-id dev.tmcl.cosm.dev --binary=$(nom build .#android.development  --out-link development-apk --print-out-paths)/out/fake-signed-debug-apk.apk",
     "androidDevelopment": "APP_VARIANT=development expo run:android",
     "androidRelease": "expo run:android --variant Release",
     "ios": "expo run:ios",
@@ -20,8 +20,6 @@
     "@expo/vector-icons": "^14.1.0",
     "@legendapp/motion": "^2.4.0",
     "@maplibre/maplibre-react-native": "^10.0.0-beta.1",
-    "@react-navigation/bottom-tabs": "^7.0.0",
-    "@react-navigation/native": "^7.0.0",
     "@rneui/base": "^4.0.0-rc.8",
     "@rneui/themed": "^4.0.0-rc.8",
     "@tanstack/react-query": "^5.62.7",

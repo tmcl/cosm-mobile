@@ -33,10 +33,19 @@
     development-inputs = pkgs.lib.fileset.toSource {
       root = root_path;
       fileset = pkgs.lib.fileset.unions [
-        management-root-fileset
+        #management-root-fileset
+        /${root_path}/.eslintrc.js
+        /${root_path}/.gitignore
+        /${root_path}/app.config.js
+        /${root_path}/babel.config.js
+        /${root_path}/metro.config.js
+        /${root_path}/README.md
+        /${root_path}/tsconfig.json
+        /${root_path}/yarn.lock
         /${root_path}/assets/images/adaptive-icon.png
         /${root_path}/assets/images/icon.png
-        #/${root_path}/assets/images/splash.png
+        /${root_path}/assets/images/splash-icon.png
+        /${root_path}/assets/proj.db
       ];
     };
     buildMavenRepo = args: buildMavenRepo (pkgs.lib.getAttrs ["lockFile" "overrides"] args);
@@ -85,10 +94,9 @@
       pname = "interpret-nodemodules";
       version = "1.0.0";
       packageJSON = package_json;
-      yarnLock = "${root_path}/yarn.lock";
+      yarnLock = /${root_path}/yarn.lock;
     };
-    android-build = mode: src: builder:
-      builder
+    android-build = mode: src:
       (let
         variant =
           if mode == "production"
@@ -205,7 +213,7 @@
         js_package_name = package_json_info.name;
       in {
         gradle = pkgs.gradle-unwrapped;
-        pname = "${js_package_name}-android-${mode}";
+        pname = "android-expo-${js_package_name}-${mode}";
         version = "0.1.0";
         inherit lockFile src;
         overrides = {
@@ -242,8 +250,11 @@
         };
         NODE_ENV = "production";
         nativeBuildInputs = [pkgs.nodejs android-sdk pkgs.openjdk17];
-        prePatchHooks = ["export HOME=$(mktemp -d); echo $HOME; set -x;"];
-        preBuildHooks = ["trap 'echo \"Exit code: $?\"' DEBUG;" "${pkgs.yarn}/bin/yarn run tsc --noEmit"];
+        prePatchHooks = ["export HOME=$(mktemp -d); echo $HOME; cp ${package_json} package.json && chmod +w package.json; set -x"];
+        preBuildHooks = [
+          "trap 'echo \"Exit code: $?\"' DEBUG;"
+          "if find /path/to/dir -type f \\( -name \"*.ts\" -o -name \"*.tsx\" \\) -print -quit | grep -q .; then tsc --noEmit; fi"
+          ];
         outputs = ["out" "info"];
         postPatchHooks = [
           ''
@@ -266,7 +277,7 @@
               for file do
                 ${pkgs.jq}/bin/jq -Rs . "$file" > "$file.json"
               done
-            ' sh {} +
+            ' sh {} + || true
             cd android
           ''
         ];
@@ -289,9 +300,9 @@
     inherit GRADLE_OPTS;
     inherit ANDROID_SDK_ROOT;
     inherit web node_modules;
-    maven-repo = android-build "development" root_path buildMavenRepo;
+    maven-repo = buildMavenRepo (android-build "development" development-inputs);
     android-production =
-      multioutput-combiner ((android-build "production" root_path buildGradlePackage).overrideAttrs (
+      multioutput-combiner ((buildGradlePackage (android-build "production" root_path)).overrideAttrs (
       finalAttrs: prevAttrs:
       {
         gradleInitScript = pkgs.substitute {
@@ -304,12 +315,25 @@
         }
         ;
       }));
+
     android-development =
-      multioutput-combiner (android-build "development" development-inputs buildGradlePackage);
+      multioutput-combiner ((buildGradlePackage (android-build "development" development-inputs)).overrideAttrs (
+                                                                                                     finalAttrs: prevAttrs:
+                                                                                                     {
+                                                                                                       gradleInitScript = pkgs.substitute {
+                                                                                                     src = ./init.gradle;
+                                                                                                         substitutions = [
+                                                                                                           "--replace"
+                                                                                                           "@mavenRepo@"
+                                                                                                           "${prevAttrs.passthru.offlineRepo}"
+                                                                                                         ];
+                                                                                                       }
+                                                                                                       ;
+                                                                                                     }));
 
     update-gradle-lock = pkgs.writeScriptBin "update-gradle-lock" ''
       #!${pkgs.bash}/bin/bash
-      if  [[ "$1" == "development" ]]; then
+      if  [[ "$1" == "development"  ]]; then
          Variant=Debug
       elif [[ "$1" == "production" ]]; then
          Variant=Release
@@ -318,7 +342,7 @@
          echo "please provide the mode - production or development" >&2
          exit 1
       fi
-      set -exu
+      set -eu
       git_root=$(${pkgs.git}/bin/git rev-parse --show-toplevel)
 
       (
@@ -339,7 +363,7 @@
       cd $expo_root/android
       export GRADLE2NIX_OPTS="${GRADLE_OPTS}"
       mkdir -p $git_root/gradle-lock/$1/
-      ${gradle2nix}/bin/gradle2nix -t :app:build"$Variant"PreBundle -l $git_root/gradle-lock/$1/gradle.lock.rrcp.json
+      # ${gradle2nix}/bin/gradle2nix -t :app:build"$Variant"PreBundle -l $git_root/gradle-lock/$1/gradle.lock.rrcp.json
       if [[ $Variant == Debug ]]; then
        ${gradle2nix}/bin/gradle2nix -t :expo:extractDebugAnnotations -l $git_root/gradle-lock/$1/gradle.lock.app.lintvitalrelease.json
       else

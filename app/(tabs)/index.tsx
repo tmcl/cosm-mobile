@@ -5,7 +5,8 @@ import {FAB} from '@rneui/themed'
 import {InteractionManager, StyleSheet, Text, View} from "react-native";
 import MapLibreGL from '@maplibre/maplibre-react-native';
 //import type {RegionPayload} from '@maplibre/maplibre-react-native/src/components/MapView';
-import * as OsmApi from "@/scripts/clients";
+import * as OsmApiJSON from "@/scripts/clients";
+import * as OsmApiXml from "@/scripts/clients.2";
 import {useAndroidLocationPermission} from '@/components/AndroidLocationPermission';
 import {
   bound,
@@ -124,7 +125,7 @@ const isNewTappedLocation = (obj: object): obj is { newId: `new-${number}`, poin
   })
   return true;
 }
-const isINode = (obj: object): obj is OsmApi.INode => {
+const isINode = (obj: object): obj is OsmApiJSON.INode => {
   const type = "type" in obj && obj.type
   if (type !== "node") return false
   const uid = "uid" in obj && obj.uid
@@ -144,7 +145,7 @@ const isINode = (obj: object): obj is OsmApi.INode => {
   const timestamp = "timestamp" in obj && obj.timestamp
   if (typeof timestamp !== "string") return false
   const tags = "tags" in obj && obj.tags
-  const c: OsmApi.INode = {
+  const c: OsmApiJSON.INode = {
     type,
     id,
     lat,
@@ -319,14 +320,14 @@ type State = {
   sameRoads: PartialRecord<WayId, WayId[]>
   intersections: PartialRecord<WayId, IntersectingWayInfo>
   queries: {
-    queryNodes: QueryState<unknown, GeoJSON.FeatureCollection<GeoJSON.Point, OsmApi.INode> | null>
+    queryNodes: QueryState<unknown, GeoJSON.FeatureCollection<GeoJSON.Point, OsmApiJSON.INode> | null>
     queryWays: QueryState<unknown, {
-      casings: GeoJSON.FeatureCollection<GeoJSON.Polygon | GeoJSON.LineString, OsmApi.IWay> | null,
-      centrelines: GeoJSON.FeatureCollection<GeoJSON.LineString, OsmApi.IWay> | null
+      casings: GeoJSON.FeatureCollection<GeoJSON.Polygon | GeoJSON.LineString, OsmApiJSON.IWay> | null,
+      centrelines: GeoJSON.FeatureCollection<GeoJSON.LineString, OsmApiJSON.IWay> | null
     }>
     interestingNodes: QueryState<unknown, InterestingNodes>
-    osmCapabilities: QueryState<unknown, OsmApi.IApiCapabilities>
-    osmVersions: QueryState<unknown, OsmApi.IInaRecord_api>
+    osmCapabilities: QueryState<unknown, OsmApiJSON.IApiCapabilities>
+    osmVersions: QueryState<unknown, OsmApiJSON.IInaRecord_api>
     osmMap: QueryState<unknown, {
       $json: string;
       $requestedBounds: { minlat: number, minlon: number, maxlat: number, maxlon: number };
@@ -1062,13 +1063,13 @@ export default function MainPage() {
             && !!state.queries.unknownBounds.data
             && !!osmMapArgs,
         queryFn: osmMapArgs ? (async () => ({
-          $json: await OsmApi.getApi06MapText(osmMapArgs),
+          $json: await OsmApiJSON.getApi06MapText(osmMapArgs),
           $requestedBounds: osmMapArgs
         })) : undefined
       })
 
   useDispatchingQuery(
-      useCallback((queryState: QueryState<unknown, GeoJSON.FeatureCollection<GeoJSON.Point, OsmApi.INode> | null>) => dispatch({
+      useCallback((queryState: QueryState<unknown, GeoJSON.FeatureCollection<GeoJSON.Point, OsmApiJSON.INode> | null>) => dispatch({
         action: "set query",
         query: "queryNodes",
         queryState
@@ -1077,15 +1078,15 @@ export default function MainPage() {
         queryKey: ["spatialite query nodes", (doublePaddedBounds || {})],
         enabled: !!doublePaddedBounds,
         queryFn: doublePaddedBounds
-            && (async (): Promise<GeoJSON.FeatureCollection<GeoJSON.Point, OsmApi.INode> | null> => {
+            && (async (): Promise<GeoJSON.FeatureCollection<GeoJSON.Point, OsmApiJSON.INode> | null> => {
               const nodes = await fromAsync(queries.current.doQueryNodes(doublePaddedBounds))
               return nodes.length ? {type: "FeatureCollection", features: nodes} : null
             })
       })
 
   useDispatchingQuery(
-      useCallback((queryState: QueryState<unknown, {   casings: GeoJSON.FeatureCollection<GeoJSON.LineString | GeoJSON.Polygon, OsmApi.IWay> | null;
-        centrelines: GeoJSON.FeatureCollection<GeoJSON.LineString, OsmApi.IWay> | null; }>) => dispatch({action: "set query", query: "queryWays", queryState}),[]),
+      useCallback((queryState: QueryState<unknown, {   casings: GeoJSON.FeatureCollection<GeoJSON.LineString | GeoJSON.Polygon, OsmApiJSON.IWay> | null;
+        centrelines: GeoJSON.FeatureCollection<GeoJSON.LineString, OsmApiJSON.IWay> | null; }>) => dispatch({action: "set query", query: "queryWays", queryState}),[]),
       {
         queryKey: ["spatialite query ways", (doublePaddedBounds || {})],
         enabled: !!doublePaddedBounds,
@@ -1104,14 +1105,14 @@ export default function MainPage() {
       }
   )
   useDispatchingQuery(
-      useCallback((queryState: QueryState<unknown, OsmApi.IInaRecord_api>) => dispatch({
+      useCallback((queryState: QueryState<unknown, OsmApiJSON.IInaRecord_api>) => dispatch({
         action: "set query",
         query: "osmVersions",
         queryState
       }), []),
       {
         queryKey: ['osm query version'],
-        queryFn: OsmApi.getApiVersions,
+        queryFn: OsmApiJSON.getApiVersions,
         staleTime: 7 * 24 * 60 * 60 * 1000,
         placeholderData: (prev) => (prev || {api: {versions: ["0.6" as const]}})
       }
@@ -1132,7 +1133,7 @@ export default function MainPage() {
   )
 
   useDispatchingQuery(
-      useCallback((queryState: QueryState<unknown, OsmApi.IApiCapabilities>) => dispatch({
+      useCallback((queryState: QueryState<unknown, OsmApiJSON.IApiCapabilities>) => dispatch({
         action: "set query",
         query: "osmCapabilities",
         queryState
@@ -1142,7 +1143,7 @@ export default function MainPage() {
         enabled: state.queries.osmVersions.status
             === 'success'
             && state.queries.osmVersions.data.api.versions.includes("0.6"),
-        queryFn: OsmApi.getApi06Capabilities,
+        queryFn: OsmApiJSON.getApi06Capabilities,
         staleTime: 7 * 24 * 60 * 60 * 1000,
         placeholderData: (prev) => (prev || {
           api: {
@@ -1652,7 +1653,7 @@ const fabFromMode = (mode: Mode): [
       return [
         undefined,
         {name: "menu", color: "white", type: "material-community"},
-        [{icon: {name: "octagon", color: "white", type: "material-community"}, text: "Stop", mode: "addStopSign"}]]
+        [{icon: {name: "octagon", color: "red", type: "material-community"}, text: "Stop", mode: "addStopSign"}]]
     case "addStopSign":
       return [
         "Add Stop Sign",
@@ -1666,14 +1667,14 @@ const sha256: ((ascii: string) => string | undefined) = function sha256(ascii: s
     return (value >>> amount) | (value << (32 - amount));
   }
 
-  var mathPow = Math.pow;
-  var maxWord = mathPow(2, 32);
+  let mathPow = Math.pow;
+  let maxWord = mathPow(2, 32);
   const lengthProperty = 'length'
-  var i, j; // Used as a counter across the whole file
-  var result = ''
+  let i, j; // Used as a counter across the whole file
+  let result = ''
 
-  var words: number[] = [];
-  var asciiBitLength = ascii[lengthProperty] * 8;
+  let words: number[] = [];
+  let asciiBitLength = ascii[lengthProperty] * 8;
 
   /* caching results is optional - remove/add slash from front of this line to toggle
   // Initial hash value: first 32 bits of the fractional parts of the square roots of the first 8 primes
@@ -1683,12 +1684,12 @@ const sha256: ((ascii: string) => string | undefined) = function sha256(ascii: s
   var k: number[] = sha256h.k = sha256h.k || [];
   var primeCounter = k[lengthProperty];
   /*/
-  var hash: number[] = [], k: number[] = [];
-  var primeCounter = 0;
+  let hash: number[] = [], k: number[] = [];
+  let primeCounter = 0;
   //*/
 
-  var isComposite: PartialRecord<number, number> = {};
-  for (var candidate = 2; primeCounter < 64; candidate++) {
+  let isComposite: PartialRecord<number, number> = {};
+  for (let candidate = 2; primeCounter < 64; candidate++) {
     if (!isComposite[candidate]) {
       for (i = 0; i < 313; i += candidate) {
         isComposite[i] = candidate;
@@ -1710,8 +1711,8 @@ const sha256: ((ascii: string) => string | undefined) = function sha256(ascii: s
 
   // process each chunk
   for (j = 0; j < words[lengthProperty];) {
-    var w = words.slice(j, j += 16); // The message is expanded into 64 words as part of the iteration
-    var oldHash = hash;
+    let w = words.slice(j, j += 16); // The message is expanded into 64 words as part of the iteration
+    let oldHash = hash;
     // This is now the undefinedworking hash", often labelled as variables a...g
     // (we have to truncate as well, otherwise extra entries at the end accumulate
     hash = hash.slice(0, 8);
@@ -1719,11 +1720,11 @@ const sha256: ((ascii: string) => string | undefined) = function sha256(ascii: s
     for (i = 0; i < 64; i++) {
       // Expand the message into 64 words
       // Used below if
-      var w15 = w[i - 15], w2 = w[i - 2];
+      let w15 = w[i - 15], w2 = w[i - 2];
 
       // Iterate
-      var a = hash[0], e = hash[4];
-      var temp1 = hash[7]
+      let a = hash[0], e = hash[4];
+      let temp1 = hash[7]
           + (rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25)) // S1
           + ((e & hash[5]) ^ ((~e) & hash[6])) // ch
           + k[i]
@@ -1736,7 +1737,7 @@ const sha256: ((ascii: string) => string | undefined) = function sha256(ascii: s
               ) | 0
           );
       // This is only used once, so *could* be moved below, but it only saves 4 bytes and makes things unreadble
-      var temp2 = (rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22)) // S0
+      let temp2 = (rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22)) // S0
           + ((a & hash[1]) ^ (a & hash[2]) ^ (hash[1] & hash[2])); // maj
 
       hash = [(temp1 + temp2) | 0].concat(hash); // We don't bother trimming off the extra ones, they're harmless as
@@ -1751,7 +1752,7 @@ const sha256: ((ascii: string) => string | undefined) = function sha256(ascii: s
 
   for (i = 0; i < 8; i++) {
     for (j = 3; j + 1; j--) {
-      var b = (hash[i] >> (j * 8)) & 255;
+      let b = (hash[i] >> (j * 8)) & 255;
       result += ((b < 16) ? 0 : '') + b.toString(16);
     }
   }
@@ -1890,7 +1891,7 @@ type Change = { object: OsmObject, set_tags: PartialRecord<string, string> }
 
 const modalNotes = (
     intersections: State['intersections'], addStopSign: State['modes']['addStopSign']['change'],
-    selectedWays: GeoJSON.Feature<GeoJSON.LineString, OsmApi.IWay>[]
+    selectedWays: GeoJSON.Feature<GeoJSON.LineString, OsmApiJSON.IWay>[]
 ): {
   signFaceAngle: number | undefined,
   changes: Change[],
