@@ -1,4 +1,3 @@
-//ai
 export type KnownError =
     {
       error: "surfeit of nodes"
