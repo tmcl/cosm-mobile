@@ -1,73 +1,138 @@
-import { Parser, Builder, parseRoot, buildRoot, parseObject, buildObject, pickleStringParser, pickleStringBuilder, pickleNumberParser, pickleNumberBuilder, parseArray, buildArray, type Result } from './index';
+export interface OsmChange {
+  version: "0.6"
+  generator: string;     // e.g., "your app name"
+  create?: OsmChangeElements;
+  modify?: OsmChangeElements;
+  delete?: OsmChangeElements;
+}
+export type OsmChangeElements = OsmChangeElement[];
 
-type OsmChange = { version: string, generator: string, create : OsmChangeElements, modify : OsmChangeElements, delete: OsmChangeElements }
-type OsmChangeElements = OsmChangeElement[]
-
-type OsmChangeElement = IOCENode | IOCEWay
+export type OsmChangeElement = IOCENode | IOCEWay | IOCERelation;
 
 export interface IOCENode {
-  tag: "node";
+  tag: 'node';
   id: number;
-  changeset: number;
+  changeset?: number;
+  version: number;
   lat: number;
   lon: number;
+  visible?: boolean;
+  tags?: Record<string, string>
 }
 
 export interface IOCEWay {
-  tag: "way";
+  tag: 'way';
   id: number;
-  changeset: number;
-  oceWayNodes: IOCEWayNode[];
+  changeset?: number;
+  version: number;
+  nodes: IOCEWayNode[];
+  visible?: boolean;
+  tags?: Record<string, string>;
 }
 
 export interface IOCEWayNode {
   ref: number;
 }
 
-const wayNodePickler: PicklerObject<IOCEWayNode> = {
-  ref: { 
-    type: "attribute",
-    parser: pickleNumberParser,
-    builder: pickleNumberBuilder
+export interface IOCERelation {
+  tag: "relation";
+  id: number;
+  changeset?: number;
+  version: number;
+  visible?: boolean;
+  members: IOCERelationMember[];
+  tags?: Record<string, string>;
+}
+
+export interface IOCERelationMember {
+  type: "node" | "way" | "relation";
+  ref: number;
+  role?: string;
+}
+
+export function buildOsmChangeXML(doc: XMLDocument, osmChange: OsmChange): void  {
+  const root = doc.documentElement;
+  root.setAttribute('version', osmChange.version);
+  root.setAttribute('generator', osmChange.generator);
+
+  for (const action of ['create', 'modify', 'delete'] as const) {
+    const elements = osmChange[action];
+    if (!elements || elements.length === 0) continue;
+
+    const actionElem = doc.createElement(action);
+    for (const elem of elements) {
+      if (elem.tag === 'node') {
+        const nodeElem = doc.createElement('node');
+        nodeElem.setAttribute('id', elem.id.toString());
+        if (elem.changeset !== undefined) nodeElem.setAttribute('changeset', elem.changeset.toString());
+        if (elem.version !== undefined) nodeElem.setAttribute('version', elem.version.toString());
+        nodeElem.setAttribute('lat', elem.lat.toString());
+        nodeElem.setAttribute('lon', elem.lon.toString());
+        if (elem.visible !== undefined) nodeElem.setAttribute('visible', elem.visible ? "true" : "false");
+
+        // Omit tags for delete
+        if (action !== 'delete' && elem.tags) {
+          for (const [k, v] of Object.entries(elem.tags)) {
+            const tagElem = doc.createElement('tag');
+            tagElem.setAttribute('k', k);
+            tagElem.setAttribute('v', v);
+            nodeElem.appendChild(tagElem);
+          }
+        }
+
+        actionElem.appendChild(nodeElem);
+      } else if (elem.tag === 'way') {
+        const wayElem = doc.createElement('way');
+        wayElem.setAttribute('id', elem.id.toString());
+        if (elem.changeset !== undefined) wayElem.setAttribute('changeset', elem.changeset.toString());
+        if (elem.version !== undefined) wayElem.setAttribute('version', elem.version.toString());
+        if (elem.visible !== undefined) wayElem.setAttribute('visible', elem.visible ? "true" : "false");
+
+        for (const node of elem.nodes) {
+          const ndElem = doc.createElement('nd');
+          ndElem.setAttribute('ref', node.ref.toString());
+          wayElem.appendChild(ndElem);
+        }
+
+        if (action !== 'delete' && elem.tags) {
+          for (const [k, v] of Object.entries(elem.tags)) {
+            const tagElem = doc.createElement('tag');
+            tagElem.setAttribute('k', k);
+            tagElem.setAttribute('v', v);
+            wayElem.appendChild(tagElem);
+          }
+        }
+
+        actionElem.appendChild(wayElem);
+      }else if (elem.tag === 'relation') {
+        const relElem = doc.createElement('relation');
+        relElem.setAttribute('id', elem.id.toString());
+        if (elem.changeset !== undefined) relElem.setAttribute('changeset', elem.changeset.toString());
+        if (elem.version !== undefined) relElem.setAttribute('version', elem.version.toString());
+        if (elem.visible !== undefined) relElem.setAttribute('visible', elem.visible ? "true" : "false");
+
+        // Members
+        for (const member of elem.members) {
+          const memElem = doc.createElement('member');
+          memElem.setAttribute('type', member.type);
+          memElem.setAttribute('ref', member.ref.toString());
+          if (member.role !== undefined) memElem.setAttribute('role', member.role);
+          relElem.appendChild(memElem);
+        }
+
+        // Tags
+        if (action !== 'delete' && elem.tags) {
+          for (const [k, v] of Object.entries(elem.tags)) {
+            const tagElem = doc.createElement('tag');
+            tagElem.setAttribute('k', k);
+            tagElem.setAttribute('v', v);
+            relElem.appendChild(tagElem);
+          }
+        }
+
+        actionElem.appendChild(relElem);
+      }
+    }
+    root.appendChild(actionElem);
   }
-};
-
-const nodePickler: PicklerObject<IOCENode> = {
-  id: { type: "attribute", parser: pickleNumberParser, builder: pickleNumberBuilder },
-  changeset: { type: "attribute", parser: pickleNumberParser, builder: pickleNumberBuilder },
-  lat: { type: "attribute", parser: pickleNumberParser, builder: pickleNumberBuilder },
-  lon: { type: "attribute", parser: pickleNumberParser, builder: pickleNumberBuilder },
-  tag: { type: "attribute", parser: { parse: () => ({ success: "node" }), build: () => [] }, builder: { build: () => [] } }
-};
-
-const wayPickler: PicklerObject<IOCEWay> = {
-  id: { type: "attribute", parser: pickleNumberParser, builder: pickleNumberBuilder },
-  changeset: { type: "attribute", parser: pickleNumberParser, builder: pickleNumberBuilder },
-  oceWayNodes: {
-    type: "element",
-    xmlname: "nd",
-    parser: parseArray(parseObject(wayNodePickler)),
-    builder: buildArray(buildObject(wayNodePickler))
-  },
-  tag: { type: "attribute", parser: { parse: () => ({ success: "way" }), build: () => [] }, builder: { build: () => [] } }
-};
-
-const osmChangeElementPickler = {
-  node: { type: "element", parser: parseObject(nodePickler), builder: buildObject(nodePickler) },
-  way: { type: "element", parser: parseObject(wayPickler), builder: buildObject(wayPickler) }
-} as const;
-
-const osmChangeElementsPickler = {
-  create: { type: "element", xmlname: "create", parser: parseArray(parseObject(osmChangeElementPickler)), builder: buildArray(buildObject(osmChangeElementPickler)) },
-  modify: { type: "element", xmlname: "modify", parser: parseArray(parseObject(osmChangeElementPickler)), builder: buildArray(buildObject(osmChangeElementPickler)) },
-  delete: { type: "element", xmlname: "delete", parser: parseArray(parseObject(osmChangeElementPickler)), builder: buildArray(buildObject(osmChangeElementPickler)) }
-};
-
-const osmChangePickler: PicklerObject<OsmChange> = {
-  version: { type: "attribute", parser: pickleStringParser, builder: pickleStringBuilder },
-  generator: { type: "attribute", parser: pickleStringParser, builder: pickleStringBuilder },
-  ...osmChangeElementsPickler
-};
-
-export const parseOsmChange = parseRoot("osmChange", parseObject(osmChangePickler));
-export const buildOsmChange = buildRoot("osmChange", buildObject(osmChangePickler));
+}

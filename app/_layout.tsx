@@ -29,7 +29,7 @@ const activateDb = (db: SQLite.SQLiteDatabase) => {
     const localuri = await asset.localUri
     const shorterpath = localuri?.substring(7)
     console.log("assetpath", assetpath, localuri)
-    var projQuery;
+    let projQuery;
     try {
       projQuery = await db.prepareAsync( ` select proj_setdatabasepath( ? ) as r; `)
       const r = await (await projQuery.executeAsync(shorterpath!)).getAllAsync()
@@ -57,7 +57,8 @@ const activateDb = (db: SQLite.SQLiteDatabase) => {
 			  ready_date integer,
 			  commit_date integer,
 			  commentary1 text,
-				commentary2 text
+				commentary2 text,
+                            deleted_date integer
         );
 		create table if not exists nodes_ways ( 
 			observed text,

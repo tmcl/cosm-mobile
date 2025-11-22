@@ -4,53 +4,55 @@ import React, {useCallback, useEffect, useMemo, useReducer, useRef, useState} fr
 import {FAB} from '@rneui/themed'
 import {InteractionManager, StyleSheet, Text, View} from "react-native";
 import MapLibreGL from '@maplibre/maplibre-react-native';
-//import type {RegionPayload} from '@maplibre/maplibre-react-native/src/components/MapView';
 import * as OsmApiJSON from "@/scripts/clients";
-import * as OsmApiXml from "@/scripts/clients.2";
 import {useAndroidLocationPermission} from '@/components/AndroidLocationPermission';
 import {
-  bound,
   debug,
   doublePad,
+  InterestingNodes,
+  InterestingNodesParams,
+  IntersectingWayInfo,
+  JsonBBox,
+  nub,
+  PartialRecord,
+  SavedChangeSet,
+  TargetNode,
+  WayId
+} from '@/components/types';
+import {
   initialMutationState,
-  initialQueryState, InterestingNodes, InterestingNodesParams, IntersectingWayInfo,
-  JsonBBox, lazy, MutationState, nub, PartialRecord,
-  QueryState, SavedChangeSet, TargetNode, useDispatchingMutation,
+  initialQueryState,
+  MutationState,
+  QueryState,
+  useDispatchingMutation,
   useDispatchingQuery,
-  useMainPageQueries, WayId
+  useMainPageQueries,
 } from '@/components/queries';
 import type GeoJSON from "geojson";
 import {skipToken, useQueryClient} from '@tanstack/react-query'
 import * as Svg from "react-native-svg";
-//import {OnPressEvent} from "@maplibre/maplibre-react-native";
 import {IconNode} from "@rneui/base";
-import * as turf from "@turf/turf";
 import {useLocalSearchParams} from "expo-router";
-//import {CircleLayerProps} from "@maplibre/maplibre-react-native";
 import * as ExLoc from 'expo-location'
 import {CircleLayer} from "@maplibre/maplibre-react-native";
-
-//const CircleLayer: React.FC<CircleLayerProps & {id: LayerId}> = MapLibreGL.CircleLayer as React.FC<CircleLayerProps & {id: LayerId}>
+import {modalNotes, NearestPoint, StopSignChange} from "@/components/diff-info";
+import {Change} from "@/components/diff-info/shared";
+import {mkNewHighwayNode, NewPoint} from "@/scripts/algo/highway-node";
+import {IWay} from "@/scripts/clients";
+import useOsmPopulator, {MAX_FEATURES_QUERY} from "@/components/useOsmPopulator";
 
 interface OnPressEvent {
   features: GeoJSON.Feature[];
   coordinates: {
-    latitude: number;
-    longitude: number;
+    latitude: number; longitude: number;
   };
   point: {
-    x: number;
-    y: number;
+    x: number; y: number;
   };
 }
 
-type LayerId = keyof typeof LayerIndexLookup
-const LayerIndexLookup  = {
-  roadcasingfill: 103,
-  roadcasinglines: 104,
-  points: 106,
-  pointsOnWayNearClicks: 107,
-  nearestPointLayer: 108,
+const LayerIndexLookup = {
+  roadcasingfill: 103, roadcasinglines: 104, points: 106, pointsOnWayNearClicks: 107, nearestPointLayer: 108,
 }
 
 const isStringRecord = (obj: object): obj is Record<string, string> => {
@@ -70,40 +72,79 @@ const isPoint = (point: unknown): point is GeoJSON.Point => {
 }
 
 const isNearestPoint = (point: object): point is NearestPoint => {
+  console.log(point, 1)
   if (!point || typeof point !== "object") return false
+  console.log(point, 2)
   if (!("type" in point) || point.type !== "Feature") return false
+  console.log(point, 3)
   if (!("geometry" in point) || !isPoint(point.geometry)) return false
+  console.log(point, 4)
   if (!("properties" in point)) return false
+  console.log(point, 5)
   const properties = point.properties
-  if(!properties || typeof properties !== "object") return false
-  if(!("dist" in properties) ) return false
+  console.log(point, 6)
+  if (!properties || typeof properties !== "object") return false
+  console.log(point, 7)
+  if (!("dist" in properties)) return false
+  console.log(point, 8)
   const dist = properties.dist
-  if(typeof dist !== "number") return false
-  if(!("index" in properties) || typeof properties.index !== "number") return false
+  console.log(point, 9)
+  if (typeof dist !== "number") return false
+  console.log(point, 10)
+  if (!("index" in properties) || typeof properties.index !== "number") return false
+  console.log(point, 11)
   const index = properties.index
-  if(typeof index !== "number") return false
-  if(!("location" in properties) || typeof properties.location !== "number") return false
+  console.log(point, 12)
+  if (typeof index !== "number") return false
+  console.log(point, 13)
+  if (!("location" in properties) || typeof properties.location !== "number") return false
+  console.log(point, 14)
   const location = properties.location
-  if(typeof location !== "number") return false
-  if(!("triggeringWayId" in properties)|| typeof properties.triggeringWayId !== "number") return false
+  console.log(point, 15)
+  if (typeof location !== "number") return false
+  console.log(point, 15)
+  if (!("triggeringWayId" in properties) || (typeof properties.triggeringWayId
+      !== "number"
+      && typeof properties.triggeringWayId
+      !== "string")) return false
+  console.log(point, 16)
   const triggeringWayId = properties.triggeringWayId
-  if(typeof triggeringWayId !== "string") return false
-  if(!("segmentWayId" in properties)|| typeof properties.segmentWayId !== "number") return false
+  console.log(point, 17)
+  if (typeof triggeringWayId !== "string") return false
+  console.log(point, 18)
+  if (!("segmentWayId" in properties) || (typeof properties.segmentWayId
+      !== "number"
+      && typeof properties.segmentWayId
+      !== "string")) return false
+  console.log(point, 19)
   const segmentWayId = properties.segmentWayId
-  if(typeof segmentWayId !== "string") return false
+  console.log(point, 20)
+  if (typeof segmentWayId !== "string") return false
+  console.log(point, 21)
 
-  verifyObjIsMemberOf<NearestPoint>({type: point.type, geometry: point.geometry, properties: {dist, index, location, triggeringWayId, segmentWayId}})
+  verifyObjIsMemberOf<NearestPoint>({
+    type: point.type,
+    geometry: point.geometry,
+    properties: {dist, index, location, triggeringWayId, segmentWayId}
+  })
+  console.log(point, 22)
   return true
 }
 
 const isNewHighwayLocation = (obj: object): obj is { point: NearestPoint, way: WayId, type: "new" } => {
   const way = "way" in obj && obj.way
+  console.log(1)
   if (typeof way !== "string") return false;
+  console.log(2)
   const point = "point" in obj && !!obj.point && isNearestPoint(obj.point) && obj.point
   if (!point) return false
+  console.log(4)
   const type = "type" in obj && obj.type
-  if(type !== "new") return false
+  console.log(5)
+  if (type !== "new") return false
+  console.log(6)
   verifyObjIsMemberOf<{ point: NearestPoint, way: WayId, type: "new" }>({point, way, type})
+  console.log(7)
   return true;
 }
 const isNewTappedLocation = (obj: object): obj is { newId: `new-${number}`, point: GeoJSON.Point, type: "new" } => {
@@ -119,9 +160,7 @@ const isNewTappedLocation = (obj: object): obj is { newId: `new-${number}`, poin
   const point = "point" in obj && !!obj.point && isPoint(obj.point) && obj.point
   if (!point) return false
   verifyObjIsMemberOf<{ newId: `new-${number}`, point: GeoJSON.Point, type: "new" }>({
-    newId: `new-${suffixNum}`,
-    point,
-    type
+    newId: `new-${suffixNum}`, point, type
   })
   return true;
 }
@@ -146,22 +185,11 @@ const isINode = (obj: object): obj is OsmApiJSON.INode => {
   if (typeof timestamp !== "string") return false
   const tags = "tags" in obj && obj.tags
   const c: OsmApiJSON.INode = {
-    type,
-    id,
-    lat,
-    lon,
-    timestamp,
-    version,
-    changeset,
-    user,
-    uid,
+    type, id, lat, lon, timestamp, version, changeset, user, uid,
   }
 
   if (tags) {
-    if (isStringRecord(tags))
-      c.tags = tags
-    else
-      return false
+    if (isStringRecord(tags)) c.tags = tags; else return false
   }
 
   return true
@@ -190,8 +218,7 @@ const verifyAsStopSign = (change: unknown): State['modes']['addStopSign']['chang
   const fail = (msg: string) => { throw msg }
   try {
     if (!change || typeof change !== 'object') return undefined
-    const type = "type" in change && change.type === "add stop sign" ? "add stop sign" as const : fail(
-        "type was wrong")
+    const type = "type" in change && change.type === "add stop sign" ? "add stop sign" as const : fail("type was wrong")
     const direction = "direction" in change ? (change.direction
     === undefined
     || change.direction
@@ -202,27 +229,21 @@ const verifyAsStopSign = (change: unknown): State['modes']['addStopSign']['chang
     in change
     && change.selectedWays
     instanceof Array
-    && !change.selectedWays.some(s => (typeof s !== "string"))
-        ? change.selectedWays
-        : fail("selected ways was wrong")
+    && !change.selectedWays.some(s => (typeof s !== "string")) ? change.selectedWays : fail("selected ways was wrong")
     const tappedLocation = "tappedLocation" in change && (change.tappedLocation
         === null
         || typeof change.tappedLocation
-        === "object")
-        ? (change.tappedLocation
-        === null
-        || isNewTappedLocation(change.tappedLocation)
-        || isTargetNode(change.tappedLocation) ? change.tappedLocation : fail("tapped loc 2"))
-        : fail("tapped location was wrong")
+        === "object") ? (change.tappedLocation === null || isNewTappedLocation(change.tappedLocation) || isTargetNode(
+        change.tappedLocation) ? change.tappedLocation : fail("tapped loc 2")) : fail("tapped location was wrong")
     const highwayLocation = "highwayLocation" in change && (change.highwayLocation
         === null
         || typeof change.highwayLocation
-        === "object")
-        ? (change.highwayLocation
-        === null
-        || isNewHighwayLocation(change.highwayLocation)
-        || isTargetNode(change.highwayLocation) ? change.highwayLocation : fail("highway loc 2"))
-        : fail("highway location was wrong")
+        === "object") ? (change.highwayLocation
+    === null
+    || isNewHighwayLocation(change.highwayLocation)
+    || isTargetNode(change.highwayLocation)
+        ? change.highwayLocation
+        : fail(`highway loc 2  ${JSON.stringify(change.highwayLocation)}`)) : fail("highway location was wrong")
 
     return {type, tappedLocation, highwayLocation, direction, selectedWays}
     /* ref {
@@ -233,12 +254,11 @@ const verifyAsStopSign = (change: unknown): State['modes']['addStopSign']['chang
              selectedWays: WayId[]
           }*/
   } catch (e) {
-    console.log(e)
+    console.log("could not verify as stop sign", e)
     return undefined
   }
 }
 
-const MAX_FEATURES_QUERY = 3000
 
 const roadStrokesLayerStyle = (wayIds: string[] | null): MapLibreGL.LineLayerStyle => ({
   lineColor: wayIds ? ["case", ["in", ["id"], ["literal", wayIds]], "purple", "red"] : "red",
@@ -271,26 +291,13 @@ const circleLayerStyle = (input: number | undefined): MapLibreGL.CircleLayerStyl
 
 const styles = StyleSheet.create({
   fab1: {
-    position: 'absolute',
-    margin: 16,
-    left: 0,
-    bottom: 48
-  },
-  fab: {
-    position: 'absolute',
-    margin: 16,
-    right: 0,
-    bottom: 48
-  },
-  page: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F5FCFF',
-  },
-  map: {
-    flex: 1,
-    alignSelf: 'stretch',
+    position: 'absolute', margin: 16, left: 0, bottom: 48
+  }, fab: {
+    position: 'absolute', margin: 16, right: 0, bottom: 48
+  }, page: {
+    flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5FCFF',
+  }, map: {
+    flex: 1, alignSelf: 'stretch',
   },
 });
 
@@ -305,87 +312,51 @@ type State = {
     browse: object
     addStopSign: {
       changeId: number | undefined
-      change: {
-        type: "add stop sign"
-        tappedLocation: { newId: `new-${number}`, point: GeoJSON.Point, type: "new" } | TargetNode | null
-        highwayLocation: { way: WayId, point: NearestPoint, type: "new" } | TargetNode | null
-        direction: "forward" | "backward" | undefined
-        selectedWays: WayId[]
-      }
+      change: StopSignChange
     }
   }
   zoom: number
   centreCoordinates: GeoJSON.Position | undefined,
   visibleBounds: { minlat: number, minlon: number, maxlat: number, maxlon: number } | undefined
   sameRoads: PartialRecord<WayId, WayId[]>
-  intersections: PartialRecord<WayId, IntersectingWayInfo>
+  intersections_i: PartialRecord<WayId, IntersectingWayInfo>
   queries: {
     queryNodes: QueryState<unknown, GeoJSON.FeatureCollection<GeoJSON.Point, OsmApiJSON.INode> | null>
-    queryWays: QueryState<unknown, {
+    queryWays_: QueryState<unknown, {
       casings: GeoJSON.FeatureCollection<GeoJSON.Polygon | GeoJSON.LineString, OsmApiJSON.IWay> | null,
       centrelines: GeoJSON.FeatureCollection<GeoJSON.LineString, OsmApiJSON.IWay> | null
     }>
     interestingNodes: QueryState<unknown, InterestingNodes>
     osmCapabilities: QueryState<unknown, OsmApiJSON.IApiCapabilities>
     osmVersions: QueryState<unknown, OsmApiJSON.IInaRecord_api>
-    osmMap: QueryState<unknown, {
-      $json: string;
-      $requestedBounds: { minlat: number, minlon: number, maxlat: number, maxlon: number };
-    }>
     unknownBounds: QueryState<unknown, { minlat: number, minlon: number, maxlat: number, maxlon: number } | null>
     sameRoads: QueryState<unknown, PartialRecord<WayId, WayId[]>>
-    intersections: QueryState<unknown, PartialRecord<WayId, IntersectingWayInfo>>
+    intersections_q: QueryState<unknown, PartialRecord<WayId, IntersectingWayInfo>>
     neededForLoading: QueryState<unknown, SavedChangeSet | null>
     saveNewUserDataChanges: MutationState<unknown, SavedChangeSet>
     saveUpdateUserDataChanges: MutationState<unknown, number>
-    insertBounds: MutationState<unknown, void>
-    insertNodes: MutationState<unknown, boolean>
-    insertWays: MutationState<unknown, boolean>
-    insertRelatedWays: MutationState<unknown, boolean>
-    updateCasings: MutationState<unknown, number>
   }
 }
 
 const initialState: State = {
-  mode: 'browse',
-  neededForLoading: undefined,
-  initialSetup: true,
-  modes: {
-    browse: {},
-    addStopSign: {
-      changeId: undefined,
-      change: {
-        type: "add stop sign",
-        tappedLocation: null,
-        highwayLocation: null,
-        direction: undefined,
-        selectedWays: [],
+  mode: 'browse', neededForLoading: undefined, initialSetup: true, modes: {
+    browse: {}, addStopSign: {
+      changeId: undefined, change: {
+        type: "add stop sign", tappedLocation: null, highwayLocation: null, direction: undefined, selectedWays: [],
       }
     }
-  },
-  visibleBounds: undefined,
-  zoom: 14,
-  centreCoordinates: undefined,
-  sameRoads: {},
-  intersections: {},
-  queries: {
+  }, visibleBounds: undefined, zoom: 14, centreCoordinates: undefined, sameRoads: {}, intersections_i: {}, queries: {
     neededForLoading: initialQueryState(),
     queryNodes: initialQueryState(),
-    queryWays: initialQueryState(),
+    queryWays_: initialQueryState(),
     interestingNodes: initialQueryState(),
     unknownBounds: initialQueryState(),
     osmCapabilities: initialQueryState(),
-    osmMap: initialQueryState(),
     osmVersions: initialQueryState(),
     saveNewUserDataChanges: initialMutationState(),
     saveUpdateUserDataChanges: initialMutationState(),
-    insertBounds: initialMutationState(),
-    insertNodes: initialMutationState(),
-    insertWays: initialMutationState(),
-    insertRelatedWays: initialMutationState(),
-    updateCasings: initialMutationState(),
     sameRoads: initialQueryState(),
-    intersections: initialQueryState(),
+    intersections_q: initialQueryState(),
   }
 }
 
@@ -394,27 +365,21 @@ type SetInitialSetup = { action: "post initial setup" }
 type SetZoom = { action: "set zoom", zoom: number, centreCoordinates?: GeoJSON.Position }
 type SetVisibleBounds = { action: "set visible bounds", visibleBounds: JsonBBox }
 type SetQuery<Query extends keyof State['queries']> = {
-  action: "set query",
-  query: Query,
-  queryState: State['queries'][Query]
+  action: "set query", query: Query, queryState: State['queries'][Query]
 }
 type SetMode = { action: "set mode", mode: Mode }
 type SelectInterestingPoint = { action: "select interesting point", point: TargetNode }
 type ModalAction<M extends Mode> = { action: "modal", mode: M, modalAction: ActionInMode<M> }
-type ActionInMode<M extends Mode> =
-    M extends "browse" ? BrowseAction
-        : M extends "addStopSign" ? AddStopSignAction
-            : never
+type ActionInMode<M extends Mode> = M extends "browse" ? BrowseAction : M extends "addStopSign"
+    ? AddStopSignAction
+    : never
 type BrowseAction = never
 type AddStopSignAction = SelectInterestingPoint | SelectWay | ActionAddStopSign | ActionUpdateHighwayPoint
 type ActionUpdateHighwayPoint = {
-  action: "updated highway location",
-  point: GeoJSON.Point
+  action: "updated highway location", point: GeoJSON.Point
 }
 type ActionAddStopSign = { action: "add stop sign", tappedLocation: null } | {
-  action: "add stop sign",
-  tappedLocation: GeoJSON.Point,
-  newId: `new-${number}`
+  action: "add stop sign", tappedLocation: GeoJSON.Point, newId: `new-${number}`
 }
 type NeededForLoading = { action: "needed for loading", id: number }
 
@@ -431,17 +396,11 @@ type Action =
     | SetQuery<"unknownBounds">
     | SetQuery<"osmCapabilities">
     | SetQuery<"interestingNodes">
-    | SetQuery<"osmMap">
     | SetQuery<"queryNodes">
-    | SetQuery<"queryWays">
+    | SetQuery<"queryWays_">
     | SetQuery<"osmVersions">
-    | SetQuery<"insertBounds">
-    | SetQuery<"insertNodes">
-    | SetQuery<"insertWays">
-    | SetQuery<"insertRelatedWays">
-    | SetQuery<"updateCasings">
     | SetQuery<"sameRoads">
-    | SetQuery<"intersections">
+    | SetQuery<"intersections_q">
     | SetQuery<"saveNewUserDataChanges">
     | SetQuery<"saveUpdateUserDataChanges">
     | SetQuery<"neededForLoading">
@@ -451,34 +410,18 @@ const make_id = (() => {
   return () => id++
 })()
 
-const mkNewHighwayNode = (wayId: WayId, state: State, relativePoint: GeoJSON.Position|GeoJSON.Point) => {
+
+const mkNewHighwayNodeFromState = (
+    wayId: WayId, state: State, relativePoint: GeoJSON.Position | GeoJSON.Point): NewPoint | undefined => {
   const wayGroup = state.modes.addStopSign.change.selectedWays.flatMap(w => state.sameRoads[w] || [])
-  const waysCentrelines = state.queries.queryWays.data?.centrelines?.features || []
-  const closestPoints = wayGroup.flatMap(localWayId => {
+  const waysCentrelines = state.queries.queryWays_.data?.centrelines?.features || []
+  const wayCentrelines: Record<WayId, GeoJSON.Feature<GeoJSON.LineString, IWay>> = {}
+  wayGroup.forEach(localWayId => {
     const way = waysCentrelines.find(w => w.id === localWayId)
     if (!way) return []
-    const closestPoint = turf.nearestPointOnLine(way, relativePoint)
-    closestPoint.id = `derived-${wayId}`
-    closestPoint.properties = {...closestPoint.properties, distance: turf.distance(relativePoint, closestPoint), triggeringWayId: wayId, segmentWayId: localWayId}
-    return [closestPoint]
+    wayCentrelines[localWayId] = way
   })
-  if(closestPoints.length === 0) {
-    console.log(wayId, wayGroup, waysCentrelines, closestPoints)
-    return undefined
-  }
-  const closestPoint = closestPoints
-  .sort((f, g) => f.properties.distance - g.properties.distance )
-      [0]
-  const bestPoint = {...closestPoint, properties: {
-      dist: closestPoint.properties.dist,
-      location: closestPoint.properties.location,
-      triggeringWayId: closestPoint.properties.triggeringWayId,
-      segmentWayId: closestPoint.properties.segmentWayId,
-      index: closestPoint.properties.index,
-    }}
-  const way = bestPoint.properties.segmentWayId
-
-  return {type: "new" as const, way: way, point: bestPoint}
+  return mkNewHighwayNode(wayId, wayCentrelines, relativePoint)
 }
 
 const reducer = (state: State, action: Action): State => {
@@ -487,7 +430,12 @@ const reducer = (state: State, action: Action): State => {
       return {...state, neededForLoading: action.id}
     }
     case "set mode": {
-      return {...state, mode: action.mode}
+      switch (action.mode) {
+        case "browse":
+          return {...state, mode: action.mode, modes: initialState.modes}
+        default:
+          return {...state, mode: action.mode}
+      }
     }
     case "modal": {
       switch (action.mode) {
@@ -499,43 +447,38 @@ const reducer = (state: State, action: Action): State => {
           const modalAction = action.modalAction
           switch (modalAction.action) {
             case "select interesting point": {
-              if (modalAction.point.properties.ways.length === 0
-                  && modalAction.point.properties.tags?.highway === undefined
+              if (modalAction.point.properties.ways.length
+                  === 0
+                  && modalAction.point.properties.tags?.highway
+                  === undefined
                   && !state.modes.addStopSign.change.tappedLocation) {
                 return {
                   ...state, modes: {
                     ...state.modes, addStopSign: {
-                      ...state.modes.addStopSign,
-                      change: {
-                        ...state.modes.addStopSign.change,
-                        tappedLocation: modalAction.point
+                      ...state.modes.addStopSign, change: {
+                        ...state.modes.addStopSign.change, tappedLocation: modalAction.point
                       }
                     }
                   }
                 }
               } else if (modalAction.point.properties.ways.length === 1) {
-                if (state.modes.addStopSign.change.highwayLocation &&
-                    state.modes.addStopSign.change.highwayLocation.type === "Feature"
+                if (state.modes.addStopSign.change.highwayLocation
+                    && state.modes.addStopSign.change.highwayLocation.type
+                    === "Feature"
                     && state.modes.addStopSign.change.highwayLocation.id
                     === modalAction.point.id) {
                   return {
-                    ...state,
-                    modes: {
-                      ...state.modes,
-                      addStopSign: {
-                        ...state.modes.addStopSign,
-                        change: {...state.modes.addStopSign.change, highwayLocation: null}
+                    ...state, modes: {
+                      ...state.modes, addStopSign: {
+                        ...state.modes.addStopSign, change: {...state.modes.addStopSign.change, highwayLocation: null}
                       }
                     }
                   }
-                } else  {
+                } else {
                   return {
-                    ...state,
-                    modes: {
-                      ...state.modes,
-                      addStopSign: {
-                        ...state.modes.addStopSign,
-                        change: {
+                    ...state, modes: {
+                      ...state.modes, addStopSign: {
+                        ...state.modes.addStopSign, change: {
                           ...state.modes.addStopSign.change,
                           highwayLocation: modalAction.point,
                           selectedWays: [...modalAction.point.properties.ways]
@@ -558,40 +501,54 @@ const reducer = (state: State, action: Action): State => {
               // selectable way - we discover that there is no highway node, we create one at the tapped location.
 
               const way = modalAction.ways.length >= 1 && modalAction.ways[0]
-              if(!way) return state
+              if (!way) return state
 
               const isAlreadySelected = state.modes.addStopSign.change.selectedWays.includes(way)
-              const highwayNodeWays =
-                  state.modes.addStopSign.change.highwayLocation
-                  &&
-                  ("way" in state.modes.addStopSign.change.highwayLocation
-                  ? [state.modes.addStopSign.change.highwayLocation.way]
-                  : state.modes.addStopSign.change.highwayLocation.properties.ways
-                  )
-              // note: i might want to just assume this is true, because it should be true and the data might not be up-to-date
-              //const highwayNodeWaysSameRoadAsSelected = highwayNodeWays &&
-                  //highwayNodeWays.some(s => state.sameRoads[s]?.includes(way) || state.sameRoads[way]?.includes(s))
+              const highwayNodeWays = state.modes.addStopSign.change.highwayLocation && ("way"
+                  in state.modes.addStopSign.change.highwayLocation
+                      ? [state.modes.addStopSign.change.highwayLocation.way]
+                      : state.modes.addStopSign.change.highwayLocation.properties.ways)
+              // note: i might want to just assume this is true, because it should be true and the data might not be
+              // up-to-date const highwayNodeWaysSameRoadAsSelected = highwayNodeWays && highwayNodeWays.some(s =>
+              // state.sameRoads[s]?.includes(way) || state.sameRoads[way]?.includes(s))
 
-              if(isAlreadySelected && highwayNodeWays) {
-                return {...state, modes: {...state.modes, addStopSign: {...state.modes.addStopSign, change: {...state.modes.addStopSign.change, highwayLocation: null, selectedWays: []}}}}
+              if (isAlreadySelected && highwayNodeWays) {
+                return {
+                  ...state,
+                  modes: {
+                    ...state.modes,
+                    addStopSign: {
+                      ...state.modes.addStopSign,
+                      change: {...state.modes.addStopSign.change, highwayLocation: null, selectedWays: []}
+                    }
+                  }
+                }
               } else {
-                const feature = {type: "Feature" as const, geometry: {type: "Point" as const, id: way, coordinates: modalAction.point}, properties: {}}
-                const newHighwayNode = mkNewHighwayNode(way, state, modalAction.point)
+                const newHighwayNode = mkNewHighwayNodeFromState(way, state, modalAction.point)
                 console.log("new higway node", newHighwayNode)
-                return {...state, modes: {...state.modes, addStopSign: {...state.modes.addStopSign, change: {...state.modes.addStopSign.change, highwayLocation: newHighwayNode||null, selectedWays: [way]}}}}
+                return {
+                  ...state,
+                  modes: {
+                    ...state.modes,
+                    addStopSign: {
+                      ...state.modes.addStopSign,
+                      change: {
+                        ...state.modes.addStopSign.change,
+                        highwayLocation: newHighwayNode || null,
+                        selectedWays: [way]
+                      }
+                    }
+                  }
+                }
               }
             }
             case "add stop sign": {
               return {
                 ...state, modes: {
                   ...state.modes, addStopSign: {
-                    ...state.modes.addStopSign,
-                    change: {
-                      ...state.modes.addStopSign.change,
-                      tappedLocation: modalAction.tappedLocation ? {
-                        type: "new",
-                        newId: modalAction.newId,
-                        point: modalAction.tappedLocation
+                    ...state.modes.addStopSign, change: {
+                      ...state.modes.addStopSign.change, tappedLocation: modalAction.tappedLocation ? {
+                        type: "new", newId: modalAction.newId, point: modalAction.tappedLocation
                       } : null
                     }
                   }
@@ -599,12 +556,23 @@ const reducer = (state: State, action: Action): State => {
               }
             }
             case "updated highway location" : {
-            const wayId = state.modes.addStopSign.change.selectedWays[0]
-            const newHighwayNode = mkNewHighwayNode(wayId, state, modalAction.point)
-              return (newHighwayNode === undefined) ?
-                  state
-              : {...state, modes: {...state.modes, addStopSign: {...state.modes.addStopSign, change: {...state.modes.addStopSign.change, highwayLocation: newHighwayNode, selectedWays: [newHighwayNode.way]}}}}
+              const wayId = state.modes.addStopSign.change.selectedWays[0]
+              const newHighwayNode = mkNewHighwayNodeFromState(wayId, state, modalAction.point)
+              return (newHighwayNode === undefined) ? state : {
+                ...state,
+                modes: {
+                  ...state.modes,
+                  addStopSign: {
+                    ...state.modes.addStopSign,
+                    change: {
+                      ...state.modes.addStopSign.change,
+                      highwayLocation: newHighwayNode,
+                      selectedWays: [newHighwayNode.way]
+                    }
+                  }
+                }
               }
+            }
             default: {
               unusedButOkay(modalAction)
               return state
@@ -621,7 +589,7 @@ const reducer = (state: State, action: Action): State => {
       return {...state, sameRoads: {}}
     }
     case "invalidate intersections": {
-      return {...state, intersections: {}}
+      return {...state, intersections_i: {}}
     }
     case "post initial setup": {
       return state.initialSetup ? {...state, initialSetup: false} : state
@@ -629,18 +597,19 @@ const reducer = (state: State, action: Action): State => {
     case "set zoom": {
       console.log(action)
       return state.zoom === action.zoom ? state : {
-        ...state,
-        zoom: action.zoom,
-        centreCoordinates: action.centreCoordinates
+        ...state, zoom: action.zoom, centreCoordinates: action.centreCoordinates
       }
     }
     case "set visible bounds": {
       if (!state.visibleBounds
-          || state.visibleBounds.minlat !== action.visibleBounds.minlat
-          || state.visibleBounds.minlon !== action.visibleBounds.minlon
-          || state.visibleBounds.maxlat !== action.visibleBounds.maxlat
-          || state.visibleBounds.maxlon !== action.visibleBounds.maxlon
-      ) {
+          || state.visibleBounds.minlat
+          !== action.visibleBounds.minlat
+          || state.visibleBounds.minlon
+          !== action.visibleBounds.minlon
+          || state.visibleBounds.maxlat
+          !== action.visibleBounds.maxlat
+          || state.visibleBounds.maxlon
+          !== action.visibleBounds.maxlon) {
         return {...state, visibleBounds: action.visibleBounds}
       } else {
         return state
@@ -653,8 +622,10 @@ const reducer = (state: State, action: Action): State => {
       }
       switch (action.query) {
         case "neededForLoading": {
+          console.log("needed for loading?", action)
           if (action.queryState.status === "success") {
             const data = action.queryState.data
+            console.log("needed for loading!", data)
             if (data) {
               const type1 = data.type as Mode
               switch (type1) {
@@ -692,22 +663,20 @@ const reducer = (state: State, action: Action): State => {
           }
           break;
         }
-        case "intersections":
+        case "intersections_q":
         case "sameRoads": {
           // this works when I can use the generic to narrow things down, but not otherwise.
           // therefore, it's a closure.
           // it copies the data from the action into the state and deletes some of the older information
           // so that we don't hold onto too much.
           const query = action.query
-          const process = <T extends 'sameRoads' | 'intersections'>(query: T) => {
+          const process = <T extends 'sameRoads' | 'intersections_i'>(query: T) => {
             if (action.queryState.status === "success" && action.queryState.data) {
               const data = {...state[query], ...action.queryState.data}
               let unincluded = 0
               for (const key in data) {
-                if (anyModeSelectsWay(state, key)
-                    || state.queries.queryWays.data?.casings?.features.find(f => f.id === key)
-                    || unincluded++
-                    < 5) {
+                if (anyModeSelectsWay(state, key) || state.queries.queryWays_.data?.casings?.features.find(f => f.id
+                    === key) || unincluded++ < 5) {
                 } else {
                   delete data[key]
                 }
@@ -715,10 +684,10 @@ const reducer = (state: State, action: Action): State => {
               updateState[query] = data
             }
           }
-          process(query)
+          process(query === 'intersections_q' ? 'intersections_i' : query)
           break;
         }
-        case "queryWays":
+        case "queryWays_":
           if (state.zoom
               < 20
               && action.queryState.status
@@ -801,18 +770,22 @@ function buildStatusString(
   return Object.entries(queries)
   .sort(([k1,], [k2,]) => k1.localeCompare(k2))
   .map(([k, m]) => {
-        const [status, color] = buildStatusStr(m!)
-        const identifier = k[0] + k.split('').filter(k => /[A-Z]/.test(k)).join('')
-        return <Text key={k} style={{color}}>{identifier + status}</Text>
-      }
-  )
-  .concat(debouncers.map((d, i) => <Text key={"d" + i} style={{color: d ? "red" : "black"}}>{d ? "P" : "_"}</Text>
-  ))
+    const [status, color] = buildStatusStr(m!)
+    const identifier = k[0] + k.split('').filter(k => /[A-Z]/.test(k)).join('')
+    return <Text key={k} style={{color}}>{identifier + status}</Text>
+  })
+  .concat(debouncers.map((d, i) => <Text key={"d" + i} style={{color: d ? "red" : "black"}}>{d ? "P" : "_"}</Text>))
 }
 
 function MapAddStopSign({state, setCommentary, highlightWays, setNotes, setChanges, setTappedLocation, dispatch}: {
   setTappedLocation: (a: GeoJSON.Point) => void,
-  state: State, highlightWays: WayId[], dispatch: (a: Action) => void, setNotes: (notes: string[]) => void, setCommentary: (c: [string, string|undefined]) => void, setChanges: (changes: Change[]) => void}) {
+  state: State,
+  highlightWays: WayId[],
+  dispatch: (a: Action) => void,
+  setNotes: (notes: string[]) => void,
+  setCommentary: (c: [string, string | undefined]) => void,
+  setChanges: (changes: Change[]) => void
+}) {
   const refTappedLoc = useRef<MapLibreGL.PointAnnotationRef>(null)
   const refNearestPointAnnoPoint = useRef<MapLibreGL.PointAnnotationRef>(null)
   const refNearestPointShape = useRef<MapLibreGL.ShapeSourceRef>(null)
@@ -821,94 +794,98 @@ function MapAddStopSign({state, setCommentary, highlightWays, setNotes, setChang
       ? state.modes.addStopSign.change.tappedLocation.geometry
       : state.modes.addStopSign.change.tappedLocation?.point
   const constructedSign = useMemo(() => {
-        const activeWays = state.queries.queryWays.data?.centrelines?.features
-            .filter(f => f.id && highlightWays.includes(f.id.toString()))
-            || []
-    return modalNotes(state.intersections, state.modes.addStopSign.change, activeWays)}
-      ,
-      [state.intersections, state.modes.addStopSign.change, state.queries.queryWays.data?.centrelines?.features, highlightWays])
+        const activeWays = state.queries.queryWays_.data?.centrelines?.features
+        .filter(f => f.id && highlightWays.includes(f.id.toString())) || []
+        return modalNotes(state.intersections_i, state.modes.addStopSign.change, activeWays)
+      },
+      [
+        state.intersections_i,
+        state.modes.addStopSign.change,
+        state.queries.queryWays_.data?.centrelines?.features,
+        highlightWays])
   useEffect(() => {
-    setNotes(constructedSign.notes)
-    setChanges(constructedSign.changes)
-    setCommentary(constructedSign.commentary)
+    const notes = [...constructedSign.notes, "hu", JSON.stringify(constructedSign.osmChange)]
+    setNotes(notes)
+    setChanges(constructedSign.changesOld)
+    setCommentary([
+      `hke${constructedSign.commentary[0]}\n${JSON.stringify(constructedSign.osmChange)}`,
+      `hka${constructedSign.commentary[1]}\n${JSON.stringify(constructedSign.osmChange)}`])
   }, [constructedSign, setNotes, setChanges, setCommentary])
   const signFaceAngle = constructedSign.signFaceAngle
   const radians = signFaceAngle === undefined ? undefined : signFaceAngle * Math.PI / 180
-  const setNearestPointLocation =  (event: FeaturePayload) => dispatch({action: "modal", mode: "addStopSign",
-    modalAction: {
-    action: "updated highway location",
-      point: event.geometry
+  const setNearestPointLocation = (event: FeaturePayload) => dispatch({
+    action: "modal", mode: "addStopSign", modalAction: {
+      action: "updated highway location", point: event.geometry
     }
   })
   const nearestPoint = state.modes.addStopSign.change.highwayLocation?.type === "new"
-  ? state.modes.addStopSign.change.highwayLocation
+      ? state.modes.addStopSign.change.highwayLocation
       : undefined
 
-  const nearestPointShape: GeoJSON.Feature<GeoJSON.Point, object>|undefined = nearestPoint ? nearestPoint.point : undefined
+  const nearestPointShape: GeoJSON.Feature<GeoJSON.Point, object> | undefined = nearestPoint
+      ? nearestPoint.point
+      : undefined
   const nearestPointId = nearestPointShape?.id ? [nearestPointShape.id.toString()] : []
 
   const dragEndSignLocation = useCallback((e: FeaturePayload) => setTappedLocation(e.geometry), [setTappedLocation])
 
   return <>
-    {nearestPoint &&
-        <>
-        <MapLibreGL.PointAnnotation  style={{zIndex: 3, elevation: 3}}
-        key={nearestPoint.way}
-        ref={refNearestPointAnnoPoint}
-        onSelected={e => console.log("selected", e)}
-        onDragEnd={setNearestPointLocation}
-        id={`nearestpoint-${nearestPoint.way}`}
-        coordinate={nearestPoint.point.geometry.coordinates}
-        draggable={true} >
-      <View style={{zIndex: 3, elevation: 3}}>
-        <Svg.Svg  height="10" width="10" viewBox="0 0 100 100" >
-          <Svg.Circle cx="50" cy="50" r="43" stroke="orange" strokeWidth="14" fill="yellow" />
-        </Svg.Svg>
-      </View>
-    </MapLibreGL.PointAnnotation>
-           <MapLibreGL.ShapeSource
-              id="nearestPointShape"
-              shape={nearestPointShape}
-              ref={refNearestPointShape}
-          >
-              <CircleLayer
-                  layerIndex={LayerIndexLookup['nearestPointLayer']}
-                  id="nearestPointLayer"
-                  style={pointsOnWayNearClickLayerStyle(nearestPointId)}
-              />
+    {nearestPoint && <>
+        <MapLibreGL.PointAnnotation style={{zIndex: 3, elevation: 3}}
+                                    key={nearestPoint.way}
+                                    ref={refNearestPointAnnoPoint}
+                                    onSelected={e => console.log("selected", e)}
+                                    onDragEnd={setNearestPointLocation}
+                                    id={`nearestpoint-${nearestPoint.way}`}
+                                    coordinate={nearestPoint.point.geometry.coordinates}
+                                    draggable={true}>
+            <View style={{zIndex: 3, elevation: 3}}>
+                <Svg.Svg height="10" width="10" viewBox="0 0 100 100">
+                    <Svg.Circle cx="50" cy="50" r="43" stroke="orange" strokeWidth="14" fill="yellow"/>
+                </Svg.Svg>
+            </View>
+        </MapLibreGL.PointAnnotation>
+        <MapLibreGL.ShapeSource
+            id="nearestPointShape"
+            shape={nearestPointShape}
+            ref={refNearestPointShape}
+        >
+            <CircleLayer
+                layerIndex={LayerIndexLookup['nearestPointLayer']}
+                id="nearestPointLayer"
+                style={pointsOnWayNearClickLayerStyle(nearestPointId)}
+            />
 
-          </MapLibreGL.ShapeSource>
-        </>}
-  {editableSign && <MapLibreGL.PointAnnotation key={radians} ref={refTappedLoc}
-                                               onDragEnd={dragEndSignLocation} id="centrepoint"
-                                               coordinate={editableSign.coordinates} draggable={true}>
-      <View>
-          <Svg.Svg height="25" width="25" viewBox="0 0 100 100">
-              <Svg.Defs>
-                  <Svg.Marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6"
-                              markerHeight="6" orient="auto">
-                      <Svg.Path stroke="orange" d="M 0 0 L 10 5 L 0 10 z"/>
-                  </Svg.Marker>
-              </Svg.Defs>
-              <Svg.Circle cx="50" cy="50" r="43" stroke="blue" strokeWidth="7" fill="none"/>
-            {radians !== undefined ?
-                <>
-                  <Svg.Line
-                      stroke={radians !== 0 ? "red" : "black"} strokeWidth="10"
-                      x1={50 + (43) * Math.cos(radians + Math.PI)}
-                      y1={50 + (43) * Math.sin(radians + Math.PI)}
-                      x2={50 + (43) * Math.cos(radians)} y2={50 + (43) * Math.sin(radians)}></Svg.Line>
-                  <Svg.Line
-                      markerEnd='url(#arrow)'
-                      stroke={radians !== 0 ? "orange" : "black"} strokeWidth="10"
-                      x1={50} y1={50}
-                      x2={50 + (43) * Math.cos(radians - Math.PI / 2)}
-                      y2={50 + (43) * Math.sin(radians - Math.PI / 2)}></Svg.Line>
-                </>
-                : false}
-          </Svg.Svg>
-      </View>
-  </MapLibreGL.PointAnnotation>}
+        </MapLibreGL.ShapeSource>
+    </>}
+    {editableSign && <MapLibreGL.PointAnnotation key={radians} ref={refTappedLoc}
+                                                 onDragEnd={dragEndSignLocation} id="centrepoint"
+                                                 coordinate={editableSign.coordinates} draggable={true}>
+        <View>
+            <Svg.Svg height="25" width="25" viewBox="0 0 100 100">
+                <Svg.Defs>
+                    <Svg.Marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6"
+                                markerHeight="6" orient="auto">
+                        <Svg.Path stroke="orange" d="M 0 0 L 10 5 L 0 10 z"/>
+                    </Svg.Marker>
+                </Svg.Defs>
+                <Svg.Circle cx="50" cy="50" r="43" stroke="blue" strokeWidth="7" fill="none"/>
+              {radians !== undefined ? <>
+                <Svg.Line
+                    stroke={radians !== 0 ? "red" : "black"} strokeWidth="10"
+                    x1={50 + (43) * Math.cos(radians + Math.PI)}
+                    y1={50 + (43) * Math.sin(radians + Math.PI)}
+                    x2={50 + (43) * Math.cos(radians)} y2={50 + (43) * Math.sin(radians)}></Svg.Line>
+                <Svg.Line
+                    markerEnd='url(#arrow)'
+                    stroke={radians !== 0 ? "orange" : "black"} strokeWidth="10"
+                    x1={50} y1={50}
+                    x2={50 + (43) * Math.cos(radians - Math.PI / 2)}
+                    y2={50 + (43) * Math.sin(radians - Math.PI / 2)}></Svg.Line>
+              </> : false}
+            </Svg.Svg>
+        </View>
+    </MapLibreGL.PointAnnotation>}
   </>
 }
 
@@ -920,10 +897,10 @@ export default function MainPage() {
   const queryClient = useQueryClient()
   const queries = useMainPageQueries()
   const [state, xdispatch] = useReducer(reducer, initialState)
-  const dispatch = (a: Action) => {
+  const dispatch = useCallback((a: Action) => {
     console.log("action", a.action, "query" in a && a.query, "modalAction" in a && a.modalAction);
     return xdispatch(a)
-  }
+  }, [xdispatch])
   const refCamera = useRef<MapLibreGL.CameraRef>(null)
   const refHighwaystopSource = useRef<MapLibreGL.ShapeSourceRef>(null)
   const refPointsOnWayNearClickSource = useRef<MapLibreGL.ShapeSourceRef>(null)
@@ -945,15 +922,15 @@ export default function MainPage() {
     if (!idstr || typeof idstr !== "string") return
     try {
       const id = JSON.parse(idstr) as unknown
+      console.log("going to run with id", id)
       if (typeof id !== "number") return
       dispatch({action: "needed for loading", id})
-
     } catch (e) {
       unusedKnownType(e)
       return
     }
 
-  }, [params.id])
+  }, [params.id, dispatch])
 
   /* simple synonoms */
   const visibleBounds = state.visibleBounds;
@@ -965,15 +942,26 @@ export default function MainPage() {
       - visibleBounds.minlat) : undefined
   const capability = state.queries.osmCapabilities.data?.api.area.maximum
   const osmMapArgs: JsonBBox | undefined = state.queries.unknownBounds.data || visibleBounds
+  const invalidateSameRoads = useCallback(() => dispatch({action: "invalidate same roads"}), [dispatch])
+  const {queryWays} = useOsmPopulator(
+      visibleBounds,
+      osmMapArgs,
+      state.queries.unknownBounds.status === 'success' && !!state.queries.unknownBounds.data,
+      invalidateSameRoads,
+      InteractionManager.runAfterInteractions
+  )
+  useEffect(() => {
+    dispatch({action: "set query", query: "queryWays_", queryState: queryWays})
+  }, [dispatch, queryWays])
   const symbols = state.queries.queryNodes.data || null
-  const roadcasings = state.queries.queryWays.data?.casings || null
+  const roadcasings = state.queries.queryWays_.data?.casings || null
 
   const fab = true
   const [subFab, setSubFab] = useState(false)
 
   const modalSelectedWays = currentModesSelectedWays(state)
-  const highlightWays = useMemo(() => nub(modalSelectedWays.concat(modalSelectedWays.flatMap(f => state.sameRoads[f] || [])))
-      , [modalSelectedWays, state.sameRoads])
+  const highlightWays = useMemo(() => nub(modalSelectedWays.concat(modalSelectedWays.flatMap(f => state.sameRoads[f]
+      || []))), [modalSelectedWays, state.sameRoads])
 
   const interestingNodesParams = doublePaddedBounds && (() => {
     const params = interestingNodesParamsFromMode(state)
@@ -984,213 +972,142 @@ export default function MainPage() {
 
   /* queries */
   {
-    const neededIntersections = modalSelectedWays.filter(f => !(f in state.intersections) || !state.intersections[f])
-    useDispatchingQuery(
-        useCallback((queryState: QueryState<unknown, PartialRecord<WayId, IntersectingWayInfo>>) => dispatch({
-          action: "set query",
-          query: "intersections",
-          queryState
-        }), []),
+    const neededIntersections = modalSelectedWays.filter(f => !(f in state.intersections_i)
+        || !state.intersections_i[f])
+    useDispatchingQuery(useCallback((queryState: QueryState<unknown, PartialRecord<WayId, IntersectingWayInfo>>) => dispatch(
         {
-          queryKey: ["spatialite", "ways", "intersections", neededIntersections],
-          enabled: neededIntersections.length > 0,
-          queryFn: () => queries.current.doFindIntersections(neededIntersections),
-        }
-    )
+          action: "set query", query: "intersections_q", queryState
+        }), [dispatch]), {
+      queryKey: ["spatialite", "ways", "intersections", neededIntersections],
+      enabled: neededIntersections.length > 0,
+      queryFn: () => queries.current.doFindIntersections(neededIntersections),
+    })
   }
   {
     const relatedWays = Object.values(state.sameRoads).flatMap(f => f || [])
-    const neededRoads = nub(relatedWays.concat(allModeSelectedWays.filter(f => !(f in state.sameRoads) || !state.sameRoads[f])))
-    useDispatchingQuery(
-        useCallback((queryState: QueryState<unknown, PartialRecord<WayId, WayId[]>>) => dispatch({
-          action: "set query",
-          query: "sameRoads",
-          queryState: queryState.data ? debug("this is a same roads query state", queryState) : queryState
-        }), []),
-        {
-          queryKey: ["spatialite", "ways", "road ways", neededRoads],
-          enabled: neededRoads.length > 0,
-          queryFn: () => queries.current.doFindSameRoads(neededRoads),
-        }
-    )
+    const neededRoads = nub(relatedWays.concat(allModeSelectedWays.filter(f => !(f in state.sameRoads)
+        || !state.sameRoads[f])))
+    useDispatchingQuery(useCallback((queryState: QueryState<unknown, PartialRecord<WayId, WayId[]>>) => dispatch({
+      action: "set query",
+      query: "sameRoads",
+      queryState: queryState.data ? debug("this is a same roads query state", queryState) : queryState
+    }), [dispatch]), {
+      queryKey: ["spatialite", "ways", "road ways", neededRoads],
+      enabled: neededRoads.length > 0,
+      queryFn: () => queries.current.doFindSameRoads(neededRoads),
+    })
   }
-  useDispatchingQuery(
-      useCallback((queryState: QueryState<unknown, InterestingNodes>) => dispatch({
-        action: "set query",
-        query: "interestingNodes",
-        queryState
-      }), []),
-      {
-        queryKey: ["spatialite", "nearby ways", interestingNodesParams],
-        enabled: hasInterestingNodes,
-        placeholderData: (data) => data,
-        queryFn: interestingNodesParams ? (() => queries.current.doFindTargetNodes(interestingNodesParams)) : undefined
+  useDispatchingQuery(useCallback((queryState: QueryState<unknown, InterestingNodes>) => dispatch({
+    action: "set query", query: "interestingNodes", queryState
+  }), [dispatch]), {
+    queryKey: ["spatialite", "nearby ways", interestingNodesParams],
+    enabled: hasInterestingNodes,
+    placeholderData: (data) => data,
+    queryFn: interestingNodesParams
+        ? (() => queries.current.doFindTargetNodes(interestingNodesParams))
+        : () => new Promise(() => {})
+  })
+
+  useDispatchingQuery(useCallback((queryState: QueryState<unknown, JsonBBox | null>) => dispatch({
+    action: "set query", query: "unknownBounds", queryState
+  }), [dispatch]), {
+    queryKey: ["spatialite known bounds", visibleBounds],
+    enabled: !!mapArea && !!capability && !!visibleBounds && (mapArea * 10 <= capability),
+    queryFn: visibleBounds ? async () => {
+      console.log("mew, mew")
+      const result = (await queries.current.doKnownBounds(visibleBounds))
+      if (result && result.bbox) {
+        const [minlon, minlat, maxlon, maxlat] = result.bbox
+        return {minlon, minlat, maxlon, maxlat}
+      } else {
+        return null
       }
-  )
+    } : skipToken
+  })
 
-  useDispatchingQuery(
-      useCallback((queryState: QueryState<unknown, JsonBBox | null>) => dispatch({
-        action: "set query",
-        query: "unknownBounds",
-        queryState
-      }), []),
+
+  useDispatchingQuery(useCallback((queryState: QueryState<unknown, GeoJSON.FeatureCollection<GeoJSON.Point, OsmApiJSON.INode> | null>) => dispatch(
       {
-        queryKey: ["spatialite known bounds", visibleBounds],
-        enabled: !!mapArea && !!capability && !!visibleBounds && (mapArea * 10 <= capability),
-        queryFn: visibleBounds ? async () => {
-          const result = (await queries.current.doKnownBounds(visibleBounds))
-          if (result && result.bbox) {
-            const [minlon, minlat, maxlon, maxlat] = result.bbox
-            return {minlon, minlat, maxlon, maxlat}
-          } else {
-            return null
-          }
-        } : skipToken
-      }
-  )
-
-  useDispatchingQuery(
-      useCallback((queryState: QueryState<unknown, { $json: string; $requestedBounds: JsonBBox; }>) => {
-        const sha = queryState.data ? sha256(bytesToBase64(JSON.stringify(queryState.data))) : undefined
-        console.log("***set query osmMap", queryState.status, queryState.fetchStatus, sha)
-        dispatch({action: "set query", query: "osmMap", queryState})
-      }, [])
-      ,
-      {
-        queryKey: ["osm map", osmMapArgs],
-        enabled: state.queries.unknownBounds.status
-            === 'success'
-            && !!state.queries.unknownBounds.data
-            && !!osmMapArgs,
-        queryFn: osmMapArgs ? (async () => ({
-          $json: await OsmApiJSON.getApi06MapText(osmMapArgs),
-          $requestedBounds: osmMapArgs
-        })) : undefined
-      })
-
-  useDispatchingQuery(
-      useCallback((queryState: QueryState<unknown, GeoJSON.FeatureCollection<GeoJSON.Point, OsmApiJSON.INode> | null>) => dispatch({
-        action: "set query",
-        query: "queryNodes",
-        queryState
-      }), [])
-      , {
-        queryKey: ["spatialite query nodes", (doublePaddedBounds || {})],
-        enabled: !!doublePaddedBounds,
-        queryFn: doublePaddedBounds
-            && (async (): Promise<GeoJSON.FeatureCollection<GeoJSON.Point, OsmApiJSON.INode> | null> => {
-              const nodes = await fromAsync(queries.current.doQueryNodes(doublePaddedBounds))
-              return nodes.length ? {type: "FeatureCollection", features: nodes} : null
-            })
-      })
-
-  useDispatchingQuery(
-      useCallback((queryState: QueryState<unknown, {   casings: GeoJSON.FeatureCollection<GeoJSON.LineString | GeoJSON.Polygon, OsmApiJSON.IWay> | null;
-        centrelines: GeoJSON.FeatureCollection<GeoJSON.LineString, OsmApiJSON.IWay> | null; }>) => dispatch({action: "set query", query: "queryWays", queryState}),[]),
-      {
-        queryKey: ["spatialite query ways", (doublePaddedBounds || {})],
-        enabled: !!doublePaddedBounds,
-        placeholderData: (d) => d,
-        queryFn: doublePaddedBounds && (async () => {
-          const result = await (queries.current.doQueryWays({...doublePaddedBounds, $limit: MAX_FEATURES_QUERY}))
-          const casings = result.casings.length
-              ? {type: "FeatureCollection" as const, features: result.casings}
-              : null
-          const centrelines = result.centrelines.length ? {
-            type: "FeatureCollection" as const,
-            features: result.centrelines
-          } : null
-          return {casings, centrelines}
+        action: "set query", query: "queryNodes", queryState
+      }), [dispatch]), {
+    queryKey: ["spatialite query nodes", (doublePaddedBounds || {})],
+    enabled: !!doublePaddedBounds,
+    queryFn: doublePaddedBounds
+        ? (async (): Promise<GeoJSON.FeatureCollection<GeoJSON.Point, OsmApiJSON.INode> | null> => {
+          const nodes = await fromAsync(queries.current.doQueryNodes(doublePaddedBounds))
+          return nodes.length ? {type: "FeatureCollection", features: nodes} : null
         })
-      }
-  )
-  useDispatchingQuery(
-      useCallback((queryState: QueryState<unknown, OsmApiJSON.IInaRecord_api>) => dispatch({
-        action: "set query",
-        query: "osmVersions",
-        queryState
-      }), []),
-      {
-        queryKey: ['osm query version'],
-        queryFn: OsmApiJSON.getApiVersions,
-        staleTime: 7 * 24 * 60 * 60 * 1000,
-        placeholderData: (prev) => (prev || {api: {versions: ["0.6" as const]}})
-      }
-  )
+        : undefined
+  })
+
+
+  useDispatchingQuery(useCallback((queryState: QueryState<unknown, OsmApiJSON.IInaRecord_api>) => dispatch({
+    action: "set query", query: "osmVersions", queryState
+  }), [dispatch]), {
+    queryKey: ['osm query version'],
+    queryFn: OsmApiJSON.getApiVersions,
+    staleTime: 7 * 24 * 60 * 60 * 1000,
+    placeholderData: (prev) => (prev || {api: {versions: ["0.6" as const]}})
+  })
 
   const neededForLoading = state.neededForLoading;
-  useDispatchingQuery(
-      useCallback((queryState: QueryState<unknown, SavedChangeSet | null>) => dispatch({
-        action: "set query",
-        query: "neededForLoading",
-        queryState
-      }), []),
-      {
-        queryKey: ['spatialite', 'needed for loading', neededForLoading],
-        enabled: !!neededForLoading,
-        queryFn: neededForLoading ? (() => queries.current.doselectUserChange(neededForLoading)) : skipToken
-      }
-  )
+  useDispatchingQuery(useCallback((queryState: QueryState<unknown, SavedChangeSet | null>) => dispatch({
+    action: "set query", query: "neededForLoading", queryState
+  }), [dispatch]), {
+    queryKey: ['spatialite', 'needed for loading', neededForLoading],
+    enabled: !!neededForLoading,
+    queryFn: neededForLoading ? (() => queries.current.doselectUserChange(neededForLoading)) : skipToken
+  })
 
-  useDispatchingQuery(
-      useCallback((queryState: QueryState<unknown, OsmApiJSON.IApiCapabilities>) => dispatch({
-        action: "set query",
-        query: "osmCapabilities",
-        queryState
-      }), []),
-      {
-        queryKey: ['osm query capabilities', state.queries.osmVersions.data],
-        enabled: state.queries.osmVersions.status
-            === 'success'
-            && state.queries.osmVersions.data.api.versions.includes("0.6"),
-        queryFn: OsmApiJSON.getApi06Capabilities,
-        staleTime: 7 * 24 * 60 * 60 * 1000,
-        placeholderData: (prev) => (prev || {
-          api: {
-            version: {minimum: "0.6" as const, maximum: "0.6" as const},
-            area: {maximum: 0.125},
-            note_area: {maximum: 1},
-            tracepoints: {per_page: 0},
-            waynodes: {maximum: 100},
-            relationmembers: {maximum: 100},
-            changesets: {maximum_elements: 8, default_query_limit: 10, maximum_query_limit: 10},
-            notes: {default_query_limit: 10, maximum_query_limit: 10},
-            timeout: {seconds: 100},
-            status: {
-              database: "offline" as const,
-              api: "offline" as const,
-              gpx: "offline" as const,
-            }
-          },
-          policy: {imagery: {blacklist: []}},
-        })
-      }
-  )
+  useDispatchingQuery(useCallback((queryState: QueryState<unknown, OsmApiJSON.IApiCapabilities>) => dispatch({
+    action: "set query", query: "osmCapabilities", queryState
+  }), [dispatch]), {
+    queryKey: ['osm query capabilities', state.queries.osmVersions.data],
+    enabled: state.queries.osmVersions.status === 'success' && state.queries.osmVersions.data.api.versions.includes(
+        "0.6"),
+    queryFn: OsmApiJSON.getApi06Capabilities,
+    staleTime: 7 * 24 * 60 * 60 * 1000,
+    placeholderData: (prev) => (prev || {
+      api: {
+        version: {minimum: "0.6" as const, maximum: "0.6" as const},
+        area: {maximum: 0.125},
+        note_area: {maximum: 1},
+        tracepoints: {per_page: 0},
+        waynodes: {maximum: 100},
+        relationmembers: {maximum: 100},
+        changesets: {maximum_elements: 8, default_query_limit: 10, maximum_query_limit: 10},
+        notes: {default_query_limit: 10, maximum_query_limit: 10},
+        timeout: {seconds: 100},
+        status: {
+          database: "offline" as const, api: "offline" as const, gpx: "offline" as const,
+        }
+      }, policy: {imagery: {blacklist: []}},
+    })
+  })
   const [changes, setChanges] = useState<Change[]>([])
-  const [commentary, setCommentary] = useState<[string, string|undefined]>(["Browse", undefined])
+  const [commentary, setCommentary] = useState<[string, string | undefined]>(["Browse", undefined])
 
   /* mutations */
-  const qSaveUpdateUserChanges = useDispatchingMutation(
-      useCallback((queryState: MutationState<unknown, number>) => dispatch({
-    action: "set query",
-    query: "saveUpdateUserDataChanges",
-    queryState
-  }), []),
+  const qSaveUpdateUserChanges = useDispatchingMutation(useCallback((queryState: MutationState<unknown, number>) => dispatch(
       {
-        mutationFn: ({id, args, commentary}: { id: number, args: MyChangeSet, commentary: [string, string|undefined] }) =>
-            queries.current.doSaveUpdateChange(id, args, commentary),
-        onSuccess: () => {
-          queryClient.invalidateQueries({queryKey: ['spatialite', 'needed for loading']})
-        }
-      }
-  )
-  const debSaveUpdateUserChanges = useDebouncedCallback(
-      (args: { id: number, args: MyChangeSet, commentary: [string, string|undefined] }) => {
-        console.log("the debouncee has been triggered", args)
-        qSaveUpdateUserChanges.mutate(args)
-      },
-      250, {maxWait: 10_000}
-  )
+        action: "set query", query: "saveUpdateUserDataChanges", queryState
+      }), [dispatch]), {
+    mutationFn: ({id, args, commentary}: {
+      id: number,
+      args: MyChangeSet,
+      commentary: [string, string | undefined]
+    }) => queries.current.doSaveUpdateChange(id, args, commentary), onSuccess: () => {
+      queryClient.invalidateQueries({queryKey: ['spatialite', 'needed for loading']})
+    }
+  })
+  const debSaveUpdateUserChanges = useDebouncedCallback((args: {
+    id: number,
+    args: MyChangeSet,
+    commentary: [string, string | undefined]
+  }) => {
+    console.log("the debouncee has been triggered", args)
+    qSaveUpdateUserChanges.mutate(args)
+  }, 250, {maxWait: 10_000})
 
 
   const modeSettings = state.modes[state.mode]
@@ -1198,157 +1115,34 @@ export default function MainPage() {
         if ("changeId" in modeSettings && typeof modeSettings.changeId === "number" && state.mode !== 'browse') {
           console.log("we have further got enough data to save", modeSettings.changeId)
           debSaveUpdateUserChanges({
-            commentary,
-            id: modeSettings.changeId, args: {
-              type: state.mode,
-              change: changes,
-              state_extract: modeSettings.change
+            commentary, id: modeSettings.changeId, args: {
+              type: state.mode, change: changes, state_extract: modeSettings.change
             }
           })
         }
       }
 
-      , [state.mode, modeSettings, changes, debSaveUpdateUserChanges, commentary]
-  )
+      , [state.mode, modeSettings, changes, debSaveUpdateUserChanges, commentary])
 
-  const qSaveNewUserChanges = useDispatchingMutation(
-      useCallback((queryState: MutationState<unknown, SavedChangeSet>) => dispatch({
-        action: "set query",
-        query: "saveNewUserDataChanges",
-        queryState
-      }), []),
+  const qSaveNewUserChanges = useDispatchingMutation(useCallback((queryState: MutationState<unknown, SavedChangeSet>) => dispatch(
       {
-        mutationFn: (args: MyChangeSet) =>
-            queries.current.doSaveNewChange(args),
-        onSuccess: () => {
-          queryClient.invalidateQueries({queryKey: ["spatialite", "needed for loading"]})
-        }
-      }
-  )
+        action: "set query", query: "saveNewUserDataChanges", queryState
+      }), [dispatch]), {
+    mutationFn: (args: MyChangeSet) => queries.current.doSaveNewChange(args), onSuccess: () => {
+      queryClient.invalidateQueries({queryKey: ["spatialite", "needed for loading"]})
+    }
+  })
 
   const modeHasChanges = "changeId" in modeSettings ? modeSettings.changeId : null
   const qSaveNewUserChangesMutate = qSaveNewUserChanges.mutate
   useEffect(() => {
     if ("changeId" in modeSettings && modeSettings.changeId === undefined && state.mode !== 'browse') {
       qSaveNewUserChangesMutate({
-        type: state.mode,
-        change: changes,
-        state_extract: modeSettings.change
+        type: state.mode, change: changes, state_extract: modeSettings.change
       })
     }
   }, [state.mode, modeSettings, changes, modeHasChanges, qSaveNewUserChangesMutate])
 
-  const qInsertBounds = useDispatchingMutation(
-      useCallback((queryState: MutationState<unknown, void>) => dispatch({action: "set query", query: "insertBounds", queryState}), []),
-      {
-        mutationFn: async (args: {
-          $json: string,
-          $requestedBounds: JsonBBox
-        }) => { await queries.current.doInsertBounds(args) },
-        onSuccess: (data, variables,) => {
-          queryClient.invalidateQueries({queryKey: ["spatialite known bounds", variables.$requestedBounds]})
-        }
-      }
-  )
-
-  const qInsertNodes = useDispatchingMutation(
-      useCallback((queryState: MutationState<unknown, boolean>) => dispatch({
-        action: "set query",
-        query: "insertNodes",
-        queryState
-      }), []),
-      {
-        mutationFn: async (param: { $json: string }) => (await queries.current.doInsertNodes(param)).changes > 0,
-        onSuccess: (changes) => {
-          if (changes) {
-            queryClient.invalidateQueries({queryKey: ["spatialite query nodes"]})
-          }
-        }
-      }
-  )
-
-  const qInsertWays = useDispatchingMutation(
-      useCallback((queryState: MutationState<unknown, boolean>) => dispatch({action: "set query", query: "insertWays", queryState}), []),
-      {
-        mutationFn: async (param: {
-          $json: string
-        }) => (await queries.current.doInsertWays(param)).filter(d => d.changes).length > 0,
-        onSuccess: (data) => {
-          if (data) {
-            queryClient.invalidateQueries({queryKey: ["spatialite query ways"]})
-            queryClient.invalidateQueries({queryKey: ["spatialite", "nearby ways"]})
-            qUpdateCasings.mutate()
-            qInsertRelatedWays.mutate()
-          }
-        }
-      }
-  )
-
-  const qInsertRelatedWays = useDispatchingMutation(
-      useCallback((queryState: MutationState<unknown, boolean>) => dispatch({
-        action: "set query",
-        query: "insertRelatedWays",
-        queryState
-      }), []),
-      {
-        mutationFn: async () => (await queries.current.doInsertRelatedWays()) > 0,
-        onSuccess: (data) => {
-          if (data) {
-            queryClient.invalidateQueries({queryKey: ["spatialite query ways"]})
-            queryClient.invalidateQueries({queryKey: ["spatialite", "nearby ways"]})
-            dispatch({action: "invalidate same roads"})
-          }
-        }
-      }
-  )
-
-  const qUpdateCasings = useDispatchingMutation(
-      useCallback((queryState: MutationState<unknown, number>) => dispatch({
-        action: "set query",
-        query: "updateCasings",
-        queryState
-      }), []),
-      {
-        mutationFn: async () => (await queries.current.doAddCasingToWays()).changes,
-        onSuccess: (data) => {
-          console.log("we have updated some casings: ", data)
-          if (data) {
-            queryClient.invalidateQueries({queryKey: ["spatialite query ways"]})
-            queryClient.invalidateQueries({queryKey: ["spatialite", "nearby ways"]})
-            InteractionManager.runAfterInteractions(() => qUpdateCasings.mutate())
-          }
-        }
-      }
-  )
-
-  /* autotrigger mutations based on data state changes */
-  const queryInsertRelatedWays = queries.current.insertRelatedWays
-  const qInsertRelatedWaysMutate = qInsertRelatedWays.mutate
-  useEffect(() => {
-    if (!queryInsertRelatedWays) return
-    qInsertRelatedWaysMutate()
-  }, [queryInsertRelatedWays, qInsertRelatedWaysMutate])
-
-  const qInsertBoundsMutate   = qInsertBounds.mutate
-  const qInsertNodesMutate    = qInsertNodes.mutate
-  const qInsertWaysMutate     = qInsertWays.mutate
-  useEffect(() => {
-    console.log(
-        "considering running the osm map trigger",
-        state.queries.osmMap.status,
-        state.queries.osmMap.data && sha256(bytesToBase64(JSON.stringify(state.queries.osmMap.data)))
-    )
-    if (state.queries.osmMap.status !== 'success') return console.log(
-        "i won't run it because",
-        state.queries.osmMap.status
-    )
-    const data = state.queries.osmMap.data
-    if (!data) return console.log("i won't run it because no data")
-    console.log("no i'm going ot run it")
-    qInsertBoundsMutate(data)
-    qInsertNodesMutate(data)
-    qInsertWaysMutate(data)
-  }, [state.queries.osmMap.status, state.queries.osmMap.data, qInsertBoundsMutate, qInsertNodesMutate, qInsertWaysMutate])
 
   /* callbacks */
   const setTappedLocation = useCallback((tappedLocation: GeoJSON.Point | null, toggle = false) => {
@@ -1359,9 +1153,7 @@ export default function MainPage() {
             : state.modes.addStopSign.change.tappedLocation
         const loc = toggle && state.modes.addStopSign.change.tappedLocation ? null : tappedLocation
         return dispatch({
-          action: "modal",
-          mode: "addStopSign",
-          modalAction: loc ? {
+          action: "modal", mode: "addStopSign", modalAction: loc ? {
             action: "add stop sign",
             tappedLocation: loc,
             newId: oldLoc && oldLoc.type === "new" ? oldLoc.newId : `new-${make_id()}`
@@ -1373,7 +1165,7 @@ export default function MainPage() {
         unusedButOkay(state.mode)
         return;
     }
-  }, [state.mode, state.modes.addStopSign.change.tappedLocation])
+  }, [dispatch, state.mode, state.modes.addStopSign.change.tappedLocation])
   const onPressMap = (event: GeoJSON.Feature<GeoJSON.Point>) => {
     console.log("from map", event);
     setTappedLocation(event.geometry, true)
@@ -1385,7 +1177,12 @@ export default function MainPage() {
         return dispatch({
           action: "modal",
           mode: "addStopSign",
-          modalAction: {action: "select ways", ways: event.features.map(i => i.id!.toString()), select: "toggle", point: [event.coordinates.longitude, event.coordinates.latitude]}
+          modalAction: {
+            action: "select ways",
+            ways: event.features.map(i => i.id!.toString()),
+            select: "toggle",
+            point: [event.coordinates.longitude, event.coordinates.latitude]
+          }
         })
       case "browse":
         return
@@ -1413,9 +1210,7 @@ export default function MainPage() {
           state.initialSetup
       )
       dispatch({
-        action: "set zoom",
-        centreCoordinates: feature.geometry.coordinates,
-        zoom: feature.properties.zoomLevel
+        action: "set zoom", centreCoordinates: feature.geometry.coordinates, zoom: feature.properties.zoomLevel
       })
     } else {
       console.log(
@@ -1427,12 +1222,9 @@ export default function MainPage() {
     }
   }
 
-  useEffect(
-      () => {
-          setTimeout(() => dispatch({action: "post initial setup"}), 30_000)
-      },
-      []
-  )
+  useEffect(() => {
+    setTimeout(() => dispatch({action: "post initial setup"}), 30_000)
+  }, [dispatch])
 
   const [defaultOptionText, defaultOptionIcon, subfabs] = fabFromMode(state.mode)
   const fabButtonPress = () => {
@@ -1448,8 +1240,7 @@ export default function MainPage() {
   const onPressSelectInterestingPoint = (e: OnPressEvent) => {
     switch (state.mode) {
       case "addStopSign":
-        const
-            features: (GeoJSON.Feature<GeoJSON.Geometry, unknown>)[] = e.features
+        const features: (GeoJSON.Feature<GeoJSON.Geometry, unknown>)[] = e.features
         console.log("an interesting point has been selected!", e)
         if (features.length === 1) {
           const feature = features[0]
@@ -1475,51 +1266,40 @@ export default function MainPage() {
 
   const [notes, setNotes] = useState<string[]>([])
 
-  const modalMap =
-      state.mode === "addStopSign"
-          ? <MapAddStopSign highlightWays={highlightWays} state={state} setNotes={setNotes} setCommentary={setCommentary} setChanges={setChanges} dispatch={dispatch} setTappedLocation={setTappedLocation} />
-          : state.mode === "browse"
-  ? false
-          : (unusedButOkay(state.mode), undefined)
+  const modalMap = state.mode === "addStopSign" ? <MapAddStopSign highlightWays={highlightWays} state={state}
+                                                                  setNotes={setNotes} setCommentary={setCommentary}
+                                                                  setChanges={setChanges} dispatch={dispatch}
+                                                                  setTappedLocation={setTappedLocation}/> : (state.mode
+      === "browse"
+      || state.mode
+      === 'testO') ? false : (unusedButOkay(state.mode), undefined)
 
 
   const selectedInterestingPoints = selectedInterestingPointsForMode(state)
 
-  const locFab = state.mode === "addStopSign" && !state.modes.addStopSign.change.tappedLocation
-    && (async () => {
-      let { status } =await ExLoc.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        console.log('Permission to access location was denied');
-        return;
+  const locFab = state.mode === "addStopSign" && !state.modes.addStopSign.change.tappedLocation && (async () => {
+    let {status} = await ExLoc.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      console.log('Permission to access location was denied');
+      return;
+    }
+
+    let location = await ExLoc.getCurrentPositionAsync({});
+    dispatch({
+      action: "modal", mode: "addStopSign", modalAction: {
+        action: "add stop sign", newId: `new-${7}` as const, tappedLocation: {
+          type: "Point", coordinates: [location.coords.longitude, location.coords.latitude]
+        }
       }
 
-      let location = await ExLoc.getCurrentPositionAsync({});
-      dispatch({
-        action: "modal",
-        mode: "addStopSign",
-        modalAction: {
-          action: "add stop sign",
-          newId: `new-${7}` as const,
-          tappedLocation: {
-            type: "Point",
-            coordinates: [location.coords.longitude, location.coords.latitude]
-          }
-        }
+    })
+  })
 
-      })
-      })
-
-  return (
-      <View
+  return (<View
           style={styles.page}
       >
         <View style={{
-          flexWrap: "wrap",
-          alignContent: "center",
-          flexDirection: "row",
-          gap: 4,
-          paddingLeft: 2,
-          paddingRight: 2
+          flexWrap: "wrap", alignContent: "center", flexDirection: "row", gap: 4, paddingLeft: 2, paddingRight: 2
         }}>{statusString}</View>
         <MapLibreGL.MapView
             onRegionDidChange={onMapBoundChange}
@@ -1582,54 +1362,38 @@ export default function MainPage() {
           />
 
         </MapLibreGL.MapView>
-        {(notes.length > 0 || changes.length > 0) &&
-            <View
-                style={{left: 0, top: 0, margin: 16, padding: 16, backgroundColor: "#f0edeecc", position: "absolute"}}>
-              {notes.map((note, i) => <Text key={i}>{note}</Text>)}
-              {changes.map((note, i) => <Text style={{fontFamily: "monospace"}}
-                                                              key={i}>{JSON.stringify(note)}</Text>)}
-            </View>
-        }
+        {(notes.length > 0 || changes.length > 0) && <View
+            style={{left: 0, top: 0, margin: 16, padding: 16, backgroundColor: "#f0edeecc", position: "absolute"}}>
+          {notes.map((note, i) => <Text key={i}>{note}</Text>)}
+          {changes.map((note, i) => <Text style={{fontFamily: "monospace"}}
+                                          key={i}>{JSON.stringify(note)}</Text>)}
+        </View>}
         {locFab && <FAB
-              style={{
-                left: 0,
-                alignItems: "flex-start",
-                position: 'absolute',
-                margin: 16,
-                marginTop: 32,
-                rowGap: 32,
-                bottom: 0,
-              }}
-              visible={true}
-              onPress={locFab}
-              title={"+"}
-              icon={undefined}
-              color="green"
-          />}
+            style={{
+              left: 0, alignItems: "flex-start", position: 'absolute', margin: 16, marginTop: 32, rowGap: 32, bottom: 0,
+            }}
+            visible={true}
+            onPress={locFab}
+            title={"+"}
+            icon={undefined}
+            color="green"
+        />}
         <View
             style={{
-              right: 0,
-              alignItems: "flex-end",
-              position: 'absolute',
-              margin: 16,
-              marginTop: 32,
-              rowGap: 32,
-              bottom: 0,
+              right: 0, alignItems: "flex-end", position: 'absolute', margin: 16, marginTop: 32, rowGap: 32, bottom: 0,
             }}
         >
-          {subfabs.map(({icon, mode, text}) =>
-              <FAB
-                  key={mode}
-                  visible={subFab}
-                  onPress={() => {
-                    setSubFab(false);
-                    dispatch({action: "set mode", mode})
-                  }}
-                  title={text}
-                  icon={icon}
-                  color="orange"
-              />
-          )}
+          {subfabs.map(({icon, mode, text}) => <FAB
+              key={mode}
+              visible={subFab}
+              onPress={() => {
+                setSubFab(false);
+                dispatch({action: "set mode", mode})
+              }}
+              title={text}
+              icon={icon}
+              color="orange"
+          />)}
           <FAB
               visible={fab}
               onPress={fabButtonPress}
@@ -1638,15 +1402,12 @@ export default function MainPage() {
               icon={defaultOptionIcon}
               color="orange"
           /></View>
-      </View>
-  );
+      </View>);
 }
 
 const fabFromMode = (mode: Mode): [
       string | undefined, IconNode, {
-    icon: IconNode,
-    text: string | undefined,
-    mode: Mode
+    icon: IconNode, text: string | undefined, mode: Mode
   }[]] => {
   switch (mode) {
     case "browse":
@@ -1654,6 +1415,7 @@ const fabFromMode = (mode: Mode): [
         undefined,
         {name: "menu", color: "white", type: "material-community"},
         [{icon: {name: "octagon", color: "red", type: "material-community"}, text: "Stop", mode: "addStopSign"}]]
+
     case "addStopSign":
       return [
         "Add Stop Sign",
@@ -1724,18 +1486,13 @@ const sha256: ((ascii: string) => string | undefined) = function sha256(ascii: s
 
       // Iterate
       let a = hash[0], e = hash[4];
-      let temp1 = hash[7]
-          + (rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25)) // S1
+      let temp1 = hash[7] + (rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25)) // S1
           + ((e & hash[5]) ^ ((~e) & hash[6])) // ch
           + k[i]
           // Expand the message schedule if needed
-          + (w[i] = (i < 16) ? w[i] : (
-                  w[i - 16]
-                  + (rightRotate(w15, 7) ^ rightRotate(w15, 18) ^ (w15 >>> 3)) // s0
-                  + w[i - 7]
-                  + (rightRotate(w2, 17) ^ rightRotate(w2, 19) ^ (w2 >>> 10)) // s1
-              ) | 0
-          );
+          + (w[i] = (i < 16) ? w[i] : (w[i - 16] + (rightRotate(w15, 7) ^ rightRotate(w15, 18) ^ (w15 >>> 3)) // s0
+                  + w[i - 7] + (rightRotate(w2, 17) ^ rightRotate(w2, 19) ^ (w2 >>> 10)) // s1
+              ) | 0);
       // This is only used once, so *could* be moved below, but it only saves 4 bytes and makes things unreadble
       let temp2 = (rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22)) // S0
           + ((a & hash[1]) ^ (a & hash[2]) ^ (hash[1] & hash[2])); // maj
@@ -1762,9 +1519,7 @@ const sha256: ((ascii: string) => string | undefined) = function sha256(ascii: s
 
 function bytesToBase64(str: string) {
   const bytes = new TextEncoder().encode(str)
-  const binString = Array.from(bytes, (byte) =>
-      String.fromCodePoint(byte),
-  ).join("");
+  const binString = Array.from(bytes, (byte) => String.fromCodePoint(byte),).join("");
   return btoa(binString);
 }
 
@@ -1778,9 +1533,9 @@ const selectedInterestingPointsForMode = (state: State): string[] => {
         === "Feature"
         && state.modes.addStopSign.change.tappedLocation.id?.toString(),
         state.modes.addStopSign.change.highwayLocation
-        && state.modes.addStopSign.change.highwayLocation.type === "Feature"
-        && state.modes.addStopSign.change.highwayLocation.id?.toString()
-      ].flatMap(m => m ? [m] : [])
+        && state.modes.addStopSign.change.highwayLocation.type
+        === "Feature"
+        && state.modes.addStopSign.change.highwayLocation.id?.toString()].flatMap(m => m ? [m] : [])
   }
 }
 
@@ -1791,276 +1546,11 @@ const interestingNodesParamsFromMode = (state: State): undefined | Omit<Interest
     case "addStopSign":
       return {
         $needles: [
-          {"highway": "stop"},
-          {"traffic_sign": "stop"},
-          {"highway": "give_way"},
-          {"highway": "giveway"}]
+          {"highway": "stop"}, {"traffic_sign": "stop"}, {"highway": "give_way"}, {"highway": "giveway"}]
       }
   }
 }
 
-type OsmObject =
-    { type: "way", way_id: `${number}`, nodes?: string[] }
-    | { type: "way", way_id: `new-${number}`, nodes: string[] }
-    | { type: "node", node_id: `${number}`, position?: GeoJSON.Position }
-    | { type: "node", node_id: `new-${number}`, position: GeoJSON.Position }
-
-const directionFromString = (maybeDirection: string | undefined | null | false): "forward" | "backward" | undefined => {
-  switch (maybeDirection) {
-    case "forward":
-      return maybeDirection
-    case "backward":
-      return maybeDirection
-    default:
-      return undefined
-  }
-}
-
-const calculateAngleAtIndex = (way: GeoJSON.Feature<GeoJSON.LineString, object>, ix: number) => {
-  const otherIx = ix + 1 >= way.geometry.coordinates.length ? ix - 1 : ix + 1
-  const nextIx = Math.max(ix, otherIx)
-  const prevIx = Math.min(ix, otherIx)
-  const next = way.geometry.coordinates[nextIx]
-  const prev = way.geometry.coordinates[prevIx]
-  return bound(turf.rhumbBearing(prev, next), 0, 360)
-}
-
-const calculateDirectionToNearestIntersection = (
-    {way, nearestPointOnLine}: { way: GeoJSON.Feature<GeoJSON.LineString, object>, nearestPointOnLine: TurfNearestPoint },
-    ix: number,
-    intersectedWays: IntersectingWayInfo | undefined
-) => {
-  const wayIntersections: GeoJSON.Feature<GeoJSON.Point, { ix: number }>[] =
-      (intersectedWays || []).flatMap((wna) => {
-        return wna.others
-            ? [
-              {
-                type: "Feature",
-                properties: {ix: wna.ix},
-                geometry: {type: "Point", coordinates: way.geometry.coordinates[wna.ix]}
-              }]
-            : []
-      })
-  if (!wayIntersections || !wayIntersections.length) return undefined
-  const nearestIntersection = turf.nearestPoint(
-      nearestPointOnLine,
-      {type: "FeatureCollection", features: wayIntersections}
-  )
-  //const orientation = nodes?.filter(f => f.id == $node_id && (f.properties.tags || {})["direction"] ==
-  // "backward").length ? 180 : 0
-  const trueIx = ix
-  if (nearestPointOnLine.properties.location === 0) return 'backward'
-  if (nearestPointOnLine.properties.index === way.geometry.coordinates.length - 1) return 'forward'
-  return trueIx < wayIntersections[nearestIntersection.properties.featureIndex].properties.ix ? 'forward' : 'backward'
-}
-
-const inferDirectionAndAngle = (
-    signLocation: GeoJSON.Point|NearestPoint,
-    selectedWays: GeoJSON.Feature<GeoJSON.LineString, object>[]
-    , waysOthers: PartialRecord<WayId, IntersectingWayInfo>
-)
-    : {
-  wayId: undefined | WayId /* direction is relative to wayId */,
-  angle: undefined | number,
-  direction: undefined | "forward" | "backward"
-} => {
-  const ways = selectedWays
-  .map(way => {
-    const nearestPointOnLine = turf.nearestPointOnLine(way, signLocation)
-    const distance = turf.distance(nearestPointOnLine, signLocation)
-    return {way, nearestPointOnLine, distance}
-  })
-  if (!ways) return {angle: undefined, direction: undefined, wayId: undefined}
-  const closestWay = ways
-  .sort(({distance: distance1}, {distance: distance2}) => distance1 - distance2)
-      [0]
-  if (!closestWay) return {angle: undefined, direction: undefined, wayId: undefined}
-  const {way, nearestPointOnLine} = closestWay
-
-  const angle = calculateAngleAtIndex(way, nearestPointOnLine.properties.index)
-  const direction = calculateDirectionToNearestIntersection(
-      closestWay,
-      nearestPointOnLine.properties.index,
-      waysOthers[way.id!.toString()]
-  )
-
-  return {angle, direction, wayId: closestWay.way.id as WayId}
-}
-
-type Change = { object: OsmObject, set_tags: PartialRecord<string, string> }
-
-const modalNotes = (
-    intersections: State['intersections'], addStopSign: State['modes']['addStopSign']['change'],
-    selectedWays: GeoJSON.Feature<GeoJSON.LineString, OsmApiJSON.IWay>[]
-): {
-  signFaceAngle: number | undefined,
-  changes: Change[],
-  notes: string[],
-  commentary: [string, string|undefined]
-} => {
-  let sign: 'new'|'edit'|'none'|undefined = undefined
-  let line: 'new'|'edit'|'none'|undefined = undefined
-  let on: string|undefined =  selectedWays.map(w => w.properties.tags?.name).filter(f => !!f)[0]
-      const signTypeAngle = 180
-      let signFaceAngle: number | undefined = undefined
-      const notes = []
-      const changes: { object: OsmObject, set_tags: PartialRecord<string, string> }[] = []
-
-      const tappedLocation = addStopSign.tappedLocation;
-      const tappedLocationPoint = tappedLocation ? (tappedLocation.type === "new"
-          ? tappedLocation.point
-          : tappedLocation.geometry) : undefined
-      const highwayLocation = addStopSign.highwayLocation;
-      const highwayLocationPoint = highwayLocation ? (highwayLocation.type === "Feature"
-          ? highwayLocation.geometry
-          : highwayLocation.point) : undefined
-
-      const inferredSignDirectionAndAngle = tappedLocationPoint ?
-          lazy(() => inferDirectionAndAngle(tappedLocationPoint, selectedWays, intersections))
-          : () => ({angle: undefined, direction: undefined, wayId: undefined})
-      const inferredHighwayDirectionAndAngle = highwayLocationPoint ?
-          lazy(() => inferDirectionAndAngle(highwayLocationPoint, selectedWays, intersections))
-          : () => ({angle: undefined, direction: undefined, wayId: undefined})
-      const highwayDirection = addStopSign.direction
-          || directionFromString(highwayLocation?.type === "Feature"
-              && highwayLocation.properties.tags?.direction)
-          || inferredHighwayDirectionAndAngle().direction
-
-      if (tappedLocation
-          && highwayLocation
-          && inferredSignDirectionAndAngle().wayId
-          !== inferredHighwayDirectionAndAngle().wayId) {
-        notes.push("Note: something might be off because the inferred ways are different")
-      }
-
-      if (inferredHighwayDirectionAndAngle().direction !== highwayDirection) {
-        notes.push(
-            "Note: something might be off because a different direction has been inferred than the configured direction")
-      }
-
-      if (tappedLocation
-          && highwayLocation
-          && inferredSignDirectionAndAngle().direction
-          !== inferredHighwayDirectionAndAngle().direction) {
-        notes.push("Note: the road and sign have different inferred directions. The sign follows the road.")
-      }
-
-      if (!tappedLocation) {
-        sign = 'none'
-        notes.push("Add a stop sign in its physical location by tapping the map where the sign is.",)
-      } else {
-        const inferredAngle = inferredSignDirectionAndAngle().angle
-        const apparentDirection = inferredHighwayDirectionAndAngle().direction
-            || inferredSignDirectionAndAngle().direction
-        signFaceAngle = inferredAngle === undefined ? undefined : Math.round(bound(inferredAngle
-            + signTypeAngle
-            + (apparentDirection === "backward" ? 180 : 0), 0, 360))
-        const signTags: PartialRecord<string, string> = rmUndef({
-          direction: signFaceAngle?.toString(),
-          "traffic_sign": "stop"
-        })
-        if (tappedLocation.type === "new") {
-          sign = 'new'
-          notes.push("Adding a new stop sign")
-          changes.push({
-            object: {
-              type: "node",
-              position: tappedLocation.point.coordinates,
-              node_id: tappedLocation.newId
-            }, set_tags: signTags
-          })
-        } else if (tappedLocation.type === "Feature") {
-          sign = 'edit'
-          if (tappedLocation.properties.tags && a_includes_b(tappedLocation.properties.tags, signTags)) {
-            notes.push("A sign is selected, but it's all good")
-          } else {
-            notes.push("Amending an existing sign")
-            changes.push({object: {type: "node", node_id: tappedLocation.id as `${number}`}, set_tags: signTags})
-          }
-        }
-      }
-      if (!highwayLocation) {
-        line = 'none'
-        notes.push(
-            "Add a stop in its logical location by tapping the way roughly where the driver should stop, usually at the stop line.",
-        )
-      } else {
-        if (highwayLocation.type === "Feature") {
-          line = 'edit'
-          if (highwayDirection === directionFromString(highwayLocation.properties.tags?.direction)) {
-            notes.push("A stopping point is selected, but it's all good")
-          } else {
-            notes.push("Amending an existing sign")
-            changes.push({
-              object: {type: "node", node_id: highwayLocation.id as `${number}`},
-              set_tags: {
-                ...highwayLocation.properties.tags, "highway": "stop", ...(highwayDirection
-                    ? {"direction": highwayDirection}
-                    : {})
-              }
-            })
-          }
-        } else {
-          line = 'new'
-          const street = selectedWays.map(w => w.properties.tags?.name).filter(f => !!f)[0]
-          notes.push("Adding a new stop line" + (street ? ` on ${street}` : ""))
-          const newNodeId = `new-${+highwayLocation.way}` as const
-          changes.push({
-            object: {type: "node", position: highwayLocation.point.geometry.coordinates, node_id: newNodeId},
-            set_tags: {
-               "highway": "stop", ...(highwayDirection
-                  ? {"direction": highwayDirection}
-                  : {})
-            }
-          })
-          const waynodes = selectedWays.find(w => highwayLocation.way)?.properties.nodes
-          if (waynodes) {
-            const loc = Math.floor(highwayLocation.point.properties.location)
-            const index = Math.floor(highwayLocation.point.properties.index)+1
-            const early = waynodes.slice(0, index)
-            const late = waynodes.slice(index)
-            const complete = [...early, newNodeId, ...late]
-            console.log("the loc", loc, early, late, waynodes, complete, highwayLocation.point.properties, index)
-            changes.push({
-              object: {type: "way", way_id: highwayLocation.way as `${number}`, nodes: complete.map(m => m.toString())},
-              set_tags: {}
-            })
-
-          }
-        }
-      }
-      if (tappedLocation === null || highwayLocation === null) {
-        notes.push(
-            "You can also add or change existing nodes by tapping them: independent traffic signs are shown, as well as give way lines that might need to be corrected."
-        )
-      }
-      const commentary: [string, string|undefined] =
-          [sign === "new" ? "Add Stop Sign"
-             :line === "new" ? "Add Stop"
-             :sign === "edit" ? "Edit Stop Sign"
-                  :line === "edit" ? "Edit Stop"
-                      :"Add Stop Sign", on ? `On ${on}`: undefined]
-      return {signFaceAngle, changes, notes, commentary}
-}
-
-type TurfNearestPoint = GeoJSON.Feature<GeoJSON.Point, {
-  dist: number;
-  index: number;
-  location: number;
-}>
-
-type NearestPoint = GeoJSON.Feature<GeoJSON.Point, {
-  dist: number;
-  index: number;
-  location: number;
-  triggeringWayId: WayId;
-  segmentWayId: WayId;
-}>
-
-
-const rmUndef = (r: PartialRecord<string, string | undefined>): PartialRecord<string, string> => {
-  return Object.fromEntries(Object.entries(r).flatMap(([key, val]) => val === undefined ? [] : [[key, val]]))
-}
 
 const currentModesSelectedWays = (state: State): WayId[] => {
   switch (state.mode) {
@@ -2111,30 +1601,17 @@ const anyModeSelectsWay = (state: State, wayId: WayId) => {
   })
 }
 
-const a_includes_b = (
-    a: PartialRecord<string, string>, b: PartialRecord<string, string>,
-    isIncluded: ((
-        key: string, a_value: string | undefined,
-        b_value: string | undefined
-    ) => boolean) | undefined = undefined
-): boolean => {
-  return !Object.entries(b).some(([bkey, bval]) => isIncluded ? isIncluded(bkey, a[bkey], bval) : a[bkey] !== bval)
-}
 
 type MyChangeSet_<M extends Mode, Y, X extends State['modes'][M] & { change: Y }> = {
-  type: M,
-  change: Change[],
-  state_extract: X['change']
+  type: M, change: Change[], state_extract: X['change']
 }
 type MyChangeSet = MyChangeSet_<"addStopSign", State['modes']["addStopSign"]["change"], State['modes']["addStopSign"]>
 
+// noinspection JSUnusedLocalSymbols
 const unusedKnownType = function (something: unknown): void {}
 const unusedButOkay = (never: never): undefined => undefined
 const verifyObjIsMemberOf = function <T = never>(val: T) { return val }
 
-type FeaturePayload = GeoJSON.Feature<
-    GeoJSON.Point,
-    {
-      screenPointX: number;
-      screenPointY: number;
-    }>
+type FeaturePayload = GeoJSON.Feature<GeoJSON.Point, {
+  screenPointX: number; screenPointY: number;
+}>

@@ -88,8 +88,11 @@
         cp -r dist/* $out/dist/
       '';
     };
-    package_json = pkgs.writeText "package.json" (builtins.toJSON (builtins.removeAttrs package_json_info ["scripts"]));
-    package_json_info= (builtins.fromJSON (builtins.readFile "${root_path}/package.json"));
+    package_json = pkgs.writeText "package.json" (builtins.toJSON (package_json_info ));
+    package_json_info = let
+      bare = builtins.removeAttrs (builtins.fromJSON (builtins.readFile "${root_path}/package.json")) ["scripts"];
+      filter = if "development" == "production" then x: builtins.removeAttrs x ["expo-drizzle-studio-plugin"] else x: x;
+      in bare // { dependencies = filter bare.dependencies; };
     node_modules = pkgs.mkYarnModules {
       pname = "interpret-nodemodules";
       version = "1.0.0";
@@ -219,21 +222,6 @@
         overrides = {
           "com.android.tools.build:aapt2:8.8.2-12006047" = {
             "aapt2-8.8.2-12006047-linux.jar" = src:
-              pkgs.runCommandCC src.name {
-                nativeBuildInputs = [pkgs.openjdk17 pkgs.autoPatchelfHook];
-                buildInputs = [pkgs.glibc pkgs.stdenv pkgs.gcc];
-                dontAutoPatchelf = true;
-              } ''
-                cp ${src} aapt2.jar
-                jar xf aapt2.jar aapt2
-                cp ${android-sdk}/share/android-sdk/build-tools/34.0.0/aapt2 aapt2
-                chmod +x aapt2
-                jar uf aapt2.jar aapt2
-                cp aapt2.jar $out
-              '';
-          };
-          "com.android.tools.build:aapt2:8.6.0-11315950" = {
-            "aapt2-8.6.0-11315950-linux.jar" = src:
               pkgs.runCommandCC src.name {
                 nativeBuildInputs = [pkgs.openjdk17 pkgs.autoPatchelfHook];
                 buildInputs = [pkgs.glibc pkgs.stdenv pkgs.gcc];

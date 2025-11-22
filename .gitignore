@@ -18,8 +18,6 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
-*.orig.*
-web-build/
 android/
 ios/
 
@@ -27,7 +25,6 @@ ios/
 .metro-health-check*
 
 # debug
-npm-debug.*
 yarn-debug.*
 yarn-error.*
 
@@ -53,3 +50,4 @@ sql/*.sql.json
 dist-newstyle
 */debug
 ghcjs
+.aider*

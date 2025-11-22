@@ -28,7 +28,7 @@ export const mapResult = <T, R>(result: Result<T>, f: (t: T) => R): Result<R> =>
   }
 }
 
-export const composeFoldMap = <A extends Array<unknown>, T, R>(f: (...a: A) => Result<T>, g: (t: T) => Result<R>):  (...a: A) => Result<R> => {
+export const composeFoldMap = <A extends unknown[], T, R>(f: (...a: A) => Result<T>, g: (t: T) => Result<R>):  (...a: A) => Result<R> => {
   return (...args) =>foldMap(f(...args), g)
 }
 
@@ -42,7 +42,9 @@ export const foldMap = <T, R>(result: Result<T>, f: (t: T) => Result<R>): Result
 
 export type Parser<T> = (nodes: Node[]) => Result<T>
 export type Builder<T> = (document: Document, t: T) => { attributes?: Attr[], children: Node[] }[]
+export type Builder0<T> = (document: Document, t: T) => [{ children: [] }]
 export type Builder1<T> = (document: Document, t: T) => [{ children: [Node] }]
+export type Builder01<T> = Builder0<T> | Builder1<T>
 export type ParserObject<T> = {
   [K in keyof T]: ParserSpec<T[K]>
 }
@@ -77,23 +79,20 @@ export type BuilderObject<T> = {
   [K in keyof T]: { type: "element", xmlname?: string, builder: Builder<T[K]> } | {
   type: "attribute",
   xmlname?: string,
-  builder: Builder1<T[K]>
+  builder: Builder01<T[K]>
 }
 }
 export type PicklerObject<T> = ParserObject<T> & BuilderObject<T>
 
-export const buildKvp = <K extends string, T extends string>(tagName: string, kAttr: string, vAttr: string): Builder<Record<K, T>> => (document: Document, val: Record<K, T>): { attributes?: Attr[], children: Node[] }[] => {
-  console.log("just beginning", val)
-  return [
+export const buildKvp = <K extends string, T extends string>(tagName: string, kAttr: string, vAttr: string): Builder<Record<K, T>> => (document: Document, val: Record<K, T>): { attributes?: Attr[], children: Node[] }[] =>
+  [{ children: Object.entries(val).map(([key, value]) =>
     {
-      children: Object.entries(val).map(([key, value]) => {
-        const ele = document.createElement(tagName)
-        ele.setAttribute(kAttr, key);
-        ele.setAttribute(vAttr, String(value));
-        return ele
-      })
-    }]
-}
+      const ele = document.createElement(tagName)
+       ele.setAttribute(kAttr, key);
+       ele.setAttribute(vAttr, String(value));
+      return ele
+    })
+  }]
 
 
 const buildString: Builder1<string> = (document: Document, val: string) => {
@@ -154,7 +153,6 @@ export const buildObject = <T>(builderObject: BuilderObject<T>): Builder<T> => (
     attributes: Attr[],
     children: Node[]
   }] => {
-  console.log("buildingObject", val)
   const children: Node[] = []
   const attributes: Attr[] = []
   for (const key in builderObject) {
@@ -165,7 +163,7 @@ export const buildObject = <T>(builderObject: BuilderObject<T>): Builder<T> => (
         childs.forEach(child => {
           const node = document.createElement(builder.xmlname || key)
           child.attributes && Array.from(child.attributes).forEach(a => node.setAttributeNode(a))
-          Array.from(node.childNodes).forEach(child => node.removeChild(node))
+          Array.from(node.childNodes).forEach(child => node.removeChild(child)) //this had been node.removeChild(node), which seemed obviously wrong
           child.children.forEach(ch => node.appendChild(ch))
           children.push(node)
         })
@@ -175,7 +173,7 @@ export const buildObject = <T>(builderObject: BuilderObject<T>): Builder<T> => (
         const node = document.createAttribute(builder.xmlname || key)
         const [{children}] = builder.builder(document, val[key])
         const [childs] = children
-        node.textContent = childs.textContent
+        node.textContent = childs ? childs.textContent : ''
         attributes.push(node)
         break
       }
@@ -191,7 +189,7 @@ const handleAbsence = <T>(parser: ParserSpec<T>, nodes: Node[]): Result<T>|null 
   if (nodes.length === 0) {
     if ("default" in parser) {
       return {success: parser.default }
-    } else if (parser.if_absent == "optional key") {
+    } else if (parser.if_absent === "optional key") {
         return null
     } else {
       const p: undefined|"continue anyway" = parser.if_absent
@@ -269,8 +267,8 @@ export const parseRoot = <T>(name: string, parser: Parser<T>) => (doc: Document)
 }
 
 export const buildRoot = <T>(name: string, builder: Builder<T>) => (blankDocument: Document, val: T) => {
-  const rootEle = buildObject({[name]: {type: "element", builder}})(blankDocument, {[name]: val})
-  console.log('root ele', rootEle)
+  const rootEle = buildObject({[name]: {type: "element", builder}})
+  (blankDocument, {[name]: val})
 
   return rootEle[0].children[0]
 }

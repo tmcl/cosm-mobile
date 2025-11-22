@@ -5,7 +5,7 @@
     #my-wkt-geom.url = "git+https://git.tmcl.dev/tristan/wkt-geom";
     #my-wkt-geom.flake = false;
 
-    servant-foreign.url = "/home/tristan/src/signs-alt/tmp/servant/servant-foreign";
+    servant-foreign.url = "/home/tristan/src/current-projects/signs-alt/tmp/servant/servant-foreign";
     servant-foreign.flake = false;
 
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -74,14 +74,13 @@
             cmdline-tools-latest
             cmake-3-22-1
             build-tools-35-0-0
-            build-tools-34-0-0
+            build-tools-36-0-0
             platform-tools
             platforms-android-35
-            platforms-android-34
             #emulator
             #(if system == "x86_64-linux" then system-images-android-34-google-apis-x86-64 else system-images-android-34-google-apis-arm64-v8a)
-            ndk-26-1-10909125
-            ndk-25-1-8937393
+            #ndk-26-1-10909125
+            #ndk-25-1-8937393
             ndk-27-1-12297006
             ndk-27-0-12077973
           ]);
@@ -158,7 +157,7 @@
         };
 
 
-        buildToolsVersion = "34.0.0";
+        buildToolsVersion = "35.0.0";
         devShell = let
            
           haskellDeps = ps: [

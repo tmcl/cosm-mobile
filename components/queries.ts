@@ -7,8 +7,7 @@ import * as ReactQuery from "@tanstack/react-query";
 import {useEffect, useRef} from "react";
 import {useDrizzleStudio} from "expo-drizzle-studio-plugin";
 import type {DefaultError} from "@tanstack/query-core";
-
-export type TargetNode = GeoJSON.Feature<GeoJSON.Point, { ways: string[] } & OsmApi.INode>
+import {TargetNode, InterestingNodes, InterestingNodesParams, SavedChangeSet, ChangeSet , JsonBBox , IntersectingWayInfo, WayId, unreachable } from "./types"
 
 type TrackerInfo = {
   any: any,
@@ -86,47 +85,174 @@ class ThingyTracker {
   }
 }
 
-export type InterestingNodes = GeoJSON.FeatureCollection<GeoJSON.Point, object>
-export type InterestingNodesParams = {
-  $needles: Record<string, string>[],
-  minlon: number,
-  minlat: number,
-  maxlon: number,
-  maxlat: number
-}
 
 type StatementOrError = { q: SQLite.SQLiteStatement } | { e: unknown }
 
-export type SavedChangeSet<JSON = object> =
-    {
-      id: number,
-      type: string,
-      state_extract: JSON,
-      change: JSON,
-      created_date: number,
-      modified_date: number | null,
-      ready_date: number | null,
-      commit_date: number | null,
-      commentary1: string | null,
-      commentary2: string | null,
+
+export class OsmPopulatingQueries {
+  private _queryWays: StatementOrError | undefined
+  private _insertNodes: SQLite.SQLiteStatement | undefined
+  private _insertWays: SQLite.SQLiteStatement | undefined
+  private _insertBounds: SQLite.SQLiteStatement | undefined
+  private _insertRelatedWays: SQLite.SQLiteStatement | undefined
+  private _insertNodesWays: SQLite.SQLiteStatement | undefined
+  private _addCasingsToWays: SQLite.SQLiteStatement | undefined
+
+  private _tracker;
+
+  constructor() {
+    this._tracker = new ThingyTracker()
+  };
+
+  // noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
+  public get addCasingToWays(): never { throw "use the do function" }
+
+  public set addCasingToWays(thequery: SQLite.SQLiteStatement | undefined) {
+    this._addCasingsToWays?.finalizeAsync()
+    this._addCasingsToWays = thequery
+  }
+
+
+  public doAddCasingToWays() {
+    return this._addCasingsToWays!.executeAsync<never>()
+  }
+
+  // noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
+  public get insertWays(): never { throw "use the do function" }
+
+  public set insertWays(theinsertWays: SQLite.SQLiteStatement | undefined) {
+    this._insertWays?.finalizeAsync()
+    this._insertWays = theinsertWays
+  }
+
+  public async doInsertWays(param: { $json: string }) {
+    const r1 = this._tracker.track("insert ways", async _ => this._insertWays!.executeAsync<never>(param))
+    const r2 = this._tracker.track("insert nodes ways", async _ => this._insertNodesWays!.executeAsync<never>(param))
+    const [a1, a2] = await fromAsync([r1, r2])
+    return a1.changes > 0 || a2.changes > 0
+  }
+
+  // noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
+  public get insertNodes(): never { throw "this._insertNodes" }
+
+  public set insertNodes(theinsertNodes: SQLite.SQLiteStatement | undefined) {
+    this._insertNodes?.finalizeAsync()
+    this._insertNodes = theinsertNodes
+  }
+
+  public async doInsertNodes(param: { $json: string }) {
+    const r = await this._tracker.track("insertNodes", async _ => {
+      return this._insertNodes!.executeAsync<never>(param)
+    })
+    return r.changes > 0
+  }
+
+  // noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
+  public get insertNodesWays(): never { throw "use the do function" }
+
+  public set insertNodesWays(theinsertWays: SQLite.SQLiteStatement | undefined) {
+    this._insertNodesWays?.finalizeAsync()
+    this._insertNodesWays = theinsertWays
+  }
+  public get insertRelatedWays() { return this._insertRelatedWays }
+
+  public set insertRelatedWays(theinsertWays: SQLite.SQLiteStatement | undefined) {
+    this._insertRelatedWays?.finalizeAsync()
+    this._insertRelatedWays = theinsertWays
+  }
+
+  public doInsertRelatedWays() {
+    const loop = async (changes: number, resolver: (val: number) => void) => {
+      const currentQuery = this._insertRelatedWays
+      const queryResult = await this._tracker.track("insert related ways", () => currentQuery!.executeAsync<never>())
+      console.log("irw queryResult.changes", queryResult.changes)
+      if (queryResult.changes) {
+        InteractionManager.runAfterInteractions(() => loop(changes + queryResult.changes, resolver))
+      } else {
+        resolver(changes)
+      }
     }
-export type ChangeSet =
-    {
-      type: string,
-      state_extract: object,
-      change: object
+    const settler = (resolver: (val: number) => void, rejecter: (e?: any) => void) => {
+      loop(0, resolver)
     }
+    return new Promise<number>(settler)
+  }
+
+
+  // noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
+  public get insertBounds(): never { throw "this._insertBounds" }
+
+  public set insertBounds(theinsertBounds: SQLite.SQLiteStatement | undefined) {
+    this._insertBounds?.finalizeAsync()
+    this._insertBounds = theinsertBounds
+  }
+
+  public async doInsertBounds(args: { $json: string, $requestedBounds: JsonBBox }) {
+    const param = {$json: JSON.stringify({bounds: args.$requestedBounds})}
+    return this._tracker.track("insert bounds", async _ => {
+      return await this._insertBounds!.executeAsync<never>(param)
+    })
+  }
+
+  public set queryWays(theQueryWays: { q: SQLite.SQLiteStatement } | { e: unknown } | undefined) {
+    this._queryWays && "q" in this._queryWays && this._queryWays.q.finalizeAsync()
+    this._queryWays = theQueryWays
+  }
+
+  public async doQueryWays(jsArgs: { $limit: number, minlon: number, minlat: number, maxlon: number, maxlat: number }) {
+    if (this._queryWays && "q" in this._queryWays) {
+      const {minlon, minlat, maxlon, maxlat, ...others} = jsArgs
+      const sqliteArgs = {...others, $minlon: minlon, $minlat: minlat, $maxlat: maxlat, $maxlon: maxlon}
+      const result = this._queryWays.q.executeSync<{ geojson: string, centrelines: string }>(sqliteArgs)
+      const centrelines = []
+      const casings = []
+      for await (const geojson of result) {
+        casings.push(JSON.parse(geojson.geojson) as GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString, OsmApi.IWay>)
+        centrelines.push(JSON.parse(geojson.centrelines) as GeoJSON.Feature<GeoJSON.LineString, OsmApi.IWay>)
+      }
+      return {centrelines, casings}
+    } else {
+      throw JSON.stringify(this._queryWays) || "query ways not defined"
+    }
+  }
+
+  async setup(db: SQLite.SQLiteDatabase) {
+    try {
+      console.log("hi 1")
+      this.insertBounds = await db.prepareAsync(require('@/sql/insert-bounds.sql.json'))
+      console.log("hi 2")
+      this.insertNodes = await db.prepareAsync(require('@/sql/insert-nodes.sql.json'))
+      console.log("hi 3")
+      this.insertWays = await db.prepareAsync(require('@/sql/insert-ways.sql.json'))
+      console.log("hi 5")
+      this.addCasingToWays = await db.prepareAsync(require('@/sql/add-casing-to-ways.sql.json'))
+      console.log("hi 6")
+      this.insertRelatedWays = await db.prepareAsync(require('@/sql/insert-related-ways.sql.json'))
+      console.log("hi 7")
+      console.log("hi 9")
+      this.queryWays = await (async () => { try { return {q: await db.prepareAsync(require('@/sql/query-ways.sql.json'))} } catch (e) { return {e: e} }})()
+
+      this.insertNodesWays = await db.prepareAsync(require('@/sql/insert-nodes-ways.sql.json'))
+    } catch (e) {
+      console.log("error initialising queries", e)
+    }
+  }
+
+  finalize() {
+    this.insertBounds = undefined
+    this.insertNodes = undefined
+    this.insertNodesWays = undefined
+    this.insertWays = undefined
+    this.addCasingToWays = undefined
+    this.insertRelatedWays = undefined
+    this.queryWays = undefined
+  }
+
+}
 
 export class MainPageQueries {
   private _knownBounds: SQLite.SQLiteStatement | undefined
-  private _insertBounds: SQLite.SQLiteStatement | undefined
-  private _insertNodes: SQLite.SQLiteStatement | undefined
-  private _insertRelatedWays: SQLite.SQLiteStatement | undefined
-  private _insertNodesWays: SQLite.SQLiteStatement | undefined
   private _queryNodes: SQLite.SQLiteStatement | undefined
-  private _insertWays: SQLite.SQLiteStatement | undefined
-  private _queryWays: StatementOrError | undefined
-  private _addCasingsToWays: SQLite.SQLiteStatement | undefined
   private _findSameRoads: SQLite.SQLiteStatement | undefined
   private _findIntersections: SQLite.SQLiteStatement | undefined
   private _findTargetNodes: StatementOrError | undefined
@@ -249,6 +375,7 @@ export class MainPageQueries {
   }
 
   public async doKnownBounds(jsArgs: { minlon: number, minlat: number, maxlon: number, maxlat: number }) {
+    console.log("i want to do known bounds, so i'm checking carefully", this._knownBounds)
     const {minlon, minlat, maxlon, maxlat} = jsArgs
     const sqliteArgs = {$minlon: minlon, $minlat: minlat, $maxlat: maxlat, $maxlon: maxlon}
     const boundsQuer = await this._knownBounds!.executeAsync<{ difference: string }>(sqliteArgs)
@@ -271,101 +398,6 @@ export class MainPageQueries {
     for await (const geojson of result) {
       yield JSON.parse(geojson.geojson) as GeoJSON.Feature<GeoJSON.Point, OsmApi.INode>
     }
-  }
-
-  public set queryWays(theQueryWays: { q: SQLite.SQLiteStatement } | { e: unknown } | undefined) {
-    this._queryWays && "q" in this._queryWays && this._queryWays.q.finalizeAsync()
-    this._queryWays = theQueryWays
-  }
-
-  public async doQueryWays(jsArgs: { $limit: number, minlon: number, minlat: number, maxlon: number, maxlat: number }) {
-    if (this._queryWays && "q" in this._queryWays) {
-      const {minlon, minlat, maxlon, maxlat, ...others} = jsArgs
-      const sqliteArgs = {...others, $minlon: minlon, $minlat: minlat, $maxlat: maxlat, $maxlon: maxlon}
-      const result = this._queryWays.q.executeSync<{ geojson: string, centrelines: string }>(sqliteArgs)
-      const centrelines = []
-      const casings = []
-      for await (const geojson of result) {
-        casings.push(JSON.parse(geojson.geojson) as GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString, OsmApi.IWay>)
-        centrelines.push(JSON.parse(geojson.centrelines) as GeoJSON.Feature<GeoJSON.LineString, OsmApi.IWay>)
-      }
-      return {centrelines, casings}
-    } else {
-      throw JSON.stringify(this._queryWays) || "query ways not defined"
-    }
-  }
-
-  // noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
-  public get insertNodesWays(): never { throw "use the do function" }
-
-  public set insertNodesWays(theinsertWays: SQLite.SQLiteStatement | undefined) {
-    this._insertNodesWays?.finalizeAsync()
-    this._insertNodesWays = theinsertWays
-  }
-
-  public get insertRelatedWays() { return this._insertRelatedWays }
-
-  public set insertRelatedWays(theinsertWays: SQLite.SQLiteStatement | undefined) {
-    this._insertRelatedWays?.finalizeAsync()
-    this._insertRelatedWays = theinsertWays
-  }
-
-  public doInsertRelatedWays() {
-    const loop = async (changes: number, resolver: (val: number) => void) => {
-      const currentQuery = this._insertRelatedWays
-      const queryResult = await this._tracker.track("insert related ways", () => currentQuery!.executeAsync<never>())
-      console.log("irw queryResult.changes", queryResult.changes)
-      if (queryResult.changes) {
-        InteractionManager.runAfterInteractions(() => loop(changes + queryResult.changes, resolver))
-      } else {
-        resolver(changes)
-      }
-    }
-    const settler = (resolver: (val: number) => void, rejecter: (e?: any) => void) => {
-      loop(0, resolver)
-    }
-    return new Promise<number>(settler)
-  }
-
-  // noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
-  public get addCasingToWays(): never { throw "use the do function" }
-
-  public set addCasingToWays(thequery: SQLite.SQLiteStatement | undefined) {
-    this._addCasingsToWays?.finalizeAsync()
-    this._addCasingsToWays = thequery
-  }
-
-
-  public doAddCasingToWays() {
-    return this._addCasingsToWays!.executeAsync<never>()
-  }
-
-  // noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
-  public get insertWays(): never { throw "use the do function" }
-
-  public set insertWays(theinsertWays: SQLite.SQLiteStatement | undefined) {
-    this._insertWays?.finalizeAsync()
-    this._insertWays = theinsertWays
-  }
-
-  public doInsertWays(param: { $json: string }) {
-    const r1 = this._tracker.track("insert ways", async _ => this._insertWays!.executeAsync<never>(param))
-    const r2 = this._tracker.track("insert nodes ways", async _ => this._insertNodesWays!.executeAsync<never>(param))
-    return fromAsync([r1, r2])
-  }
-
-  // noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
-  public get insertNodes(): never { throw "this._insertNodes" }
-
-  public set insertNodes(theinsertNodes: SQLite.SQLiteStatement | undefined) {
-    this._insertNodes?.finalizeAsync()
-    this._insertNodes = theinsertNodes
-  }
-
-  public doInsertNodes(param: { $json: string }) {
-    return this._tracker.track("insertNodes", async _ => {
-      return this._insertNodes!.executeAsync<never>(param)
-    })
   }
 
 
@@ -418,74 +450,55 @@ export class MainPageQueries {
     return result
   }
 
-  // noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
-  public get insertBounds(): never { throw "this._insertBounds" }
-
-  public set insertBounds(theinsertBounds: SQLite.SQLiteStatement | undefined) {
-    this._insertBounds?.finalizeAsync()
-    this._insertBounds = theinsertBounds
-  }
-
-  public async doInsertBounds(args: { $json: string, $requestedBounds: JsonBBox }) {
-    const param = {$json: JSON.stringify({bounds: args.$requestedBounds})}
-    return this._tracker.track("insert bounds", async _ => {
-      return await this._insertBounds!.executeAsync<never>(param)
-    })
-  }
-
   async setup(db: SQLite.SQLiteDatabase) {
-    this.insertBounds = await db.prepareAsync(require('@/sql/insert-bounds.sql.json'))
-    this.insertNodes = await db.prepareAsync(require('@/sql/insert-nodes.sql.json'))
-    this.insertWays = await db.prepareAsync(require('@/sql/insert-ways.sql.json'))
-    this.knownBounds = await db.prepareAsync(require('@/sql/known-bounds.sql.json'))
-    this.addCasingToWays = await db.prepareAsync(require('@/sql/add-casing-to-ways.sql.json'))
-    this.insertRelatedWays = await db.prepareAsync(require('@/sql/insert-related-ways.sql.json'))
+    try {
+      console.log("hi 4")
+      this.knownBounds = await db.prepareAsync(require('@/sql/known-bounds.sql.json'))
+      console.log("hi 7")
 
-    this.insertNodesWays = await db.prepareAsync(require('@/sql/insert-nodes-ways.sql.json'))
-    this.queryNodes = await db.prepareAsync(require('@/sql/query-nodes.sql.json'))
-    this.queryWays = await (async () => { try { return {q: await db.prepareAsync(require('@/sql/query-ways.sql.json'))} } catch (e) { return {e: e} }})()
-    this.findSameRoads = await db.prepareAsync(require('@/sql/find-same-roads.sql.json'))
-    this.findIntersections = await db.prepareAsync(require('@/sql/find-intersections.sql.json'))
-    this.findTargetNodes = await (async () => {
-      try {
-        return {
-          q: await db.prepareAsync(require('@/sql/find-target-elements.sql.json'))
-        }
-      } catch (e) { return {e: e} }
-    })()
-    this.saveNewChange = await (async () => {
-      try {
-        return {
-          q: await db.prepareAsync(require('@/sql/save-user-data-changes.sql.json'))
-        }
-      } catch (e) { return {e: e} }
-    })()
-    this.saveUpdateChange = await (async () => {
-      try {
-        return {
-          q: await db.prepareAsync(require('@/sql/update-user-data-changes.sql.json'))
-        }
-      } catch (e) { return {e: e} }
-    })()
-    this.selectUserChange = await (async () => {
-      try {
-        return {
-          q: await db.prepareAsync(require('@/sql/select-user-change.sql.json'))
-        }
-      } catch (e) { return {e: e} }
-    })()
+      console.log("hi 8")
+      this.queryNodes = await db.prepareAsync(require('@/sql/query-nodes.sql.json'))
+      console.log("hi 10")
+      this.findSameRoads = await db.prepareAsync(require('@/sql/find-same-roads.sql.json'))
+      console.log("hi 11")
+      this.findIntersections = await db.prepareAsync(require('@/sql/find-intersections.sql.json'))
+      console.log("hi 12")
+      this.findTargetNodes = await (async () => {
+        try {
+          return {
+            q: await db.prepareAsync(require('@/sql/find-target-elements.sql.json'))
+          }
+        } catch (e) { return {e: e} }
+      })()
+      this.saveNewChange = await (async () => {
+        try {
+          return {
+            q: await db.prepareAsync(require('@/sql/save-user-data-changes.sql.json'))
+          }
+        } catch (e) { return {e: e} }
+      })()
+      this.saveUpdateChange = await (async () => {
+        try {
+          return {
+            q: await db.prepareAsync(require('@/sql/update-user-data-changes.sql.json'))
+          }
+        } catch (e) { return {e: e} }
+      })()
+      this.selectUserChange = await (async () => {
+        try {
+          return {
+            q: await db.prepareAsync(require('@/sql/select-user-change.sql.json'))
+          }
+        } catch (e) { return {e: e} }
+      })()
+    } catch (e) {
+      console.log("error initialising queries", e)
+    }
   }
 
   finalize() {
     this.knownBounds = undefined
-    this.insertBounds = undefined
-    this.insertNodes = undefined
-    this.insertNodesWays = undefined
     this.queryNodes = undefined
-    this.insertWays = undefined
-    this.addCasingToWays = undefined
-    this.insertRelatedWays = undefined
-    this.queryWays = undefined
     this.findSameRoads = undefined
     this.findTargetNodes = undefined
     this.findIntersections = undefined
@@ -493,24 +506,6 @@ export class MainPageQueries {
     this.saveUpdateChange = undefined
     this.selectUserChange = undefined
   }
-}
-
-export type JsonBBox = { minlon: number, minlat: number, maxlat: number, maxlon: number }
-
-export type IntersectingWayInfo = {
-  ix: number,
-  node_tags: OsmApi.INode,
-  others: WayId<number>,
-  way_tags: OsmApi.IWay
-}[]
-
-export function doublePad(bbox: JsonBBox): JsonBBox
-export function doublePad({minlon, minlat, maxlon, maxlat}: JsonBBox): JsonBBox {
-  minlon = minlon - (maxlon - minlon)
-  maxlon = maxlon + (maxlon - minlon)
-  minlat = minlat - (maxlat - minlat)
-  maxlat = maxlat + (maxlat - minlat)
-  return {minlon, minlat, maxlon, maxlat}
 }
 
 type AppKey = readonly unknown[]
@@ -620,6 +615,26 @@ class ReviewPageQueries {
     this._db = undefined
   }
 
+  async selectUserChange(id: number): Promise<SavedChangeSet | null> {
+    const sql = await this._db!.prepareAsync(require('@/sql/select-user-change.sql.json'))
+    console.log("doing select user change", sql)
+    const sqlChange = {$id: id,}
+    const r = await sql.executeAsync<SavedChangeSet<string>>(sqlChange)
+    const res = (await r.getFirstAsync())
+    const result = res && {...res, state_extract: JSON.parse(res.state_extract), change: JSON.parse(res.change)}
+    console.log("didding select user change", res, result)
+    return result
+  }
+
+  async deleteChanges(params: {ids: number[]}) {
+    const sql = await this._db!.prepareAsync(require('@/sql/delete-user-data-changes.sql.json'))
+    try {
+      const query = await sql.executeAsync<void>({$ids: JSON.stringify(params.ids)});
+      return query.changes
+    } finally {
+      sql.finalizeAsync()
+    }
+  }
   async queryChanges() {
     const sql = await this._db!.prepareAsync(require('@/sql/select-user-changes.sql.json'))
     const query = await sql.executeAsync<SavedChangeSet>();
@@ -630,6 +645,17 @@ class ReviewPageQueries {
 export const useReviewPageQueries = () => {
   const db = SQLite.useSQLiteContext()
   const queries = useRef(new ReviewPageQueries())
+  useEffect(() => {
+    const currentQueries = queries.current
+    currentQueries.setup(db)
+    return () => currentQueries.finalize()
+  }, [db])
+  return queries
+}
+export const useOsmPopulatingQueries = () => {
+  const db = SQLite.useSQLiteContext()
+  const queries = useRef(new OsmPopulatingQueries())
+  useDrizzleStudio(db)
   useEffect(() => {
     const currentQueries = queries.current
     currentQueries.setup(db)
@@ -648,36 +674,3 @@ export const useMainPageQueries = () => {
   }, [db])
   return queries
 }
-export type FoundNearbyWays = { ways: WayId[], nodes: GeoJSON.Point[] }
-
-
-export const debug = <A, B>(a: A, b: B): B => {
-  console.log(a, b);
-  return b
-}
-export type WayId<T extends string | number = string> = T
-
-export const nub = (arr: string[]): string[] => {
-  return Object.keys(Object.fromEntries(arr.map(f => [f, true])))
-}
-
-export const bound = (val: number, min: number, max: number) => {
-  const difference = max - min
-  let result = val
-  while (result < min) {
-    result += difference
-  }
-  while (result >= max) {
-    result -= difference
-  }
-  return result
-}
-
-// like a memoizer, but only evaluated once.
-export const lazy = <T>(f: () => T): () => T => {
-  let result: undefined | T
-  return () => (result || (result = f()))
-}
-
-export type PartialRecord<A extends string | number | symbol, B> = Partial<Record<A, B>>
-export const unreachable = (x: never): never => { throw new Error(x) }

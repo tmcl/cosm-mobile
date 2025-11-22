@@ -1,6 +1,4 @@
 
-
-  
 export function getApi06Map(bbox?: Bbox): Promise<OsmStandard & BoundedElements> {
   let options: RequestInit = {
     credentials: "same-origin" as RequestCredentials,
@@ -9,7 +7,7 @@ export function getApi06Map(bbox?: Bbox): Promise<OsmStandard & BoundedElements>
   };
   
   let params = {bbox: bbox && toQueryParamBbox(bbox)};
-  return (window.fetch)(`localhost/api/0.6/map` + "?" + new URLSearchParams(removeUndefined(params)).toString(), options).then((response) => {
+  return (window.fetch)(`https://master.apis.dev.openstreetmap.org/api/0.6/map` + "?" + new URLSearchParams(removeUndefined(params)).toString(), options).then((response) => {
     return new Promise((resolve, reject) => {
       if (response.status !== 200) {
         return response.text().then((text) => reject({text, status: response.status}));
@@ -30,7 +28,6 @@ export function getApi06MapText(bbox?: Bbox): Promise<string> {
   let params = {bbox: bbox && toQueryParamBbox(bbox)};
   return (window.fetch)(`https://master.apis.dev.openstreetmap.org/api/0.6/map` + "?" + new URLSearchParams(removeUndefined(params)).toString(), options).then((response) => {
     return new Promise((resolve, reject) => {
-      console.log('api06Map', response.status)
       if (response.status !== 200) {
         return response.text().then((text) => reject({text, status: response.status}));
       } else {
@@ -48,7 +45,7 @@ export function getApi06Permissions(): Promise<OsmStandard & InaRecord_permissio
   };
   
   let params = {};
-  return (window.fetch)(`localhost/api/0.6/permissions` + "?" + new URLSearchParams(removeUndefined(params)).toString(), options).then((response) => {
+  return (window.fetch)(`https://master.apis.dev.openstreetmap.org/api/0.6/permissions` + "?" + new URLSearchParams(removeUndefined(params)).toString(), options).then((response) => {
     return new Promise((resolve, reject) => {
       if (response.status !== 200) {
         return response.text().then((text) => reject({text, status: response.status}));
@@ -88,7 +85,6 @@ export function getApi06Capabilities(): Promise<OsmStandard & ApiCapabilities> {
   let params = {};
   return (window.fetch)(`https://master.apis.dev.openstreetmap.org/api/0.6/capabilities` + "?" + new URLSearchParams(removeUndefined(params)).toString(), options).then((response) => {
     return new Promise((resolve, reject) => {
-      console.log('caps', response.status)
       if (response.status !== 200) {
         return response.text().then((text) => reject({text, status: response.status}));
       } else {
@@ -127,7 +123,6 @@ export function getApiVersions(): Promise<OsmStandard & InaRecord_api_InaRecord_
   let params = {};
   return (window.fetch)(`https://master.apis.dev.openstreetmap.org/api/versions` + "?" + new URLSearchParams(removeUndefined(params)).toString(), options).then((response) => {
     return new Promise((resolve, reject) => {
-      console.log('api version', response.status)
       if (response.status !== 200) {
         return response.text().then((text) => reject({text, status: response.status}));
       } else {
@@ -155,8 +150,7 @@ export function getApiVersionsText(): Promise<string> {
     });
   });
 }
-
-type FullyDefined<T> = Partial<{
+ type FullyDefined<T> = Partial<{
   [key in keyof T]: Exclude<T[key], undefined>
 }>
 
@@ -317,7 +311,7 @@ export interface IWay {
   changeset: number;
   user: string;
   uid: number;
-  tags?: {[k in string]?: string};
+  tags?: {[k in string]: string};
 }
 
 export type ApiCapabilities = IApiCapabilities;

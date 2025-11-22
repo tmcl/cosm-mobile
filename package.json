@@ -12,9 +12,6 @@
     "test": "jest --watchAll",
     "lint": "expo lint"
   },
-  "jest": {
-    "preset": "jest-expo"
-  },
   "dependencies": {
     "@expo/html-elements": "^0.4.2",
     "@expo/vector-icons": "^14.1.0",
@@ -41,8 +38,7 @@
     "expo-location": "~18.1.6",
     "expo-router": "~5.1.5",
     "expo-splash-screen": "~0.30.10",
-     "expo-sqlite": "git+https://git.tmcl.dev/tristan/expo-spatialite#alternative-implementation",
-
+    "expo-sqlite": "git+https://git.tmcl.dev/tristan/expo-spatialite#alternative-implementation",
     "expo-status-bar": "~2.2.3",
     "expo-symbols": "~0.4.5",
     "expo-system-ui": "~5.0.11",
@@ -66,6 +62,8 @@
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
+    "@babel/preset-env": "^7.28.5",
+    "@babel/preset-typescript": "^7.28.5",
     "@types/jest": "^29.5.12",
     "@types/react": "~19.0.10",
     "@types/react-test-renderer": "^18.3.0",
@@ -76,6 +74,7 @@
     "jest-expo": "~53.0.10",
     "jscodeshift": "^0.15.2",
     "react-test-renderer": "18.3.1",
+    "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
   },
   "resolutions": {

@@ -1,0 +1,163 @@
+{
+  "version": "0.6",
+  "generator": "openstreetmap-cgimap 2.1.0 (1921396 faffy.openstreetmap.org)",
+  "copyright": "OpenStreetMap and contributors",
+  "attribution": "http://www.openstreetmap.org/copyright",
+  "license": "http://opendatacommons.org/licenses/odbl/1-0/",
+  "elements": [
+    {
+      "type": "way",
+      "id": 4306563790,
+      "timestamp": "2024-12-26T09:22:39Z",
+      "version": 1,
+      "changeset": 396710,
+      "user": "ParticulateMatter",
+      "uid": 21296,
+      "nodes": [
+        4352740557,
+        4352742893,
+        4352740599,
+        4352742065,
+        4352740556,
+        4352736893,
+        4352736894,
+        4352736895,
+        4352736896,
+        4352736897,
+        4352740555,
+        4352736869
+      ],
+      "tags": {
+        "highway": "residential",
+        "name": "Baker Parade",
+        "surface": "paved"
+      }
+    },
+    {"type":"node","id":4352740557,"lat":-37.8602180,"lon":145.0824419,"timestamp":"2024-12-26T09:22:39Z","version":1,"changeset":396710,"user":"ParticulateMatter","uid":21296},
+    {
+      "type": "node",
+      "id": 4352742893,
+      "lat": -37.8602325,
+      "lon": 145.0825836,
+      "timestamp": "2024-12-26T09:22:39Z",
+      "version": 1,
+      "changeset": 396710,
+      "user": "ParticulateMatter",
+      "uid": 21296,
+      "tags": {
+        "crossing": "unmarked",
+        "highway": "crossing"
+      }
+    },
+    {
+      "type": "node",
+      "id": 4352740599,
+      "lat": -37.8602427,
+      "lon": 145.0826545,
+      "timestamp": "2024-12-26T09:22:39Z",
+      "version": 1,
+      "changeset": 396710,
+      "user": "ParticulateMatter",
+      "uid": 21296
+    },
+    {
+      "type": "node",
+      "id": 4352742065,
+      "lat": -37.8603821,
+      "lon": 145.0837932,
+      "timestamp": "2024-12-26T09:22:39Z",
+      "version": 1,
+      "changeset": 396710,
+      "user": "ParticulateMatter",
+      "uid": 21296
+    },
+    {
+      "type": "node",
+      "id": 4352740556,
+      "lat": -37.8604606,
+      "lon": 145.0844335,
+      "timestamp": "2024-12-26T09:22:39Z",
+      "version": 1,
+      "changeset": 396710,
+      "user": "ParticulateMatter",
+      "uid": 21296
+    },
+    {
+      "type": "node",
+      "id": 4352736893,
+      "lat": -37.8604618,
+      "lon": 145.0844650,
+      "timestamp": "2024-12-26T09:22:39Z",
+      "version": 1,
+      "changeset": 396710,
+      "user": "ParticulateMatter",
+      "uid": 21296
+    },
+    {
+      "type": "node",
+      "id": 4352736894,
+      "lat": -37.8604576,
+      "lon": 145.0845140,
+      "timestamp": "2024-12-26T09:22:39Z",
+      "version": 1,
+      "changeset": 396710,
+      "user": "ParticulateMatter",
+      "uid": 21296
+    },
+    {
+      "type": "node",
+      "id": 4352736895,
+      "lat": -37.8603949,
+      "lon": 145.0849847,
+      "timestamp": "2024-12-26T09:22:39Z",
+      "version": 1,
+      "changeset": 396710,
+      "user": "ParticulateMatter",
+      "uid": 21296
+    },
+    {
+      "type": "node",
+      "id": 4352736896,
+      "lat": -37.8603925,
+      "lon": 145.0850209,
+      "timestamp": "2024-12-26T09:22:39Z",
+      "version": 1,
+      "changeset": 396710,
+      "user": "ParticulateMatter",
+      "uid": 21296
+    },
+    {
+      "type": "node",
+      "id": 4352736897,
+      "lat": -37.8603928,
+      "lon": 145.0850670,
+      "timestamp": "2024-12-26T09:22:39Z",
+      "version": 1,
+      "changeset": 396710,
+      "user": "ParticulateMatter",
+      "uid": 21296
+    },
+    {
+      "type": "node",
+      "id": 4352740555,
+      "lat": -37.8603941,
+      "lon": 145.0851003,
+      "timestamp": "2024-12-26T09:22:39Z",
+      "version": 1,
+      "changeset": 396710,
+      "user": "ParticulateMatter",
+      "uid": 21296
+    },
+    {
+      "type": "node",
+      "id": 4352736869,
+      "lat": -37.8607327,
+      "lon": 145.0880551,
+      "timestamp": "2024-12-26T09:22:39Z",
+      "version": 1,
+      "changeset": 396710,
+      "user": "ParticulateMatter",
+      "uid": 21296
+    }
+  ]
+}
