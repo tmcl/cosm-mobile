@@ -1,14 +1,6 @@
 {
   overlay = final: prev: {
-    gradle-unwrapped = final.callPackage (((import "${prev.path}/pkgs/development/tools/build-managers/gradle") {
-        jdk17 = final.openjdk17;
-        jdk21 = final.openjdk21;
-        jdk23 = final.openjdk23;
-      }).gen {
-        version = "8.10.2";
-        hash = "sha256-McVXE+QCM6gwOCfOtCykikcmegrUurkXcSMSHnFSTCY=";
-        defaultJava = final.openjdk17;
-      }) {};
+        gradle-unwrapped = prev.gradle-unwrapped.override { java = prev.openjdk17; javaToolchains = [prev.openjdk17]; };
   };
   buildOutputs = {
     root_path,
