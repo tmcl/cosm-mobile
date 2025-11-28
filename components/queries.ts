@@ -89,8 +89,104 @@ class ThingyTracker {
 type StatementOrError = { q: SQLite.SQLiteStatement } | { e: unknown }
 
 
-export class OsmPopulatingQueries {
+export class OsmDataQueries {
   private _queryWays: StatementOrError | undefined
+  private _findSameRoads: SQLite.SQLiteStatement | undefined
+  private _findIntersections: SQLite.SQLiteStatement | undefined
+
+  private _tracker;
+
+  constructor() {
+    this._tracker = new ThingyTracker()
+  };
+  // noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
+  public get findIntersections(): never { throw "this._findIntersections" }
+
+  public set findIntersections(thequery: SQLite.SQLiteStatement | undefined) {
+    this._findIntersections?.finalizeAsync()
+    this._findIntersections = thequery
+  }
+
+  public async doFindIntersections(jsArgs: WayId[]): Promise<Record<WayId, IntersectingWayInfo>> {
+    const sqliteArgs = {$required_ids: JSON.stringify(jsArgs)}
+    console.log("find intersections", jsArgs, sqliteArgs)
+    const query = await this._tracker.track(
+        "exec find intersections",
+        () => this._findIntersections!.executeAsync<{ intersections: string }>(sqliteArgs)
+    )
+    const queryResult = await this._tracker.track("exec getall intersections", () => query.getFirstAsync())
+    const result: Record<WayId, IntersectingWayInfo> = queryResult
+        ? JSON.parse(queryResult.intersections)
+        : {}
+    console.log("intersections res", queryResult, result)
+    return result
+  }
+
+  // noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
+  public get findSameRoads(): never { throw "this._findSameRoads" }
+
+  public set findSameRoads(thequery: SQLite.SQLiteStatement | undefined) {
+    this._findSameRoads?.finalizeAsync()
+    this._findSameRoads = thequery
+  }
+
+  public async doFindSameRoads(jsArgs: WayId[]): Promise<Record<WayId, WayId[]>> {
+    const sqliteArgs = {$required_ids: JSON.stringify(jsArgs)}
+    console.log("!!!!!!!!!!!!!!!!!!!!!!!!!find same roads", jsArgs, sqliteArgs)
+    const query = await this._tracker.track(
+        "exec find sameRoads",
+        () => this._findSameRoads!.executeAsync<{ id: WayId, sameRoad: string }>(sqliteArgs)
+    )
+    const queryResult = await this._tracker.track("exec getall same roads", () => query.getAllAsync())
+    const result: Record<WayId, WayId[]> = {}
+    queryResult.forEach(r => {result[r.id] = (JSON.parse(r.sameRoad) as number[]).map(m => m.toString())})
+
+    return result
+  }
+
+  public set queryWays(theQueryWays: { q: SQLite.SQLiteStatement } | { e: unknown } | undefined) {
+    this._queryWays && "q" in this._queryWays && this._queryWays.q.finalizeAsync()
+    this._queryWays = theQueryWays
+  }
+
+  public async doQueryWays(jsArgs: { $limit: number, minlon: number, minlat: number, maxlon: number, maxlat: number }) {
+    if (this._queryWays && "q" in this._queryWays) {
+      const {minlon, minlat, maxlon, maxlat, ...others} = jsArgs
+      const sqliteArgs = {...others, $minlon: minlon, $minlat: minlat, $maxlat: maxlat, $maxlon: maxlon}
+      const result = this._queryWays.q.executeSync<{ geojson: string, centrelines: string }>(sqliteArgs)
+      const centrelines = []
+      const casings = []
+      for await (const geojson of result) {
+        casings.push(JSON.parse(geojson.geojson) as GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString, OsmApi.IWay>)
+        centrelines.push(JSON.parse(geojson.centrelines) as GeoJSON.Feature<GeoJSON.LineString, OsmApi.IWay>)
+      }
+      return {centrelines, casings}
+    } else {
+      throw JSON.stringify(this._queryWays) || "query ways not defined"
+    }
+  }
+
+  async setup(db: SQLite.SQLiteDatabase) {
+    try {
+      console.log("hi 9")
+      this.queryWays = await (async () => { try { return {q: await db.prepareAsync(require('@/sql/query-ways.sql.json'))} } catch (e) { return {e: e} }})()
+      console.log("hi 10")
+      this.findSameRoads = await db.prepareAsync(require('@/sql/find-same-roads.sql.json'))
+      console.log("hi 11")
+      this.findIntersections = await db.prepareAsync(require('@/sql/find-intersections.sql.json'))
+    } catch (e) {
+      console.log("error initialising queries", e)
+    }
+  }
+
+  finalize() {
+    this.queryWays = undefined
+    this.findSameRoads = undefined
+    this.findIntersections = undefined
+  }
+}
+
+export class OsmPopulatingQueries {
   private _insertNodes: SQLite.SQLiteStatement | undefined
   private _insertWays: SQLite.SQLiteStatement | undefined
   private _insertBounds: SQLite.SQLiteStatement | undefined
@@ -194,27 +290,6 @@ export class OsmPopulatingQueries {
     })
   }
 
-  public set queryWays(theQueryWays: { q: SQLite.SQLiteStatement } | { e: unknown } | undefined) {
-    this._queryWays && "q" in this._queryWays && this._queryWays.q.finalizeAsync()
-    this._queryWays = theQueryWays
-  }
-
-  public async doQueryWays(jsArgs: { $limit: number, minlon: number, minlat: number, maxlon: number, maxlat: number }) {
-    if (this._queryWays && "q" in this._queryWays) {
-      const {minlon, minlat, maxlon, maxlat, ...others} = jsArgs
-      const sqliteArgs = {...others, $minlon: minlon, $minlat: minlat, $maxlat: maxlat, $maxlon: maxlon}
-      const result = this._queryWays.q.executeSync<{ geojson: string, centrelines: string }>(sqliteArgs)
-      const centrelines = []
-      const casings = []
-      for await (const geojson of result) {
-        casings.push(JSON.parse(geojson.geojson) as GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString, OsmApi.IWay>)
-        centrelines.push(JSON.parse(geojson.centrelines) as GeoJSON.Feature<GeoJSON.LineString, OsmApi.IWay>)
-      }
-      return {centrelines, casings}
-    } else {
-      throw JSON.stringify(this._queryWays) || "query ways not defined"
-    }
-  }
 
   async setup(db: SQLite.SQLiteDatabase) {
     try {
@@ -229,9 +304,6 @@ export class OsmPopulatingQueries {
       console.log("hi 6")
       this.insertRelatedWays = await db.prepareAsync(require('@/sql/insert-related-ways.sql.json'))
       console.log("hi 7")
-      console.log("hi 9")
-      this.queryWays = await (async () => { try { return {q: await db.prepareAsync(require('@/sql/query-ways.sql.json'))} } catch (e) { return {e: e} }})()
-
       this.insertNodesWays = await db.prepareAsync(require('@/sql/insert-nodes-ways.sql.json'))
     } catch (e) {
       console.log("error initialising queries", e)
@@ -245,7 +317,6 @@ export class OsmPopulatingQueries {
     this.insertWays = undefined
     this.addCasingToWays = undefined
     this.insertRelatedWays = undefined
-    this.queryWays = undefined
   }
 
 }
@@ -253,8 +324,6 @@ export class OsmPopulatingQueries {
 export class MainPageQueries {
   private _knownBounds: SQLite.SQLiteStatement | undefined
   private _queryNodes: SQLite.SQLiteStatement | undefined
-  private _findSameRoads: SQLite.SQLiteStatement | undefined
-  private _findIntersections: SQLite.SQLiteStatement | undefined
   private _findTargetNodes: StatementOrError | undefined
   private _saveNewChange: StatementOrError | undefined
   private _saveUpdateChange: StatementOrError | undefined
@@ -401,54 +470,6 @@ export class MainPageQueries {
   }
 
 
-  // noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
-  public get findIntersections(): never { throw "this._findIntersections" }
-
-  public set findIntersections(thequery: SQLite.SQLiteStatement | undefined) {
-    this._findIntersections?.finalizeAsync()
-    this._findIntersections = thequery
-  }
-
-  public async doFindIntersections(jsArgs: WayId[]): Promise<Record<WayId, IntersectingWayInfo>> {
-    const sqliteArgs = {$required_ids: JSON.stringify(jsArgs)}
-    console.log("find intersections", jsArgs, sqliteArgs)
-    const query = await this._tracker.track(
-        "exec find intersections",
-        () => this._findIntersections!.executeAsync<{ intersections: string }>(sqliteArgs)
-    )
-    const queryResult = await this._tracker.track("exec getall intersections", () => query.getFirstAsync())
-    const result: Record<WayId, IntersectingWayInfo> = queryResult
-        ? JSON.parse(queryResult.intersections)
-        : {}
-    console.log("intersections res", queryResult, result)
-    return result
-  }
-
-  // noinspection JSUnusedGlobalSymbols this shouldn't be used - it exists to create a type error if it is
-  public get findSameRoads(): never { throw "this._findSameRoads" }
-
-  public set findSameRoads(thequery: SQLite.SQLiteStatement | undefined) {
-    this._findSameRoads?.finalizeAsync()
-    this._findSameRoads = thequery
-  }
-
-  public async doFindSameRoads(jsArgs: WayId[]): Promise<Record<WayId, WayId[]>> {
-    const sqliteArgs = {$required_ids: JSON.stringify(jsArgs)}
-    console.log("!!!!!!!!!!!!!!!!!!!!!!!!!find same roads", jsArgs, sqliteArgs)
-    const query = await this._tracker.track(
-        "exec find sameRoads",
-        () => this._findSameRoads!.executeAsync<{ id: WayId, sameRoad: string }>(sqliteArgs)
-    )
-    const queryResult = await this._tracker.track("exec getall same roads", () => query.getAllAsync())
-    const result: Record<WayId, WayId[]> = {}
-    queryResult.forEach(r => {result[r.id] = (JSON.parse(r.sameRoad) as number[]).map(m => m.toString())})
-    console.log("same road res", queryResult, result)
-    if (Object.values(result).some(s => s.some(t => typeof t !== "string"))) {
-      console.log("%%%%%%%%%%%%0, this is wrong")
-    }
-
-    return result
-  }
 
   async setup(db: SQLite.SQLiteDatabase) {
     try {
@@ -458,10 +479,6 @@ export class MainPageQueries {
 
       console.log("hi 8")
       this.queryNodes = await db.prepareAsync(require('@/sql/query-nodes.sql.json'))
-      console.log("hi 10")
-      this.findSameRoads = await db.prepareAsync(require('@/sql/find-same-roads.sql.json'))
-      console.log("hi 11")
-      this.findIntersections = await db.prepareAsync(require('@/sql/find-intersections.sql.json'))
       console.log("hi 12")
       this.findTargetNodes = await (async () => {
         try {
@@ -499,9 +516,7 @@ export class MainPageQueries {
   finalize() {
     this.knownBounds = undefined
     this.queryNodes = undefined
-    this.findSameRoads = undefined
     this.findTargetNodes = undefined
-    this.findIntersections = undefined
     this.saveNewChange = undefined
     this.saveUpdateChange = undefined
     this.selectUserChange = undefined
@@ -637,7 +652,7 @@ class ReviewPageQueries {
   }
   async queryChanges() {
     const sql = await this._db!.prepareAsync(require('@/sql/select-user-changes.sql.json'))
-    const query = await sql.executeAsync<SavedChangeSet>();
+    const query = await sql.executeAsync<SavedChangeSet<string>>();
     return await query.getAllAsync()
   }
 }
@@ -645,6 +660,17 @@ class ReviewPageQueries {
 export const useReviewPageQueries = () => {
   const db = SQLite.useSQLiteContext()
   const queries = useRef(new ReviewPageQueries())
+  useEffect(() => {
+    const currentQueries = queries.current
+    currentQueries.setup(db)
+    return () => currentQueries.finalize()
+  }, [db])
+  return queries
+}
+export const useOsmDataQueries = () => {
+  const db = SQLite.useSQLiteContext()
+  const queries = useRef(new OsmDataQueries())
+  useDrizzleStudio(db)
   useEffect(() => {
     const currentQueries = queries.current
     currentQueries.setup(db)

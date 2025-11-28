@@ -42,7 +42,7 @@
     };
     buildMavenRepo = args: buildMavenRepo (pkgs.lib.getAttrs ["lockFile" "overrides"] args);
     ANDROID_SDK_ROOT = "${android-sdk}/share/android-sdk";
-    GRADLE_OPTS = "-Dorg.gradle.project.android.aapt2FromMavenOverride=${ANDROID_SDK_ROOT}/build-tools/34.0.0/aapt2";
+    GRADLE_OPTS = "-Dorg.gradle.project.android.aapt2FromMavenOverride=${ANDROID_SDK_ROOT}/build-tools/35.0.0/aapt2";
     multioutput-combiner = originalDerivation:
       pkgs.stdenv.mkDerivation {
         name = "${originalDerivation.name}-all-out";

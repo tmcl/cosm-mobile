@@ -6,7 +6,7 @@ import * as turf from "@turf/turf";
 import {OsmChange, OsmChangeElement} from "@/scripts/ts-xml-object-parser/osm-diff";
 
 
-export const user_agent = 'cosm/2025.09.30 (android)'
+export const user_agent = 'cosm/2025.11.30 (android)'
 
 export type NearestPoint = GeoJSON.Feature<GeoJSON.Point, {
   dist: number; index: number; location: number; triggeringWayId: WayId; segmentWayId: WayId;

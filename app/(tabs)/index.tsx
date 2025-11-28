@@ -39,7 +39,8 @@ import {modalNotes, NearestPoint, StopSignChange} from "@/components/diff-info";
 import {Change} from "@/components/diff-info/shared";
 import {mkNewHighwayNode, NewPoint} from "@/scripts/algo/highway-node";
 import {IWay} from "@/scripts/clients";
-import useOsmPopulator, {MAX_FEATURES_QUERY} from "@/components/useOsmPopulator";
+import useOsmPopulator from "@/components/useOsmPopulator";
+import useOsmData, {WaysInfo, MAX_FEATURES_QUERY} from "@/components/useOsmData";
 
 interface OnPressEvent {
   features: GeoJSON.Feature[];
@@ -318,8 +319,8 @@ type State = {
   zoom: number
   centreCoordinates: GeoJSON.Position | undefined,
   visibleBounds: { minlat: number, minlon: number, maxlat: number, maxlon: number } | undefined
-  sameRoads: PartialRecord<WayId, WayId[]>
-  intersections_i: PartialRecord<WayId, IntersectingWayInfo>
+  sameRoads_m: PartialRecord<WayId, WayId[]>
+  intersections_m: PartialRecord<WayId, IntersectingWayInfo>
   queries: {
     queryNodes: QueryState<unknown, GeoJSON.FeatureCollection<GeoJSON.Point, OsmApiJSON.INode> | null>
     queryWays_: QueryState<unknown, {
@@ -330,8 +331,6 @@ type State = {
     osmCapabilities: QueryState<unknown, OsmApiJSON.IApiCapabilities>
     osmVersions: QueryState<unknown, OsmApiJSON.IInaRecord_api>
     unknownBounds: QueryState<unknown, { minlat: number, minlon: number, maxlat: number, maxlon: number } | null>
-    sameRoads: QueryState<unknown, PartialRecord<WayId, WayId[]>>
-    intersections_q: QueryState<unknown, PartialRecord<WayId, IntersectingWayInfo>>
     neededForLoading: QueryState<unknown, SavedChangeSet | null>
     saveNewUserDataChanges: MutationState<unknown, SavedChangeSet>
     saveUpdateUserDataChanges: MutationState<unknown, number>
@@ -340,12 +339,14 @@ type State = {
 
 const initialState: State = {
   mode: 'browse', neededForLoading: undefined, initialSetup: true, modes: {
-    browse: {}, addStopSign: {
-      changeId: undefined, change: {
-        type: "add stop sign", tappedLocation: null, highwayLocation: null, direction: undefined, selectedWays: [],
+    browse: {}, addStopSign: {changeId: undefined, change: {
+            type: "add stop sign", tappedLocation: null, highwayLocation: null, direction: undefined, selectedWays: [],
+        }
       }
-    }
-  }, visibleBounds: undefined, zoom: 14, centreCoordinates: undefined, sameRoads: {}, intersections_i: {}, queries: {
+  }, visibleBounds: undefined, zoom: 14, centreCoordinates: undefined,
+  intersections_m: {},
+  sameRoads_m: {},
+  queries: {
     neededForLoading: initialQueryState(),
     queryNodes: initialQueryState(),
     queryWays_: initialQueryState(),
@@ -355,8 +356,6 @@ const initialState: State = {
     osmVersions: initialQueryState(),
     saveNewUserDataChanges: initialMutationState(),
     saveUpdateUserDataChanges: initialMutationState(),
-    sameRoads: initialQueryState(),
-    intersections_q: initialQueryState(),
   }
 }
 
@@ -393,14 +392,14 @@ type Action =
     | SetMode
     | { action: "invalidate same roads" }
     | { action: "invalidate intersections" }
+    | { action: "new same roads", sameRoads: PartialRecord<WayId, WayId[]>}
+    | { action: "new intersections", intersections: PartialRecord<WayId, IntersectingWayInfo>}
     | SetQuery<"unknownBounds">
     | SetQuery<"osmCapabilities">
     | SetQuery<"interestingNodes">
     | SetQuery<"queryNodes">
     | SetQuery<"queryWays_">
     | SetQuery<"osmVersions">
-    | SetQuery<"sameRoads">
-    | SetQuery<"intersections_q">
     | SetQuery<"saveNewUserDataChanges">
     | SetQuery<"saveUpdateUserDataChanges">
     | SetQuery<"neededForLoading">
@@ -413,7 +412,7 @@ const make_id = (() => {
 
 const mkNewHighwayNodeFromState = (
     wayId: WayId, state: State, relativePoint: GeoJSON.Position | GeoJSON.Point): NewPoint | undefined => {
-  const wayGroup = state.modes.addStopSign.change.selectedWays.flatMap(w => state.sameRoads[w] || [])
+  const wayGroup = state.modes.addStopSign.change.selectedWays.flatMap(w => state.sameRoads_m[w] || [])
   const waysCentrelines = state.queries.queryWays_.data?.centrelines?.features || []
   const wayCentrelines: Record<WayId, GeoJSON.Feature<GeoJSON.LineString, IWay>> = {}
   wayGroup.forEach(localWayId => {
@@ -585,11 +584,17 @@ const reducer = (state: State, action: Action): State => {
         }
       }
     }
+    case "new same roads": {
+      return {...state, sameRoads_m: action.sameRoads}
+    }
+    case "new intersections": {
+      return {...state, intersections_m: action.intersections}
+    }
     case "invalidate same roads": {
-      return {...state, sameRoads: {}}
+      return {...state, sameRoads_m: {}}
     }
     case "invalidate intersections": {
-      return {...state, intersections_i: {}}
+      return {...state, intersections_m: {}}
     }
     case "post initial setup": {
       return state.initialSetup ? {...state, initialSetup: false} : state
@@ -661,30 +666,6 @@ const reducer = (state: State, action: Action): State => {
               updateState.modes[type].changeId = data.id
             }
           }
-          break;
-        }
-        case "intersections_q":
-        case "sameRoads": {
-          // this works when I can use the generic to narrow things down, but not otherwise.
-          // therefore, it's a closure.
-          // it copies the data from the action into the state and deletes some of the older information
-          // so that we don't hold onto too much.
-          const query = action.query
-          const process = <T extends 'sameRoads' | 'intersections_i'>(query: T) => {
-            if (action.queryState.status === "success" && action.queryState.data) {
-              const data = {...state[query], ...action.queryState.data}
-              let unincluded = 0
-              for (const key in data) {
-                if (anyModeSelectsWay(state, key) || state.queries.queryWays_.data?.casings?.features.find(f => f.id
-                    === key) || unincluded++ < 5) {
-                } else {
-                  delete data[key]
-                }
-              }
-              updateState[query] = data
-            }
-          }
-          process(query === 'intersections_q' ? 'intersections_i' : query)
           break;
         }
         case "queryWays_":
@@ -796,10 +777,10 @@ function MapAddStopSign({state, setCommentary, highlightWays, setNotes, setChang
   const constructedSign = useMemo(() => {
         const activeWays = state.queries.queryWays_.data?.centrelines?.features
         .filter(f => f.id && highlightWays.includes(f.id.toString())) || []
-        return modalNotes(state.intersections_i, state.modes.addStopSign.change, activeWays)
+        return modalNotes(state.intersections_m, state.modes.addStopSign.change, activeWays)
       },
       [
-        state.intersections_i,
+        state.intersections_m,
         state.modes.addStopSign.change,
         state.queries.queryWays_.data?.centrelines?.features,
         highlightWays])
@@ -900,7 +881,7 @@ export default function MainPage() {
   const dispatch = useCallback((a: Action) => {
     console.log("action", a.action, "query" in a && a.query, "modalAction" in a && a.modalAction);
     return xdispatch(a)
-  }, [xdispatch])
+  }, [])
   const refCamera = useRef<MapLibreGL.CameraRef>(null)
   const refHighwaystopSource = useRef<MapLibreGL.ShapeSourceRef>(null)
   const refPointsOnWayNearClickSource = useRef<MapLibreGL.ShapeSourceRef>(null)
@@ -943,16 +924,24 @@ export default function MainPage() {
   const capability = state.queries.osmCapabilities.data?.api.area.maximum
   const osmMapArgs: JsonBBox | undefined = state.queries.unknownBounds.data || visibleBounds
   const invalidateSameRoads = useCallback(() => dispatch({action: "invalidate same roads"}), [dispatch])
-  const {queryWays} = useOsmPopulator(
-      visibleBounds,
+  useOsmPopulator(
       osmMapArgs,
       state.queries.unknownBounds.status === 'success' && !!state.queries.unknownBounds.data,
       invalidateSameRoads,
       InteractionManager.runAfterInteractions
   )
-  useEffect(() => {
-    dispatch({action: "set query", query: "queryWays_", queryState: queryWays})
-  }, [dispatch, queryWays])
+  const withNewWays = useCallback((ways: QueryState<unknown, WaysInfo>) =>
+      dispatch({action: "set query", query: "queryWays_", queryState: ways}), []
+  )
+  const setIntersections = useCallback((intersections: PartialRecord<WayId, IntersectingWayInfo>) =>
+      dispatch({action: "new intersections",  intersections}), []
+  )
+  const setSameRoads = useCallback((sameRoads: PartialRecord<WayId, WayId[]>) =>
+      dispatch({action: "new same roads",  sameRoads}), []
+  )
+  const allModeSelectedWays = allModesSelectedWays(state)
+  const isWaySelected = (wayId: WayId) => anyModeSelectsWay(state, wayId)
+  useOsmData({loadingBounds: doublePaddedBounds, interestingWays: allModeSelectedWays, withNewWays, isWaySelected, setSameRoads, setIntersections, intersections: state.intersections_m, sameRoads: state.sameRoads_m})
   const symbols = state.queries.queryNodes.data || null
   const roadcasings = state.queries.queryWays_.data?.casings || null
 
@@ -960,43 +949,16 @@ export default function MainPage() {
   const [subFab, setSubFab] = useState(false)
 
   const modalSelectedWays = currentModesSelectedWays(state)
-  const highlightWays = useMemo(() => nub(modalSelectedWays.concat(modalSelectedWays.flatMap(f => state.sameRoads[f]
-      || []))), [modalSelectedWays, state.sameRoads])
+  const highlightWays = useMemo(() => nub(modalSelectedWays.concat(modalSelectedWays.flatMap(f => state.sameRoads_m[f]
+      || []))), [modalSelectedWays, state.sameRoads_m])
 
   const interestingNodesParams = doublePaddedBounds && (() => {
     const params = interestingNodesParamsFromMode(state)
     return params && {...params, ...doublePaddedBounds}
   })()
   const hasInterestingNodes = !!interestingNodesParams
-  const allModeSelectedWays = allModesSelectedWays(state)
 
   /* queries */
-  {
-    const neededIntersections = modalSelectedWays.filter(f => !(f in state.intersections_i)
-        || !state.intersections_i[f])
-    useDispatchingQuery(useCallback((queryState: QueryState<unknown, PartialRecord<WayId, IntersectingWayInfo>>) => dispatch(
-        {
-          action: "set query", query: "intersections_q", queryState
-        }), [dispatch]), {
-      queryKey: ["spatialite", "ways", "intersections", neededIntersections],
-      enabled: neededIntersections.length > 0,
-      queryFn: () => queries.current.doFindIntersections(neededIntersections),
-    })
-  }
-  {
-    const relatedWays = Object.values(state.sameRoads).flatMap(f => f || [])
-    const neededRoads = nub(relatedWays.concat(allModeSelectedWays.filter(f => !(f in state.sameRoads)
-        || !state.sameRoads[f])))
-    useDispatchingQuery(useCallback((queryState: QueryState<unknown, PartialRecord<WayId, WayId[]>>) => dispatch({
-      action: "set query",
-      query: "sameRoads",
-      queryState: queryState.data ? debug("this is a same roads query state", queryState) : queryState
-    }), [dispatch]), {
-      queryKey: ["spatialite", "ways", "road ways", neededRoads],
-      enabled: neededRoads.length > 0,
-      queryFn: () => queries.current.doFindSameRoads(neededRoads),
-    })
-  }
   useDispatchingQuery(useCallback((queryState: QueryState<unknown, InterestingNodes>) => dispatch({
     action: "set query", query: "interestingNodes", queryState
   }), [dispatch]), {
@@ -1223,7 +1185,15 @@ export default function MainPage() {
   }
 
   useEffect(() => {
-    setTimeout(() => dispatch({action: "post initial setup"}), 30_000)
+    setTimeout(() => {
+      dispatch({action: "set zoom", centreCoordinates: [145.0825836, -37.8602325], zoom: 16})
+    }, 300)
+  }, [dispatch])
+
+  useEffect(() => {
+    setTimeout(() => {
+      dispatch({action: "post initial setup"})
+    }, 30_000)
   }, [dispatch])
 
   const [defaultOptionText, defaultOptionIcon, subfabs] = fabFromMode(state.mode)

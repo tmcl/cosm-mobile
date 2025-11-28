@@ -1,7 +1,6 @@
 import {useEffect, useState} from 'react'
 import * as OsmApiJSON from "@/scripts/clients";
 import {
-  doublePad,
   JsonBBox,
 } from '@/components/types';
 import {
@@ -12,9 +11,15 @@ import {
   useOsmPopulatingQueries,
 } from '@/components/queries';
 import {useQueryClient} from '@tanstack/react-query'
-import type GeoJSON from "geojson";
 
-export default (visibleBounds: JsonBBox|undefined, osmMapArgs: JsonBBox | undefined, unknownBoundsDone: boolean, invalidateSameRoads: () => void, runAfterInteractions: (f: () => void) => void) => {
+/**
+ * @param osmMapArgs - this is the bounds for which data should be queried from osm. it might be the loading bounds less some region for which cached data is available
+ * @param unknownBoundsDone - this basically means that osmMapArgs is properly defined and the queries can run
+ * @param invalidateSameRoads - how you will know when your information relating to same roads needs to be invalidated
+ * @param runAfterInteractions - we need to recursively commit changes to the database to avoid overloading the system. this should be InteractionManager.runAfterInteractions to allow us to defer the recursion to a safe moment
+ * @params
+ */
+export default (osmMapArgs: JsonBBox | undefined, unknownBoundsDone: boolean, invalidateSameRoads: () => void, runAfterInteractions: (f: () => void) => void) => {
  const queryClient =  useQueryClient()
   const queries = useOsmPopulatingQueries()
   const [osmMap, setOsmMapQ] = useState(initialQueryState<unknown, { $json: string; $requestedBounds: JsonBBox; }>())
@@ -23,12 +28,6 @@ export default (visibleBounds: JsonBBox|undefined, osmMapArgs: JsonBBox | undefi
   const [, setInsertWaysQ] =useState(initialMutationState<unknown, boolean>())
   const [, setInsertRelatedWaysQ] =useState(initialMutationState<unknown, boolean>())
   const [, seUpdateCasingsQ] =useState(initialMutationState<unknown, boolean>())
-  const [queryWays, setQueryWays] = useState(initialQueryState<unknown, {
-    casings: GeoJSON.FeatureCollection<GeoJSON.Polygon | GeoJSON.LineString, OsmApiJSON.IWay> | null,
-    centrelines: GeoJSON.FeatureCollection<GeoJSON.LineString, OsmApiJSON.IWay> | null
-  }>())
-
-  const doublePaddedBounds = visibleBounds && doublePad(visibleBounds)
 
   useDispatchingQuery(
       setOsmMapQ,
@@ -132,22 +131,5 @@ export default (visibleBounds: JsonBBox|undefined, osmMapArgs: JsonBBox | undefi
     qInsertNodesMutate(data)
     qInsertWaysMutate(data)
   }, [osmMap.status, osmMap.data, qInsertBoundsMutate, qInsertNodesMutate, qInsertWaysMutate])
-
-  useDispatchingQuery(setQueryWays, {
-    queryKey: ["spatialite query ways", (doublePaddedBounds || {})],
-    enabled: !!doublePaddedBounds,
-    placeholderData: (d) => d,
-    queryFn: doublePaddedBounds ? (async () => {
-      const result = await (queries.current.doQueryWays({...doublePaddedBounds, $limit: MAX_FEATURES_QUERY}))
-      const casings = result.casings.length ? {type: "FeatureCollection" as const, features: result.casings} : null
-      const centrelines = result.centrelines.length ? {
-        type: "FeatureCollection" as const, features: result.centrelines
-      } : null
-      return {casings, centrelines}
-    }) : () => new Promise(() => {})
-  })
-
-  return {queryWays}
 }
 
-export const MAX_FEATURES_QUERY = 3000
