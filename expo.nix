@@ -221,7 +221,7 @@
               } ''
                 cp ${src} aapt2.jar
                 jar xf aapt2.jar aapt2
-                cp ${android-sdk}/share/android-sdk/build-tools/34.0.0/aapt2 aapt2
+                cp ${android-sdk}/share/android-sdk/build-tools/35.0.0/aapt2 aapt2
                 chmod +x aapt2
                 jar uf aapt2.jar aapt2
                 cp aapt2.jar $out
