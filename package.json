@@ -1,10 +1,9 @@
 {
-  "name": "cosm",
+  "name": "cosm-android",
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
     "start": "expo start",
-    "reset-project": "node ./scripts/reset-project.js",
     "android": "tsc --noEmit && REACT_NATIVE_PACKAGER_HOSTNAME=silverfish.tmcl.dev APP_VARIANT=development yarn expo run:android  --app-id dev.tmcl.cosm.dev --binary=$(nom build .#android.development  --out-link development-apk --print-out-paths)/out/fake-signed-debug-apk.apk",
     "androidDevelopment": "APP_VARIANT=development expo run:android",
     "androidRelease": "expo run:android --variant Release",
