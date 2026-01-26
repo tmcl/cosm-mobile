@@ -3,7 +3,7 @@ export default {
   "expo": {
     "name": IS_DEV ? "cosm (Development)" : "cosm",
     "slug": IS_DEV ? "cosmdev" : "cosm",
-    "version": "1.0.0",
+    "version": "1.0.0." + Math.floor(new Date().getTime()/1000),
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": IS_DEV ? "cosmdev" : "cosm",
