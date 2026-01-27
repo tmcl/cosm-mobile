@@ -3,11 +3,12 @@ import fromAsync from 'array-from-async';
 import React, {useCallback, useEffect, useMemo, useReducer, useRef, useState} from 'react'
 import {FAB} from '@rneui/themed'
 import {InteractionManager, StyleSheet, Text, View} from "react-native";
-import MapLibreGL from '@maplibre/maplibre-react-native';
+import * as MapLibreGL from '@maplibre/maplibre-react-native';
+import type { PressEventWithFeatures, LngLat } from '@maplibre/maplibre-react-native';
+import type { NativeSyntheticEvent } from 'react-native';
 import * as OsmApiJSON from "@/scripts/clients";
 import {useAndroidLocationPermission} from '@/components/AndroidLocationPermission';
 import {
-  debug,
   doublePad,
   InterestingNodes,
   InterestingNodesParams,
@@ -41,16 +42,7 @@ import {mkNewHighwayNode, NewPoint} from "@/scripts/algo/highway-node";
 import {IWay} from "@/scripts/clients";
 import useOsmPopulator from "@/components/useOsmPopulator";
 import useOsmData, {WaysInfo, MAX_FEATURES_QUERY} from "@/components/useOsmData";
-
-interface OnPressEvent {
-  features: GeoJSON.Feature[];
-  coordinates: {
-    latitude: number; longitude: number;
-  };
-  point: {
-    x: number; y: number;
-  };
-}
+import {Promise_never} from "@/components/utils";
 
 const LayerIndexLookup = {
   roadcasingfill: 103, roadcasinglines: 104, points: 106, pointsOnWayNearClicks: 107, nearestPointLayer: 108,
@@ -263,7 +255,7 @@ const verifyAsStopSign = (change: unknown): State['modes']['addStopSign']['chang
 
 const roadStrokesLayerStyle = (wayIds: string[] | null): MapLibreGL.LineLayerStyle => ({
   lineColor: wayIds ? ["case", ["in", ["id"], ["literal", wayIds]], "purple", "red"] : "red",
-  lineOpacity: ["case", ["in", ["geometry-type"], ["literal", "LineString"]], 1, 0]
+  lineOpacity: 1
 })
 
 const roadcasingsLayerStyle = (wayIds: string[] | null): MapLibreGL.FillLayerStyle => ({
@@ -769,7 +761,7 @@ function MapAddStopSign({state, setCommentary, highlightWays, setNotes, setChang
 }) {
   const refTappedLoc = useRef<MapLibreGL.PointAnnotationRef>(null)
   const refNearestPointAnnoPoint = useRef<MapLibreGL.PointAnnotationRef>(null)
-  const refNearestPointShape = useRef<MapLibreGL.ShapeSourceRef>(null)
+  const refNearestPointShape = useRef<MapLibreGL.GeoJSONSourceRef>(null)
 
   const editableSign = state.modes.addStopSign.change.tappedLocation?.type === "Feature"
       ? state.modes.addStopSign.change.tappedLocation.geometry
@@ -803,10 +795,11 @@ function MapAddStopSign({state, setCommentary, highlightWays, setNotes, setChang
       ? state.modes.addStopSign.change.highwayLocation
       : undefined
 
-  const nearestPointShape: GeoJSON.Feature<GeoJSON.Point, object> | undefined = nearestPoint
-      ? nearestPoint.point
+  const nearestPointShape: GeoJSON.FeatureCollection<GeoJSON.Point, object> | undefined = nearestPoint
+      ? { type: "FeatureCollection", features: [nearestPoint.point] }
       : undefined
-  const nearestPointId = nearestPointShape?.id ? [nearestPointShape.id.toString()] : []
+  const nearestPointFeature = nearestPoint?.point
+  const nearestPointId = nearestPointFeature?.id ? [nearestPointFeature.id.toString()] : []
 
   const dragEndSignLocation = useCallback((e: FeaturePayload) => setTappedLocation(e.geometry), [setTappedLocation])
 
@@ -826,9 +819,9 @@ function MapAddStopSign({state, setCommentary, highlightWays, setNotes, setChang
                 </Svg.Svg>
             </View>
         </MapLibreGL.PointAnnotation>
-        <MapLibreGL.ShapeSource
+        <MapLibreGL.GeoJSONSource
             id="nearestPointShape"
-            shape={nearestPointShape}
+            data={nearestPointShape!}
             ref={refNearestPointShape}
         >
             <CircleLayer
@@ -837,7 +830,7 @@ function MapAddStopSign({state, setCommentary, highlightWays, setNotes, setChang
                 style={pointsOnWayNearClickLayerStyle(nearestPointId)}
             />
 
-        </MapLibreGL.ShapeSource>
+        </MapLibreGL.GeoJSONSource>
     </>}
     {editableSign && <MapLibreGL.PointAnnotation key={radians} ref={refTappedLoc}
                                                  onDragEnd={dragEndSignLocation} id="centrepoint"
@@ -883,9 +876,9 @@ export default function MainPage() {
     return xdispatch(a)
   }, [])
   const refCamera = useRef<MapLibreGL.CameraRef>(null)
-  const refHighwaystopSource = useRef<MapLibreGL.ShapeSourceRef>(null)
-  const refPointsOnWayNearClickSource = useRef<MapLibreGL.ShapeSourceRef>(null)
-  const refRoadcasingsSource = useRef<MapLibreGL.ShapeSourceRef>(null)
+  const refHighwaystopSource = useRef<MapLibreGL.GeoJSONSourceRef>(null)
+  const refPointsOnWayNearClickSource = useRef<MapLibreGL.GeoJSONSourceRef>(null)
+  const refRoadcasingsSource = useRef<MapLibreGL.GeoJSONSourceRef>(null)
   const refMapView = useRef<MapLibreGL.MapViewRef | null>(null)
 
 
@@ -994,12 +987,12 @@ export default function MainPage() {
       }), [dispatch]), {
     queryKey: ["spatialite query nodes", (doublePaddedBounds || {})],
     enabled: !!doublePaddedBounds,
-    queryFn: doublePaddedBounds
-        ? (async (): Promise<GeoJSON.FeatureCollection<GeoJSON.Point, OsmApiJSON.INode> | null> => {
+    queryFn:
+         (async (): Promise<GeoJSON.FeatureCollection<GeoJSON.Point, OsmApiJSON.INode> | null> => {
+           if(!doublePaddedBounds) return await Promise_never();
           const nodes = await fromAsync(queries.current.doQueryNodes(doublePaddedBounds))
           return nodes.length ? {type: "FeatureCollection", features: nodes} : null
         })
-        : undefined
   })
 
 
@@ -1128,12 +1121,15 @@ export default function MainPage() {
         return;
     }
   }, [dispatch, state.mode, state.modes.addStopSign.change.tappedLocation])
-  const onPressMap = (event: GeoJSON.Feature<GeoJSON.Point>) => {
-    console.log("from map", event);
-    setTappedLocation(event.geometry, true)
+  const onPressMap = (event: NativeSyntheticEvent<MapLibreGL.PressEvent>) => {
+    const { lngLat } = event.nativeEvent
+    console.log("from map", lngLat);
+    const point: GeoJSON.Point = { type: "Point", coordinates: lngLat }
+    setTappedLocation(point, true)
   }
-  const onPressWay = (event: OnPressEvent) => {
-    console.log("from way", event);
+  const onPressWay = (event: NativeSyntheticEvent<PressEventWithFeatures>) => {
+    const { features, lngLat } = event.nativeEvent
+    console.log("from way", features, lngLat);
     switch (state.mode) {
       case "addStopSign":
         return dispatch({
@@ -1141,9 +1137,9 @@ export default function MainPage() {
           mode: "addStopSign",
           modalAction: {
             action: "select ways",
-            ways: event.features.map(i => i.id!.toString()),
+            ways: features.map(i => i.id!.toString()),
             select: "toggle",
-            point: [event.coordinates.longitude, event.coordinates.latitude]
+            point: lngLat
           }
         })
       case "browse":
@@ -1155,32 +1151,21 @@ export default function MainPage() {
   }
   const statusString = buildStatusString([debSaveUpdateUserChanges.isPending()], state.queries)
 
-  const onMapBoundChange = (feature: GeoJSON.Feature<GeoJSON.Point, MapLibreGL.RegionPayload>) => {
-    console.log('+++++++++++++++observed map bounds change', feature)
-    const [ne, sw] = feature.properties.visibleBounds
-    const maxlon = ne[0]
-    const maxlat = ne[1]
-    const minlon = sw[0]
-    const minlat = sw[1]
-    dispatch({action: "set visible bounds", visibleBounds: {minlon, minlat, maxlon, maxlat}})
-    if (feature.properties.isUserInteraction) // repeated setting of zoom level at initiation
-    {
-      console.log(
-          "setting becaues ....",
-          feature.properties.zoomLevel,
-          feature.properties.isUserInteraction,
-          state.initialSetup
-      )
+  const onMapBoundChange = (event: NativeSyntheticEvent<MapLibreGL.ViewStateChangeEvent>) => {
+    const state = event.nativeEvent
+    console.log('+++++++++++++++observed map bounds change', state)
+    // v11 bounds format: [west, south, east, north] = [minlon, minlat, maxlon, maxlat]
+    const bounds = state.bounds
+    if (bounds) {
+      const [minlon, minlat, maxlon, maxlat] = bounds
+      dispatch({action: "set visible bounds", visibleBounds: {minlon, minlat, maxlon, maxlat}})
+    }
+    // v11 uses center and zoom directly
+    if (state.center && state.zoom !== undefined) {
+      console.log("setting zoom from event", state.zoom, state.center)
       dispatch({
-        action: "set zoom", centreCoordinates: feature.geometry.coordinates, zoom: feature.properties.zoomLevel
+        action: "set zoom", centreCoordinates: state.center, zoom: state.zoom
       })
-    } else {
-      console.log(
-          "not setting becaues ....",
-          feature.properties.zoomLevel,
-          feature.properties.isUserInteraction,
-          state.initialSetup
-      )
     }
   }
 
@@ -1207,11 +1192,11 @@ export default function MainPage() {
   }
   const fabButtonLongPress = () => { setSubFab(true) }
 
-  const onPressSelectInterestingPoint = (e: OnPressEvent) => {
+  const onPressSelectInterestingPoint = (event: NativeSyntheticEvent<PressEventWithFeatures>) => {
     switch (state.mode) {
       case "addStopSign":
-        const features: (GeoJSON.Feature<GeoJSON.Geometry, unknown>)[] = e.features
-        console.log("an interesting point has been selected!", e)
+        const features: (GeoJSON.Feature<GeoJSON.Geometry, unknown>)[] = event.nativeEvent.features
+        console.log("an interesting point has been selected!", event.nativeEvent)
         if (features.length === 1) {
           const feature = features[0]
           if (feature.geometry.type === "Point") {
@@ -1275,14 +1260,14 @@ export default function MainPage() {
             onRegionDidChange={onMapBoundChange}
             ref={refMapView}
             style={styles.map}
-            logoEnabled={false}
-            styleURL="https://tiles.openfreemap.org/styles/liberty"
+            logo={false}
+            mapStyle="https://tiles.openfreemap.org/styles/liberty"
             onPress={onPressMap}
         >
           {modalMap}
-          {interestingPoints && <MapLibreGL.ShapeSource
+          {interestingPoints && <MapLibreGL.GeoJSONSource
               id="interestingPoints"
-              shape={interestingPoints}
+              data={interestingPoints}
               ref={refPointsOnWayNearClickSource}
               onPress={onPressSelectInterestingPoint}
           >
@@ -1292,10 +1277,10 @@ export default function MainPage() {
                   style={pointsOnWayNearClickLayerStyle(selectedInterestingPoints)}
               />
 
-          </MapLibreGL.ShapeSource>}
-          {symbols && <MapLibreGL.ShapeSource
+          </MapLibreGL.GeoJSONSource>}
+          {symbols && <MapLibreGL.GeoJSONSource
               id="highwaystop"
-              shape={symbols}
+              data={symbols}
               ref={refHighwaystopSource}
           >
               <CircleLayer
@@ -1304,10 +1289,10 @@ export default function MainPage() {
                   style={circleLayerStyle(undefined)}
               />
 
-          </MapLibreGL.ShapeSource>}
-          {roadcasings && <MapLibreGL.ShapeSource
+          </MapLibreGL.GeoJSONSource>}
+          {roadcasings && <MapLibreGL.GeoJSONSource
               id="roadcasing"
-              shape={roadcasings}
+              data={roadcasings}
               ref={refRoadcasingsSource}
               onPress={onPressWay}
           >
@@ -1319,16 +1304,16 @@ export default function MainPage() {
               <MapLibreGL.LineLayer
                   id="roadstrokeslines"
                   layerIndex={LayerIndexLookup.roadcasinglines}
+                  filter={["==", ["geometry-type"], "LineString"]}
                   style={roadStrokesLayerStyle(highlightWays)}
               />
 
-          </MapLibreGL.ShapeSource>}
+          </MapLibreGL.GeoJSONSource>}
           <MapLibreGL.Camera
               ref={refCamera}
-              centerCoordinate={state.centreCoordinates}
-              zoomLevel={state.zoom}
-              followUserMode={MapLibreGL.UserTrackingMode.Follow}
-              followUserLocation
+              center={state.centreCoordinates as LngLat | undefined}
+              zoom={state.zoom}
+              trackUserLocation="default"
           />
 
         </MapLibreGL.MapView>

@@ -76,7 +76,7 @@
             build-tools-35-0-0
             build-tools-36-0-0
             platform-tools
-            platforms-android-35
+            sdkPkgs.platforms-android-36
             #emulator
             #(if system == "x86_64-linux" then system-images-android-34-google-apis-x86-64 else system-images-android-34-google-apis-arm64-v8a)
             #ndk-26-1-10909125

@@ -1,4 +1,4 @@
-import MapLibreGL from '@maplibre/maplibre-react-native';
+import * as MapLibreGL from '@maplibre/maplibre-react-native';
 import { Stack } from "expo-router";
 import * as SQLite from "expo-sqlite"
 import { Asset } from 'expo-asset';
@@ -11,7 +11,7 @@ import * as ReactQuery from '@tanstack/react-query'
 
 const queryClient = new ReactQuery.QueryClient()
 
-const activateDb = (db: SQLite.SQLiteDatabase) => {
+const activateDb = async (db: SQLite.SQLiteDatabase) => {
   db.getFirstSync( ` pragma journal_mode=WAL `)
   //  db.execSync(`
   //  PRAGMA writable_schema = 1;
@@ -20,7 +20,7 @@ const activateDb = (db: SQLite.SQLiteDatabase) => {
   //  VACUUM;
   //  PRAGMA integrity_check;
   //  `)
-  Spatialite.initializeDb(db)
+  await Spatialite.initializeDb(db)
   db.getFirstSync( ` select bufferoptions_setendcapstyle('flat'); `) 
 
 	const asset = Asset.fromModule(require('../assets/proj.db'))
@@ -129,7 +129,6 @@ const activateDb = (db: SQLite.SQLiteDatabase) => {
 
 export default function RootLayout() {
   useEffect(() => {
-	MapLibreGL.setAccessToken(null)
 	Themed.registerCustomIconType('font-awesome-6', FontAwesome6)
   })
 

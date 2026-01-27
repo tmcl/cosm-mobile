@@ -11,6 +11,7 @@ import {
   useOsmPopulatingQueries,
 } from '@/components/queries';
 import {useQueryClient} from '@tanstack/react-query'
+import {Promise_never} from "@/components/utils";
 
 /**
  * @param osmMapArgs - this is the bounds for which data should be queried from osm. it might be the loading bounds less some region for which cached data is available
@@ -35,10 +36,12 @@ export default (osmMapArgs: JsonBBox | undefined, unknownBoundsDone: boolean, in
         queryKey: ["osm map", osmMapArgs],
         enabled: unknownBoundsDone
             && !!osmMapArgs,
-        queryFn: osmMapArgs ? (async () => ({
+        queryFn: (async () => {
+          if (!osmMapArgs) return Promise_never()
+          return {
           $json: await OsmApiJSON.getApi06MapText(osmMapArgs),
           $requestedBounds: osmMapArgs
-        })) : undefined
+        }})
       })
 
   const qInsertNodes = useDispatchingMutation(
