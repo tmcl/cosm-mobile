@@ -1,4 +1,4 @@
-import type {Config} from 'jest'
+import type { Config } from "jest";
 
 const config: Config = {
   // ... other jest config
@@ -8,8 +8,8 @@ const config: Config = {
   // If using Babel
   extensionsToTreatAsEsm: [".ts"],
   transform: {
-     "^.+\\.[t|j]sx?$": "babel-jest"
-  }
+    "^.+\\.[t|j]sx?$": "babel-jest",
+  },
 };
 
-export default config
+export default config;

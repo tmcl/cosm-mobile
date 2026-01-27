@@ -1,18 +1,18 @@
-import * as MapLibreGL from '@maplibre/maplibre-react-native';
+import * as MapLibreGL from "@maplibre/maplibre-react-native";
 import { Stack } from "expo-router";
-import * as SQLite from "expo-sqlite"
-import { Asset } from 'expo-asset';
-import React, {useEffect} from 'react'
-import * as Spatialite from "spatialite"
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
-import * as Themed from '@rneui/themed';
-import * as ReactQuery from '@tanstack/react-query'
+import * as SQLite from "expo-sqlite";
+import { Asset } from "expo-asset";
+import React, { useEffect } from "react";
+import * as Spatialite from "spatialite";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
+import * as Themed from "@rneui/themed";
+import * as ReactQuery from "@tanstack/react-query";
 
-const queryClient = new ReactQuery.QueryClient()
+const queryClient = new ReactQuery.QueryClient();
 
 const activateDb = async (db: SQLite.SQLiteDatabase) => {
-  db.getFirstSync( ` pragma journal_mode=WAL `)
+  db.getFirstSync(` pragma journal_mode=WAL `);
   //  db.execSync(`
   //  PRAGMA writable_schema = 1;
   //  DELETE FROM sqlite_master;
@@ -20,32 +20,44 @@ const activateDb = async (db: SQLite.SQLiteDatabase) => {
   //  VACUUM;
   //  PRAGMA integrity_check;
   //  `)
-  await Spatialite.initializeDb(db)
-  db.getFirstSync( ` select bufferoptions_setendcapstyle('flat'); `) 
+  await Spatialite.initializeDb(db);
+  db.getFirstSync(` select bufferoptions_setendcapstyle('flat'); `);
 
-	const asset = Asset.fromModule(require('../assets/proj.db'))
-	const projInterlinked = asset.downloadAsync().then(async () => {
-    const assetpath = await asset.uri
-    const localuri = await asset.localUri
-    const shorterpath = localuri?.substring(7)
-    console.log("assetpath", assetpath, localuri)
+  const asset = Asset.fromModule(require("../assets/proj.db"));
+  const projInterlinked = asset.downloadAsync().then(async () => {
+    const assetpath = await asset.uri;
+    const localuri = await asset.localUri;
+    const shorterpath = localuri?.substring(7);
+    console.log("assetpath", assetpath, localuri);
     let projQuery;
     try {
-      projQuery = await db.prepareAsync( ` select proj_setdatabasepath( ? ) as r; `)
-      const r = await (await projQuery.executeAsync(shorterpath!)).getAllAsync()
-      console.log("**************************", r, "moo", shorterpath, localuri, assetpath)
+      projQuery = await db.prepareAsync(
+        ` select proj_setdatabasepath( ? ) as r; `
+      );
+      const r = await (
+        await projQuery.executeAsync(shorterpath!)
+      ).getAllAsync();
+      console.log(
+        "**************************",
+        r,
+        "moo",
+        shorterpath,
+        localuri,
+        assetpath
+      );
     } finally {
-      projQuery && await projQuery.finalizeAsync()
+      projQuery && (await projQuery.finalizeAsync());
     }
-  })
-	const hasData = db.getFirstSync("SELECT count(name) as hasData FROM sqlite_master WHERE type='table' AND name='spatial_ref_sys';"
-	) as {hasData: number}
-	   
-	if (!hasData.hasData) {
-		db.execSync("SELECT initspatialmetadata()")
-	}
-	db.execSync(
-		`
+  });
+  const hasData = db.getFirstSync(
+    "SELECT count(name) as hasData FROM sqlite_master WHERE type='table' AND name='spatial_ref_sys';"
+  ) as { hasData: number };
+
+  if (!hasData.hasData) {
+    db.execSync("SELECT initspatialmetadata()");
+  }
+  db.execSync(
+    `
 		create table if not exists user_data_changes
         (
             id INTEGER PRIMARY KEY,
@@ -121,34 +133,36 @@ const activateDb = async (db: SQLite.SQLiteDatabase) => {
 			for each row begin
 			    delete from ways_of_same_roads where way_id in (select atom from json_each(new.road)) and ways_of_same_roads.road <> new.road;
 			end;
-		`)
+		`
+  );
 
-  return projInterlinked
-}
-
+  return projInterlinked;
+};
 
 export default function RootLayout() {
   useEffect(() => {
-	Themed.registerCustomIconType('font-awesome-6', FontAwesome6)
-  })
+    Themed.registerCustomIconType("font-awesome-6", FontAwesome6);
+  });
 
   return (
-	<SafeAreaProvider>
-        <ReactQuery.QueryClientProvider client={queryClient}>
-          <SQLite.SQLiteProvider databaseName="tism" onInit={activateDb}>
-              <Stack screenOptions={{
-                        headerStyle: {
-                    backgroundColor: '#f4511e',
-                  },
-                  headerTintColor: '#fff',
-                  headerTitleStyle: {
-                    fontWeight: 'bold',
-                  },
-              }}>
-                <Stack.Screen options={{headerShown: false}} name="(tabs)" />
-              </Stack>
-          </SQLite.SQLiteProvider>
-        </ReactQuery.QueryClientProvider>
-	</SafeAreaProvider>
+    <SafeAreaProvider>
+      <ReactQuery.QueryClientProvider client={queryClient}>
+        <SQLite.SQLiteProvider databaseName="tism" onInit={activateDb}>
+          <Stack
+            screenOptions={{
+              headerStyle: {
+                backgroundColor: "#f4511e",
+              },
+              headerTintColor: "#fff",
+              headerTitleStyle: {
+                fontWeight: "bold",
+              },
+            }}
+          >
+            <Stack.Screen options={{ headerShown: false }} name="(tabs)" />
+          </Stack>
+        </SQLite.SQLiteProvider>
+      </ReactQuery.QueryClientProvider>
+    </SafeAreaProvider>
   );
 }

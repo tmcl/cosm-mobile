@@ -1,0 +1,49 @@
+<osm version="0.6" generator="openstreetmap-cgimap 2.1.0 (1921396 faffy.openstreetmap.org)"
+     copyright="OpenStreetMap and contributors" attribution="http://www.openstreetmap.org/copyright"
+     license="http://opendatacommons.org/licenses/odbl/1-0/">
+    <way id="4306563790" visible="true" version="1" changeset="396710" timestamp="2024-12-26T09:22:39Z"
+         user="ParticulateMatter" uid="21296">
+        <nd ref="4352740557"/>
+        <nd ref="4352742893"/>
+        <nd ref="4352740599"/>
+        <nd ref="4352742065"/>
+        <nd ref="4352740556"/>
+        <nd ref="4352736893"/>
+        <nd ref="4352736894"/>
+        <nd ref="4352736895"/>
+        <nd ref="4352736896"/>
+        <nd ref="4352736897"/>
+        <nd ref="4352740555"/>
+        <nd ref="4352736869"/>
+        <tag k="highway" v="residential"/>
+        <tag k="name" v="Baker Parade"/>
+        <tag k="surface" v="paved"/>
+    </way>
+    <node id="4352740557" visible="true" version="1" changeset="396710" timestamp="2024-12-26T09:22:39Z"
+          user="ParticulateMatter" uid="21296" lat="-37.8602180" lon="145.0824419"/>
+    <node id="4352742893" visible="true" version="1" changeset="396710" timestamp="2024-12-26T09:22:39Z"
+          user="ParticulateMatter" uid="21296" lat="-37.8602325" lon="145.0825836">
+        <tag k="crossing" v="unmarked"/>
+        <tag k="highway" v="crossing"/>
+    </node>
+    <node id="4352740599" visible="true" version="1" changeset="396710" timestamp="2024-12-26T09:22:39Z"
+          user="ParticulateMatter" uid="21296" lat="-37.8602427" lon="145.0826545"/>
+    <node id="4352742065" visible="true" version="1" changeset="396710" timestamp="2024-12-26T09:22:39Z"
+          user="ParticulateMatter" uid="21296" lat="-37.8603821" lon="145.0837932"/>
+    <node id="4352740556" visible="true" version="1" changeset="396710" timestamp="2024-12-26T09:22:39Z"
+          user="ParticulateMatter" uid="21296" lat="-37.8604606" lon="145.0844335"/>
+    <node id="4352736893" visible="true" version="1" changeset="396710" timestamp="2024-12-26T09:22:39Z"
+          user="ParticulateMatter" uid="21296" lat="-37.8604618" lon="145.0844650"/>
+    <node id="4352736894" visible="true" version="1" changeset="396710" timestamp="2024-12-26T09:22:39Z"
+          user="ParticulateMatter" uid="21296" lat="-37.8604576" lon="145.0845140"/>
+    <node id="4352736895" visible="true" version="1" changeset="396710" timestamp="2024-12-26T09:22:39Z"
+          user="ParticulateMatter" uid="21296" lat="-37.8603949" lon="145.0849847"/>
+    <node id="4352736896" visible="true" version="1" changeset="396710" timestamp="2024-12-26T09:22:39Z"
+          user="ParticulateMatter" uid="21296" lat="-37.8603925" lon="145.0850209"/>
+    <node id="4352736897" visible="true" version="1" changeset="396710" timestamp="2024-12-26T09:22:39Z"
+          user="ParticulateMatter" uid="21296" lat="-37.8603928" lon="145.0850670"/>
+    <node id="4352740555" visible="true" version="1" changeset="396710" timestamp="2024-12-26T09:22:39Z"
+          user="ParticulateMatter" uid="21296" lat="-37.8603941" lon="145.0851003"/>
+    <node id="4352736869" visible="true" version="1" changeset="396710" timestamp="2024-12-26T09:22:39Z"
+          user="ParticulateMatter" uid="21296" lat="-37.8607327" lon="145.0880551"/>
+</osm>

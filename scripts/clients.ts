@@ -1,167 +1,244 @@
-
-export function getApi06Map(bbox?: Bbox): Promise<OsmStandard & BoundedElements> {
+export function getApi06Map(
+  bbox?: Bbox
+): Promise<OsmStandard & BoundedElements> {
   let options: RequestInit = {
     credentials: "same-origin" as RequestCredentials,
     method: "GET",
-    headers: {"Accept": "application/json;charset=utf-8"}
+    headers: { Accept: "application/json;charset=utf-8" },
   };
-  
-  let params = {bbox: bbox && toQueryParamBbox(bbox)};
-  return (window.fetch)(`https://master.apis.dev.openstreetmap.org/api/0.6/map` + "?" + new URLSearchParams(removeUndefined(params)).toString(), options).then((response) => {
-    return new Promise((resolve, reject) => {
-      if (response.status !== 200) {
-        return response.text().then((text) => reject({text, status: response.status}));
-      } else {
-        return response.json().then((json) => resolve(json));
-      }
+
+  let params = { bbox: bbox && toQueryParamBbox(bbox) };
+  return window
+    .fetch(
+      `https://master.apis.dev.openstreetmap.org/api/0.6/map` +
+        "?" +
+        new URLSearchParams(removeUndefined(params)).toString(),
+      options
+    )
+    .then((response) => {
+      return new Promise((resolve, reject) => {
+        if (response.status !== 200) {
+          return response
+            .text()
+            .then((text) => reject({ text, status: response.status }));
+        } else {
+          return response.json().then((json) => resolve(json));
+        }
+      });
     });
-  });
 }
 
 export function getApi06MapText(bbox?: Bbox): Promise<string> {
   let options: RequestInit = {
     credentials: "same-origin" as RequestCredentials,
     method: "GET",
-    headers: {"Accept": "application/json;charset=utf-8"}
+    headers: { Accept: "application/json;charset=utf-8" },
   };
-  
-  let params = {bbox: bbox && toQueryParamBbox(bbox)};
-  return (window.fetch)(`https://master.apis.dev.openstreetmap.org/api/0.6/map` + "?" + new URLSearchParams(removeUndefined(params)).toString(), options).then((response) => {
-    return new Promise((resolve, reject) => {
-      if (response.status !== 200) {
-        return response.text().then((text) => reject({text, status: response.status}));
-      } else {
-        return response.text().then((text) => resolve(text));
-      }
+
+  let params = { bbox: bbox && toQueryParamBbox(bbox) };
+  return window
+    .fetch(
+      `https://master.apis.dev.openstreetmap.org/api/0.6/map` +
+        "?" +
+        new URLSearchParams(removeUndefined(params)).toString(),
+      options
+    )
+    .then((response) => {
+      return new Promise((resolve, reject) => {
+        if (response.status !== 200) {
+          return response
+            .text()
+            .then((text) => reject({ text, status: response.status }));
+        } else {
+          return response.text().then((text) => resolve(text));
+        }
+      });
     });
-  });
 }
 
-export function getApi06Permissions(): Promise<OsmStandard & InaRecord_permissions_Permission> {
+export function getApi06Permissions(): Promise<
+  OsmStandard & InaRecord_permissions_Permission
+> {
   let options: RequestInit = {
     credentials: "same-origin" as RequestCredentials,
     method: "GET",
-    headers: {"Accept": "application/json;charset=utf-8"}
+    headers: { Accept: "application/json;charset=utf-8" },
   };
-  
+
   let params = {};
-  return (window.fetch)(`https://master.apis.dev.openstreetmap.org/api/0.6/permissions` + "?" + new URLSearchParams(removeUndefined(params)).toString(), options).then((response) => {
-    return new Promise((resolve, reject) => {
-      if (response.status !== 200) {
-        return response.text().then((text) => reject({text, status: response.status}));
-      } else {
-        return response.json().then((json) => resolve(json));
-      }
+  return window
+    .fetch(
+      `https://master.apis.dev.openstreetmap.org/api/0.6/permissions` +
+        "?" +
+        new URLSearchParams(removeUndefined(params)).toString(),
+      options
+    )
+    .then((response) => {
+      return new Promise((resolve, reject) => {
+        if (response.status !== 200) {
+          return response
+            .text()
+            .then((text) => reject({ text, status: response.status }));
+        } else {
+          return response.json().then((json) => resolve(json));
+        }
+      });
     });
-  });
 }
 
 export function getApi06PermissionsText(): Promise<string> {
   let options: RequestInit = {
     credentials: "same-origin" as RequestCredentials,
     method: "GET",
-    headers: {"Accept": "application/json;charset=utf-8"}
+    headers: { Accept: "application/json;charset=utf-8" },
   };
-  
+
   let params = {};
-  return (window.fetch)(`https://master.apis.dev.openstreetmap.org/api/0.6/permissions` + "?" + new URLSearchParams(removeUndefined(params)).toString(), options).then((response) => {
-    return new Promise((resolve, reject) => {
-      if (response.status !== 200) {
-        return response.text().then((text) => reject({text, status: response.status}));
-      } else {
-        return response.text().then((text) => resolve(text));
-      }
+  return window
+    .fetch(
+      `https://master.apis.dev.openstreetmap.org/api/0.6/permissions` +
+        "?" +
+        new URLSearchParams(removeUndefined(params)).toString(),
+      options
+    )
+    .then((response) => {
+      return new Promise((resolve, reject) => {
+        if (response.status !== 200) {
+          return response
+            .text()
+            .then((text) => reject({ text, status: response.status }));
+        } else {
+          return response.text().then((text) => resolve(text));
+        }
+      });
     });
-  });
 }
 
 export function getApi06Capabilities(): Promise<OsmStandard & ApiCapabilities> {
   let options: RequestInit = {
     credentials: "same-origin" as RequestCredentials,
     method: "GET",
-    headers: {"Accept": "application/json;charset=utf-8"}
+    headers: { Accept: "application/json;charset=utf-8" },
   };
-  
+
   let params = {};
-  return (window.fetch)(`https://master.apis.dev.openstreetmap.org/api/0.6/capabilities` + "?" + new URLSearchParams(removeUndefined(params)).toString(), options).then((response) => {
-    return new Promise((resolve, reject) => {
-      if (response.status !== 200) {
-        return response.text().then((text) => reject({text, status: response.status}));
-      } else {
-        return response.json().then((json) => resolve(json));
-      }
+  return window
+    .fetch(
+      `https://master.apis.dev.openstreetmap.org/api/0.6/capabilities` +
+        "?" +
+        new URLSearchParams(removeUndefined(params)).toString(),
+      options
+    )
+    .then((response) => {
+      return new Promise((resolve, reject) => {
+        if (response.status !== 200) {
+          return response
+            .text()
+            .then((text) => reject({ text, status: response.status }));
+        } else {
+          return response.json().then((json) => resolve(json));
+        }
+      });
     });
-  });
 }
 
 export function getApi06CapabilitiesText(): Promise<string> {
   let options: RequestInit = {
     credentials: "same-origin" as RequestCredentials,
     method: "GET",
-    headers: {"Accept": "application/json;charset=utf-8"}
+    headers: { Accept: "application/json;charset=utf-8" },
   };
-  
+
   let params = {};
-  return (window.fetch)(`https://master.apis.dev.openstreetmap.org/api/0.6/capabilities` + "?" + new URLSearchParams(removeUndefined(params)).toString(), options).then((response) => {
-    return new Promise((resolve, reject) => {
-      if (response.status !== 200) {
-        return response.text().then((text) => reject({text, status: response.status}));
-      } else {
-        return response.text().then((text) => resolve(text));
-      }
+  return window
+    .fetch(
+      `https://master.apis.dev.openstreetmap.org/api/0.6/capabilities` +
+        "?" +
+        new URLSearchParams(removeUndefined(params)).toString(),
+      options
+    )
+    .then((response) => {
+      return new Promise((resolve, reject) => {
+        if (response.status !== 200) {
+          return response
+            .text()
+            .then((text) => reject({ text, status: response.status }));
+        } else {
+          return response.text().then((text) => resolve(text));
+        }
+      });
     });
-  });
 }
 
-export function getApiVersions(): Promise<OsmStandard & InaRecord_api_InaRecord_versions_ApiVersion> {
+export function getApiVersions(): Promise<
+  OsmStandard & InaRecord_api_InaRecord_versions_ApiVersion
+> {
   let options: RequestInit = {
     credentials: "same-origin" as RequestCredentials,
     method: "GET",
-    headers: {"Accept": "application/json;charset=utf-8"}
+    headers: { Accept: "application/json;charset=utf-8" },
   };
-  
+
   let params = {};
-  return (window.fetch)(`https://master.apis.dev.openstreetmap.org/api/versions` + "?" + new URLSearchParams(removeUndefined(params)).toString(), options).then((response) => {
-    return new Promise((resolve, reject) => {
-      if (response.status !== 200) {
-        return response.text().then((text) => reject({text, status: response.status}));
-      } else {
-        return response.json().then((json) => resolve(json));
-      }
+  return window
+    .fetch(
+      `https://master.apis.dev.openstreetmap.org/api/versions` +
+        "?" +
+        new URLSearchParams(removeUndefined(params)).toString(),
+      options
+    )
+    .then((response) => {
+      return new Promise((resolve, reject) => {
+        if (response.status !== 200) {
+          return response
+            .text()
+            .then((text) => reject({ text, status: response.status }));
+        } else {
+          return response.json().then((json) => resolve(json));
+        }
+      });
     });
-  });
 }
 
 export function getApiVersionsText(): Promise<string> {
   let options: RequestInit = {
     credentials: "same-origin" as RequestCredentials,
     method: "GET",
-    headers: {"Accept": "application/json;charset=utf-8"}
+    headers: { Accept: "application/json;charset=utf-8" },
   };
-  
+
   let params = {};
-  return (window.fetch)(`https://master.apis.dev.openstreetmap.org/api/versions` + "?" + new URLSearchParams(removeUndefined(params)).toString(), options).then((response) => {
-    return new Promise((resolve, reject) => {
-      if (response.status !== 200) {
-        return response.text().then((text) => reject({text, status: response.status}));
-      } else {
-        return response.text().then((text) => resolve(text));
-      }
+  return window
+    .fetch(
+      `https://master.apis.dev.openstreetmap.org/api/versions` +
+        "?" +
+        new URLSearchParams(removeUndefined(params)).toString(),
+      options
+    )
+    .then((response) => {
+      return new Promise((resolve, reject) => {
+        if (response.status !== 200) {
+          return response
+            .text()
+            .then((text) => reject({ text, status: response.status }));
+        } else {
+          return response.text().then((text) => resolve(text));
+        }
+      });
     });
-  });
 }
- type FullyDefined<T> = Partial<{
-  [key in keyof T]: Exclude<T[key], undefined>
-}>
+type FullyDefined<T> = Partial<{
+  [key in keyof T]: Exclude<T[key], undefined>;
+}>;
 
 function removeUndefined<T extends object>(t: T): FullyDefined<T> {
-  const filter = <K extends keyof T>(arg: [string|number|symbol, T[K]]): arg is [K, Exclude<T[K], undefined>] => arg[1] !== undefined
+  const filter = <K extends keyof T>(
+    arg: [string | number | symbol, T[K]]
+  ): arg is [K, Exclude<T[K], undefined>] => arg[1] !== undefined;
   return Object.fromEntries(
-      Object.entries(t)
-      .filter(filter)
-  ) as FullyDefined<T>
+    Object.entries(t).filter(filter)
+  ) as FullyDefined<T>;
 }
-
 
 export interface IApiCapabilities {
   api: ApiCapabilitiesApi;
@@ -245,7 +322,7 @@ export interface INode {
   changeset: number;
   user: string;
   uid: number;
-  tags?: {[k in string]?: string};
+  tags?: { [k in string]?: string };
 }
 
 export interface INotesCapabilities {
@@ -275,7 +352,7 @@ export interface IRelation {
   changeset: number;
   user: string;
   uid: number;
-  tags?: {[k in string]?: string};
+  tags?: { [k in string]?: string };
 }
 
 export interface IRmNode {
@@ -311,7 +388,7 @@ export interface IWay {
   changeset: number;
   user: string;
   uid: number;
-  tags?: {[k in string]: string};
+  tags?: { [k in string]: string };
 }
 
 export type ApiCapabilities = IApiCapabilities;
@@ -332,7 +409,8 @@ export type InaRecord_api_InaRecord_versions_ApiVersion = IInaRecord_api;
 
 export type InaRecord_blacklist_InaRecord_regex_string = IInaRecord_blacklist;
 
-export type InaRecord_imagery_InaRecord_blacklist_InaRecord_regex_string = IInaRecord_imagery;
+export type InaRecord_imagery_InaRecord_blacklist_InaRecord_regex_string =
+  IInaRecord_imagery;
 
 export type InaRecord_maximum_number = IInaRecord_maximum;
 
@@ -350,7 +428,15 @@ export type NotesCapabilities = INotesCapabilities;
 
 export type OsmStandard = IOsmStandard;
 
-export type Permission = "allow_read_prefs" | "allow_write_prefs" | "allow_write_diary" | "allow_write_api" | "allow_write_redactions" | "allow_read_gpx" | "allow_write_gpx" | "allow_write_notes";
+export type Permission =
+  | "allow_read_prefs"
+  | "allow_write_prefs"
+  | "allow_write_diary"
+  | "allow_write_api"
+  | "allow_write_redactions"
+  | "allow_read_gpx"
+  | "allow_write_gpx"
+  | "allow_write_notes";
 
 export type Range = IRange;
 
@@ -359,9 +445,26 @@ export type RelationMember = IRmWay | IRmNode | IRmRelation;
 export type Stati = IStati;
 
 export type Status = "offline" | "readonly" | "online";
-export function toQueryParamOsmStandardApiCapabilities(a : OsmStandard & ApiCapabilities) { return (((a) => a))(a) } 
-export function toQueryParamOsmStandardBoundedElements(a : OsmStandard & BoundedElements) { return (((a) => a))(a) } 
-export function toQueryParamOsmStandardInaRecordapiInaRecordversionsApiVersion(a : OsmStandard & InaRecord_api_InaRecord_versions_ApiVersion) { return (((a) => a))(a) } 
-export function toQueryParamOsmStandardInaRecordpermissionsPermission(a : OsmStandard & InaRecord_permissions_Permission) { return (((a) => a))(a) } 
-export function toQueryParamBbox(a : Bbox) { return ((a) => `${a.minlon},${a.minlat},${a.maxlon},${a.maxlat}`)(a) } 
-
+export function toQueryParamOsmStandardApiCapabilities(
+  a: OsmStandard & ApiCapabilities
+) {
+  return ((a) => a)(a);
+}
+export function toQueryParamOsmStandardBoundedElements(
+  a: OsmStandard & BoundedElements
+) {
+  return ((a) => a)(a);
+}
+export function toQueryParamOsmStandardInaRecordapiInaRecordversionsApiVersion(
+  a: OsmStandard & InaRecord_api_InaRecord_versions_ApiVersion
+) {
+  return ((a) => a)(a);
+}
+export function toQueryParamOsmStandardInaRecordpermissionsPermission(
+  a: OsmStandard & InaRecord_permissions_Permission
+) {
+  return ((a) => a)(a);
+}
+export function toQueryParamBbox(a: Bbox) {
+  return ((a) => `${a.minlon},${a.minlat},${a.maxlon},${a.maxlat}`)(a);
+}
