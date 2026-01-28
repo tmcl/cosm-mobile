@@ -16,7 +16,8 @@
       android-sdk,
     }:
     let
-      expo-major = "53";
+      expo-major = "54";
+      build-tools-version = "36.0.0";
       management-root-fileset = pkgs.lib.fileset.fileFilter (file: file.type == "regular") root_path;
       development-inputs-simplest = pkgs.lib.fileset.toSource {
         root = root_path;
@@ -42,7 +43,7 @@
       };
       buildMavenRepo = args: buildMavenRepo (pkgs.lib.getAttrs [ "lockFile" "overrides" ] args);
       ANDROID_SDK_ROOT = "${android-sdk}/share/android-sdk";
-      GRADLE_OPTS = "-Dorg.gradle.project.android.aapt2FromMavenOverride=${ANDROID_SDK_ROOT}/build-tools/35.0.0/aapt2";
+      GRADLE_OPTS = "-Dorg.gradle.project.android.aapt2FromMavenOverride=${ANDROID_SDK_ROOT}/build-tools/${build-tools-version}/aapt2";
       multioutput-combiner =
         originalDerivation:
         pkgs.stdenv.mkDerivation {
@@ -60,7 +61,7 @@
           installPhase = "true";
         };
       web = pkgs.stdenv.mkDerivation {
-        name = "interpret";
+        name = "${package_json_info.name}-web";
         APP_VARIANT = "production";
         src = root_path;
         buildInputs = [
@@ -94,7 +95,7 @@
         in
         bare // { dependencies = filter bare.dependencies; };
       node_modules = pkgs.mkYarnModules {
-        pname = "interpret-nodemodules";
+        pname = "${package_json_info.name}-nodemodules";
         version = "1.0.0";
         packageJSON = package_json;
         yarnLock = /${root_path}/yarn.lock;
@@ -236,8 +237,8 @@
             version = "0.1.0";
             inherit lockFile src;
             overrides = {
-              "com.android.tools.build:aapt2:8.8.2-12006047" = {
-                "aapt2-8.8.2-12006047-linux.jar" =
+              "com.android.tools.build:aapt2:8.11.0-12782657" = {
+                "aapt2-8.11.0-12782657-linux.jar" =
                   src:
                   pkgs.runCommandCC src.name
                     {
@@ -255,7 +256,7 @@
                     ''
                       cp ${src} aapt2.jar
                       jar xf aapt2.jar aapt2
-                      cp ${android-sdk}/share/android-sdk/build-tools/35.0.0/aapt2 aapt2
+                      cp ${android-sdk}/share/android-sdk/build-tools/${build-tools-version}/aapt2 aapt2
                       chmod +x aapt2
                       jar uf aapt2.jar aapt2
                       cp aapt2.jar $out
@@ -358,6 +359,17 @@
 
       update-gradle-lock = pkgs.writeScriptBin "update-gradle-lock" ''
         #!${pkgs.bash}/bin/bash
+        set -eu
+        git_root=$(${pkgs.git}/bin/git rev-parse --show-toplevel)
+        if [[ -e $git_root/android ]]; then
+          if  [[ "$1" == "--force"  ]]; then
+             echo "working despite android directory" >&2
+             shift
+          else
+             echo "android directory identified" >&2
+             echo "you should probably remove it, but if you know better use --force" >&2
+             exit 1
+          fi
         if  [[ "$1" == "development"  ]]; then
            Variant=Debug
         elif [[ "$1" == "production" ]]; then
@@ -367,8 +379,6 @@
            echo "please provide the mode - production or development" >&2
            exit 1
         fi
-        set -eu
-        git_root=$(${pkgs.git}/bin/git rev-parse --show-toplevel)
 
         (
           export NPM_CONFIG_CACHE=$git_root/npm-cache

@@ -72,7 +72,10 @@ export default {
                 "source": "git+https://git.tmcl.dev/tristan/cocoapods.git"
               }
             ]
-          }
+          },
+					"android": {
+						"buildArchs": ["arm64-v8a" /*, "x86_64" */]
+					}
         }
       ]
     ],
