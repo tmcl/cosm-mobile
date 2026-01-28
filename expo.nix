@@ -327,7 +327,7 @@
       inherit ANDROID_SDK_ROOT;
       inherit web node_modules;
       maven-repo = buildMavenRepo (android-build "development" development-inputs);
-      android-production = multioutput-combiner (
+      android-production =  (
         (buildGradlePackage (android-build "production" root_path)).overrideAttrs (
           finalAttrs: prevAttrs: {
             gradleInitScript = pkgs.substitute {
@@ -342,7 +342,7 @@
         )
       );
 
-      android-development = multioutput-combiner (
+      android-development =  (
         (buildGradlePackage (android-build "development" development-inputs)).overrideAttrs (
           finalAttrs: prevAttrs: {
             gradleInitScript = pkgs.substitute {
