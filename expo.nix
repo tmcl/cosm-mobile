@@ -270,11 +270,11 @@
               pkgs.openjdk17
             ];
             prePatchHooks = [
-              "export HOME=$(mktemp -d); echo $HOME; cp ${package_json} package.json && chmod +w package.json; set -x"
+              "export HOME=$(mktemp -d); echo $HOME; cp ${package_json} package.json && chmod +w package.json"
             ];
             preBuildHooks = [
               "trap 'echo \"Exit code: $?\"' DEBUG;"
-              "if find /path/to/dir -type f \\( -name \"*.ts\" -o -name \"*.tsx\" \\) -print -quit | grep -q .; then tsc --noEmit; fi"
+              "echo tsc; npx tsc --noEmit; echo \"tsc $?\""
             ];
             outputs = [
               "out"
