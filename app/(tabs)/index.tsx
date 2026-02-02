@@ -21,7 +21,7 @@ import * as Svg from "react-native-svg";
 import { IconNode } from "@rneui/base";
 import * as ExLoc from "expo-location";
 import { CircleLayer } from "@maplibre/maplibre-react-native";
-import { modalNotes, NearestPoint } from "@/components/diff-info";
+import { modalNotes } from "@/components/diff-info";
 import { Change } from "@/components/diff-info/shared";
 import {
   useMainPageState,
@@ -469,7 +469,6 @@ export default function MainPage() {
         visibleBounds: { minlon, minlat, maxlon, maxlat },
       });
     }
-    // v11 uses center and zoom directly
     if (state.center && state.zoom !== undefined) {
       console.log("setting zoom from event", state.zoom, state.center);
       dispatch({

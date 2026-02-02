@@ -209,15 +209,15 @@ test("modal notes - barkers pde", () => {
     point: {
       type: "Feature",
       properties: {
-        dist: 1.793882523331963e-9,
-        location: 0.0018068996873699993,
+        dist: 1.2865478879786923e-7,
+        location: 0.0018069014846731231,
         triggeringWayId: "4306563790",
         segmentWayId: "4306563790",
         index: 0,
       },
       geometry: {
         type: "Point",
-        coordinates: [145.08246231141365, -37.86022008867677],
+        coordinates: [145.0824623112455, -37.86022008982643],
       },
       id: "derived-4306563790",
     },
@@ -241,7 +241,7 @@ test("modal notes - barkers pde", () => {
       {
         object: {
           type: "node",
-          position: [145.08246231141365, -37.86022008867677],
+          position: [ 145.0824623112455, -37.86022008982643 ] ,
           node_id: "new-4306563790",
         },
         set_tags: { highway: "stop", direction: "forward" },
@@ -252,7 +252,7 @@ test("modal notes - barkers pde", () => {
           way_id: "4306563790",
           nodes: [
             "4352740557",
-            "new-4306563790",
+            "-1",
             "4352742893",
             "4352740599",
             "4352742065",
@@ -279,22 +279,48 @@ test("modal notes - barkers pde", () => {
     signFaceAngle: undefined,
     osmChange: {
       version: "0.6",
-      generator: "cosm/2025.09.30 (android)",
+      generator: "cosm/2025.11.30 (android)",
       create: [
         {
+					version: 0,
           tag: "node",
-          id: 4306563790,
-          changeset: 7,
-          lon: 145.08246231141365,
-          lat: -37.86022008867677,
+          id: -1,
+          lon: 145.0824623112455, 
+          lat: -37.86022008982643,
           tags: { highway: "stop", direction: "forward" },
         },
       ],
-      modify: [],
+      modify: [
+      {
+          id: 4306563790,
+					version: 1,
+					tag: "way",
+					tags: {
+						highway: "residential",
+						name: "Baker Parade",
+						surface: "paved"
+					},
+          nodes: [
+						{ref: 4352740557},
+						{ref: -1},
+            {ref: 4352742893},
+            {ref: 4352740599},
+            {ref: 4352742065},
+            {ref: 4352740556},
+            {ref: 4352736893},
+            {ref: 4352736894},
+            {ref: 4352736895},
+            {ref: 4352736896},
+            {ref: 4352736897},
+            {ref: 4352740555},
+            {ref: 4352736869},
+          ],
+			}
+			],
       delete: [],
     },
   };
-  //expect(notes).toStrictEqual(expectedNotes) /* still being worked on */
+  expect(notes).toStrictEqual(expectedNotes) /* still being worked on */
   console.log(buildOsmChangeXML(notes.osmChange));
 });
 

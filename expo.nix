@@ -274,7 +274,7 @@
             ];
             preBuildHooks = [
               "trap 'echo \"Exit code: $?\"' DEBUG;"
-              "echo tsc; npx tsc --noEmit; echo \"tsc $?\""
+              (if mode == "development" then "echo skipping tsc on development" else "echo tsc; npx tsc --noEmit; echo \"tsc $?\"")
             ];
             outputs = [
               "out"

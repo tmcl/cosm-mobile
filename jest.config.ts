@@ -1,10 +1,9 @@
 import type { Config } from "jest";
 
 const config: Config = {
-  // ... other jest config
-  //transformIgnorePatterns: [
-  //  "/node_modules/(?!array-from-async).+\\.js$"
-  //],
+  transformIgnorePatterns: [
+    "/node_modules/(?!kdbush|geokdbush|tinyqueue).+\\.js$"
+  ],
   // If using Babel
   extensionsToTreatAsEsm: [".ts"],
   transform: {

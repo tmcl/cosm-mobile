@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "scripts": {
     "start": "expo start",
-    "android": "tsc --noEmit && REACT_NATIVE_PACKAGER_HOSTNAME=silverfish.tmcl.dev APP_VARIANT=development yarn expo run:android  --app-id dev.tmcl.cosm.dev --binary=$(nom build .#android.development  --out-link development-apk --print-out-paths)/out/fake-signed-debug-apk.apk",
+    "android": "tsc --noEmit && REACT_NATIVE_PACKAGER_HOSTNAME=silverfish.tmcl.dev APP_VARIANT=development yarn expo run:android  --app-id dev.tmcl.cosm.dev --binary=$(nom build .#android.development  --out-link development-apk --print-out-paths)/fake-signed-debug-apk.apk",
     "androidDevelopment": "tsc --noEmit && REACT_NATIVE_PACKAGER_HOSTNAME=silverfish.tmcl.dev APP_VARIANT=development yarn expo run:android  --app-id dev.tmcl.cosm.dev",
     "androidRelease": "expo run:android --variant Release",
     "ios": "expo run:ios",
