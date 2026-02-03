@@ -8,7 +8,8 @@
     "androidDevelopment": "tsc --noEmit && REACT_NATIVE_PACKAGER_HOSTNAME=silverfish.tmcl.dev APP_VARIANT=development yarn expo run:android  --app-id dev.tmcl.cosm.dev",
     "androidRelease": "expo run:android --variant Release",
     "ios": "expo run:ios",
-    "test": "jest --watchAll",
+    "test": "jest",
+    "test:watch": "jest --watchAll",
     "lint": "expo lint",
     "format": "find -not '(' -name node_modules -prune -o -name android -prune ')' '(' -iname '*.ts' -o -iname '*.tsx' ')' -print0 | xargs -0 npx prettier --write"
   },

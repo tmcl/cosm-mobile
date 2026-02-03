@@ -18,11 +18,6 @@
     let
       expo-major = "54";
       build-tools-version = "36.0.0";
-      management-root-fileset = pkgs.lib.fileset.fileFilter (file: file.type == "regular") root_path;
-      development-inputs-simplest = pkgs.lib.fileset.toSource {
-        root = root_path;
-        fileset = management-root-fileset;
-      };
       development-inputs = pkgs.lib.fileset.toSource {
         root = root_path;
         fileset = pkgs.lib.fileset.unions [
@@ -44,22 +39,6 @@
       buildMavenRepo = args: buildMavenRepo (pkgs.lib.getAttrs [ "lockFile" "overrides" ] args);
       ANDROID_SDK_ROOT = "${android-sdk}/share/android-sdk";
       GRADLE_OPTS = "-Dorg.gradle.project.android.aapt2FromMavenOverride=${ANDROID_SDK_ROOT}/build-tools/${build-tools-version}/aapt2";
-      multioutput-combiner =
-        originalDerivation:
-        pkgs.stdenv.mkDerivation {
-          name = "${originalDerivation.name}-all-out";
-
-          src = originalDerivation;
-          fixupPhase = "true";
-          buildPhase = ''
-            mkdir -p $out
-            ${builtins.concatStringsSep "\n" (
-              map (output: "ln -s ${originalDerivation.${output}} $out/${output}") originalDerivation.outputs
-            )}
-          '';
-
-          installPhase = "true";
-        };
       web = pkgs.stdenv.mkDerivation {
         name = "${package_json_info.name}-web";
         APP_VARIANT = "production";
@@ -84,9 +63,15 @@
       package_json = pkgs.writeText "package.json" (builtins.toJSON (package_json_info));
       package_json_info =
         let
-          bare = builtins.removeAttrs (builtins.fromJSON (builtins.readFile "${root_path}/package.json")) [
-            "scripts"
-          ];
+          package.json = (builtins.fromJSON (builtins.readFile "${root_path}/package.json"));
+          bare =   package.json
+           // {
+             scripts = {
+               android = "expo run:android";
+               ios = "expo run:ios";
+               test = package.json.scripts.test;
+             };
+           };
           filter =
             if "development" == "production" then
               x: builtins.removeAttrs x [ "expo-drizzle-studio-plugin" ]
@@ -135,100 +120,11 @@
             autoLockLintVitalRelease = builtins.fromJSON (
               builtins.readFile ./gradle-lock/${mode}/gradle.lock.app.lintvitalrelease.json
             );
-            #aapt2bundle = pkgs.stdenv.mkDerivation {
-            #  name = "aapt2bundle";
-            #  src = builtins.fetchurl {
-            #    url = "https://dl.google.com/dl/android/maven2/com/android/tools/build/aapt2/8.6.0-11315950/aapt2-8.6.0-11315950-linux.jar";
-            #    sha256 = "sha256-aCkmzxAfAhpQY5Ee0squwUCMF8xJaD/QNVIkUYeGQ5U=";
-            #  };
-
-            #  # Specify build inputs if needed
-            #  nativeBuildInputs = [pkgs.coreutils pkgs.unzip pkgs.zip];
-            #  android_sdk = android-sdk;
-
-            #  # The build phase where we run our commands
-            #  unpackPhase = "cp $src ./aapt2-8.6.0-11315950-linux.jar";
-            #  buildPhase = ''
-            #    ls
-            #    echo $src
-            #    ls $src
-            #    mkdir build
-            #    unzip aapt2-8.6.0-11315950-linux.jar -d build
-            #    cp $android_sdk/share/android-sdk/build-tools/34.0.0/aapt2 build
-            #    cd build
-            #    zip aapt2-8.6.0-11315950-linux.jar * */*
-            #    cd ..
-            #  '';
-
-            #  installPhase = ''
-            #    install build/aapt2-8.6.0-11315950-linux.jar $out
-            #  '';
-            #};
-            #standardise-dates = pkgs.writeScriptBin "standardise-dates" ''
-            #  #!${pkgs.bash}/bin/bash
-            #  first_part=$(mktemp)
-            #  second_part=$(mktemp)
-            #  second_part_1=$(mktemp)
-            #  sed -e 's/^\([^\t]*\)\t\(.*\)$/\1\t/' $1 > $first_part
-            #  sed -e 's/^\([^\t]*\)\t\(.*\)$/\2/' $1 > $second_part
-            #  echo first_part $first_part
-            #  cat $first_part
-            #  echo second_part $second_part
-            #  cat $second_part
-            #  ${pkgs.jq}/bin/jq -c '
-            #    .metadata.resHeaders.date = .metadata.resHeaders."last-modified" |
-            #    .time = (.metadata.resHeaders."last-modified" |  strptime("%a, %d %b %Y %H:%M:%S GMT") | mktime * 1000) |
-            #    .metadata.time = (.metadata.resHeaders."last-modified" |  strptime("%a, %d %b %Y %H:%M:%S GMT") | mktime * 1000)
-            #  ' $second_part > $second_part_1
-            #  echo "2e13823e23f3c0db9c9d228418c894d4005a107a\t" > $first_part
-            #  (tr -d '\n' < $first_part; cat $second_part_1) > $1
-            #  cat $1
-            #  rm $first_part $second_part $second_part_1
-            #'';
             npm-cache = ./npm-cache;
-            #npm-cache = pkgs.stdenv.mkDerivation rec {
-            #  name = "npm-cache";
-
-            #  # Use a fixed-output derivation
-            #  outputHashMode = "recursive";
-            #  outputHashAlgo = "sha256";
-            #  outputHash = "sha256-ldZVpM2ht8xuj73W34InTRu5ug1aZJCqV4AC6OWEkmA=";
-
-            #  nativeBuildInputs = [ pkgs.nodejs ];
-
-            #  # Fetch the npm package
-            #  buildCommand = ''
-            #    set -exu
-            #    export NODE_EXTRA_CA_CERTS="${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
-            #    export HOME=$TMPDIR
-            #    mkdir -p $out
-            #    cd $out
-            #    export NPM_CONFIG_CACHE=$out
-            #    export npm_config_registry=https://registry.yarnpkg.com
-            #    npm view expo-template-bare-minimum@sdk-${expo-major} dist --json
-            #    find $out/_cacache/index-v5 -type f -print -exec cat '{}' ';' -exec ${standardise-dates}/bin/standardise-dates '{}' ';'
-            #    npm cache verify --loglevel=verbose
-            #    ls -l
-            #    rm -rf _logs
-            #    rm _update-notifier-last-checked
-            #  '';
-
-            #};
             extrasLock = builtins.fromJSON (builtins.readFile ./gradle-lock/${mode}/gradle.lock.extra.json);
             lockFile = pkgs.writeText "gradle.lock" (
               builtins.toJSON (extrasLock // autoLockLintVitalRelease // autoLockStandard)
             );
-            #  sqlfiles = pkgs.stdenv.mkDerivation {
-            #      name = "sqlfiles";
-            #      src = ./frontend/sql;
-            #      # Specify build inputs if needed
-            #      nativeBuildInputs = [ pkgs.coreutils pkgs.haskellPackages.read-src-asset pkgs.sqlite ];
-
-            #      # The build phase where we run our commands
-            #      buildPhase = ''
-            #        read-src-asset --out=$out --schema=schema .
-            #      '';
-            #};
             js_package_name = package_json_info.name;
           in
           {
@@ -302,6 +198,9 @@
                     ${pkgs.jq}/bin/jq -Rs . "$file" > "$file.json"
                   done
                 ' sh {} + || true
+                ls -l
+                cat package.json
+                ${pkgs.yarn}/bin/yarn --offline run test
                 cd android
               ''
             ];
