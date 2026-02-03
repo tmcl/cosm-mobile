@@ -20,7 +20,7 @@ import type GeoJSON from "geojson";
 import * as Svg from "react-native-svg";
 import { IconNode } from "@rneui/base";
 import * as ExLoc from "expo-location";
-import { CircleLayer } from "@maplibre/maplibre-react-native";
+import { Layer } from "@maplibre/maplibre-react-native";
 import { modalNotes } from "@/components/diff-info";
 import { Change } from "@/components/diff-info/shared";
 import {
@@ -318,7 +318,8 @@ function MapAddStopSign({
             data={nearestPointShape!}
             ref={refNearestPointShape}
           >
-            <CircleLayer
+            <Layer
+							type="circle"
               layerIndex={LayerIndexLookup["nearestPointLayer"]}
               id="nearestPointLayer"
               style={pointsOnWayNearClickLayerStyle(nearestPointId)}
@@ -602,7 +603,7 @@ export default function MainPage() {
             ref={refPointsOnWayNearClickSource}
             onPress={onPressSelectInterestingPoint}
           >
-            <CircleLayer
+            <Layer type="circle"
               layerIndex={LayerIndexLookup.pointsOnWayNearClicks}
               id="pointsOnWayNearClicks"
               style={pointsOnWayNearClickLayerStyle(selectedInterestingPoints)}
@@ -615,7 +616,7 @@ export default function MainPage() {
             data={symbols}
             ref={refHighwaystopSource}
           >
-            <CircleLayer
+            <Layer type="circle"
               id="points"
               layerIndex={LayerIndexLookup.points}
               style={circleLayerStyle(undefined)}
@@ -629,12 +630,12 @@ export default function MainPage() {
             ref={refRoadcasingsSource}
             onPress={onPressWay}
           >
-            <MapLibreGL.FillLayer
+            <Layer type="fill"
               id="roadcasingfill"
               layerIndex={LayerIndexLookup.roadcasingfill}
               style={roadcasingsLayerStyle(highlightWays)}
             />
-            <MapLibreGL.LineLayer
+            <Layer type="line"
               id="roadstrokeslines"
               layerIndex={LayerIndexLookup.roadcasinglines}
               filter={["==", ["geometry-type"], "LineString"]}

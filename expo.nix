@@ -192,6 +192,7 @@
                 export NPM_CONFIG_OFFLINE=true
                 npm view expo-template-bare-minimum@sdk-${expo-major} dist --json
                 EXPO_OFFLINE=1 ${pkgs.yarn}/bin/yarn --offline expo prebuild  --no-install
+                cat android/gradle.properties
                 ls -l
                 find sql -type f -name '*.sql' -exec sh -c '
                   for file do
@@ -259,6 +260,11 @@
       update-gradle-lock = pkgs.writeScriptBin "update-gradle-lock" ''
         #!${pkgs.bash}/bin/bash
         set -eu
+        export PATH=${pkgs.yarn}/bin:$PATH
+        export JAVA_HOME=${pkgs.jdk17.home};
+        export ANDROID_HOME="${pkgs.android-sdk}/share/android-sdk";
+        export ANDROID_SDK_ROOT="${pkgs.android-sdk}/share/android-sdk";
+        export ANDROID_AVD_HOME="/home/tristan/.config/.android/avd";
         git_root=$(${pkgs.git}/bin/git rev-parse --show-toplevel)
         if [[ -e $git_root/android ]]; then
           if  [[ "$1" == "--force"  ]]; then
@@ -269,6 +275,7 @@
              echo "you should probably remove it, but if you know better use --force" >&2
              exit 1
           fi
+        fi
         if  [[ "$1" == "development"  ]]; then
            Variant=Debug
         elif [[ "$1" == "production" ]]; then
