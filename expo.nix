@@ -39,33 +39,13 @@
       buildMavenRepo = args: buildMavenRepo (pkgs.lib.getAttrs [ "lockFile" "overrides" ] args);
       ANDROID_SDK_ROOT = "${android-sdk}/share/android-sdk";
       GRADLE_OPTS = "-Dorg.gradle.project.android.aapt2FromMavenOverride=${ANDROID_SDK_ROOT}/build-tools/${build-tools-version}/aapt2";
-      web = pkgs.stdenv.mkDerivation {
-        name = "${package_json_info.name}-web";
-        APP_VARIANT = "production";
-        src = root_path;
-        buildInputs = [
-          pkgs.nodejs
-          pkgs.yarn
-        ];
-        buildPhase = ''
-          export HOME=$(mktemp -d)
-          #cp -a ${node_modules}/node_modules node_modules
-          ln -s ${node_modules}/node_modules node_modules
-          #ls -ld node_modules
-          #ls -l node_modules
-          yarn --offline build
-        '';
-        installPhase = ''
-          mkdir -p $out/dist
-          cp -r dist/* $out/dist/
-        '';
-      };
-      package_json = pkgs.writeText "package.json" (builtins.toJSON (package_json_info));
-      package_json_info =
+      mk_package_json = mode: pkgs.writeText "package.json" (builtins.toJSON (mk_package_json_info mode));
+      mk_package_json_info = mode:
         let
           package.json = (builtins.fromJSON (builtins.readFile "${root_path}/package.json"));
           bare =   package.json
            // {
+             version = 
              scripts = {
                android = "expo run:android";
                ios = "expo run:ios";
@@ -73,16 +53,16 @@
              };
            };
           filter =
-            if "development" == "production" then
+            if mode == "production" then
               x: builtins.removeAttrs x [ "expo-drizzle-studio-plugin" ]
             else
               x: x;
         in
         bare // { dependencies = filter bare.dependencies; };
-      node_modules = pkgs.mkYarnModules {
-        pname = "${package_json_info.name}-nodemodules";
+      mk_node_modules = mode: pkgs.mkYarnModules {
+        pname = "${(mk_package_json_info mode).name}-nodemodules";
         version = "1.0.0";
-        packageJSON = package_json;
+        packageJSON = mk_package_json mode;
         yarnLock = /${root_path}/yarn.lock;
       };
       android-build =
@@ -126,6 +106,9 @@
               builtins.toJSON (extrasLock // autoLockLintVitalRelease // autoLockStandard)
             );
             js_package_name = package_json_info.name;
+            package_json_info = mk_package_json_info mode;
+            package_json = mk_package_json mode;
+            node_modules = mk_node_modules mode;
           in
           {
             gradle = pkgs.gradle-unwrapped;
@@ -225,7 +208,6 @@
     rec {
       inherit GRADLE_OPTS;
       inherit ANDROID_SDK_ROOT;
-      inherit web node_modules;
       maven-repo = buildMavenRepo (android-build "development" development-inputs);
       android-production =  (
         (buildGradlePackage (android-build "production" root_path)).overrideAttrs (
@@ -314,8 +296,6 @@
         ${gradle2nix}/bin/gradle2nix -l $git_root/gradle-lock/$1/gradle.lock.json
       '';
       update-gradle-lock-app =
-        let
-        in
         {
           type = "app";
           program = "${update-gradle-lock}/bin/update-gradle-lock";
