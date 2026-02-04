@@ -4,7 +4,7 @@ export default {
   "expo": {
     "name": IS_DEV ? "cosm (Development)" : "cosm",
     "slug": IS_DEV ? "cosmdev" : "cosm",
-    "version": [d.getFullYear(), d.getMonth()+1, d.getDate(), d.getHours(), d.getMinutes(), d.getSeconds()].join('.'), 
+    "version": [d.getFullYear(), d.getMonth()+1, d.getDate(), d.getHours(), d.getMinutes()].join('.'), 
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": IS_DEV ? "cosmdev" : "cosm",
@@ -18,7 +18,7 @@ export default {
       }
     },
     "android": {
-			"versionCode": d.getTime(),
+			"versionCode": Math.floor(d.getTime()/60000),
         "edgeToEdgeEnabled": true,
       "adaptiveIcon": {
 
