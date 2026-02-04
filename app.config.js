@@ -18,6 +18,7 @@ export default {
       }
     },
     "android": {
+			"versionCode": d.getTime(),
         "edgeToEdgeEnabled": true,
       "adaptiveIcon": {
 
