@@ -1,4 +1,5 @@
 const IS_DEV = process.env.APP_VARIANT === 'development';
+const d = new Date();
 export default {
   "expo": {
     "name": IS_DEV ? "cosm (Development)" : "cosm",
