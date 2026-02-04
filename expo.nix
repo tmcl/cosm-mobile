@@ -45,7 +45,6 @@
           package.json = (builtins.fromJSON (builtins.readFile "${root_path}/package.json"));
           bare =   package.json
            // {
-             version = 
              scripts = {
                android = "expo run:android";
                ios = "expo run:ios";
