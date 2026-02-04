@@ -5,7 +5,7 @@ import * as OsmApi from "@/scripts/clients";
 import { InteractionManager } from "react-native";
 import * as ReactQuery from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
-import { useDrizzleStudio } from "expo-drizzle-studio-plugin";
+//import { useDrizzleStudio } from "expo-drizzle-studio-plugin";
 import type { DefaultError } from "@tanstack/query-core";
 import {
   TargetNode,
@@ -951,7 +951,7 @@ export const useReviewPageQueries = () => {
 export const useOsmDataQueries = () => {
   const db = SQLite.useSQLiteContext();
   const queries = useRef(new OsmDataQueries());
-  useDrizzleStudio(db);
+  //useDrizzleStudio(db);
   useEffect(() => {
     const currentQueries = queries.current;
     currentQueries.setup(db);
@@ -962,7 +962,7 @@ export const useOsmDataQueries = () => {
 export const useOsmPopulatingQueries = () => {
   const db = SQLite.useSQLiteContext();
   const queries = useRef(new OsmPopulatingQueries());
-  useDrizzleStudio(db);
+  //useDrizzleStudio(db);
   useEffect(() => {
     const currentQueries = queries.current;
     currentQueries.setup(db);
@@ -973,7 +973,7 @@ export const useOsmPopulatingQueries = () => {
 export const useMainPageQueries = () => {
   const db = SQLite.useSQLiteContext();
   const queries = useRef(new MainPageQueries());
-  useDrizzleStudio(db);
+  //useDrizzleStudio(db);
   useEffect(() => {
     const currentQueries = queries.current;
     currentQueries.setup(db);
