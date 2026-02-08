@@ -4207,6 +4207,16 @@
       "hash": "sha256-peVr0bveFk/AikahZTqAavdDLz0J/pvVwh9oITJjHk8="
     }
   },
+  "com.android.installreferrer:installreferrer:2.2": {
+    "installreferrer-2.2.aar": {
+      "url": "https://dl.google.com/dl/android/maven2/com/android/installreferrer/installreferrer/2.2/installreferrer-2.2.aar",
+      "hash": "sha256-cRLlksQplJeHwWjFrGJyEUSnO2SQUGhFV/29ul3Ttmo="
+    },
+    "installreferrer-2.2.pom": {
+      "url": "https://dl.google.com/dl/android/maven2/com/android/installreferrer/installreferrer/2.2/installreferrer-2.2.pom",
+      "hash": "sha256-kB7nmQjb9spVGBIAOeg5TGSGa1XCrv+pZfA3ajmnOBM="
+    }
+  },
   "com.android.tools:annotations:31.11.0": {
     "annotations-31.11.0.jar": {
       "url": "https://dl.google.com/dl/android/maven2/com/android/tools/annotations/31.11.0/annotations-31.11.0.jar",

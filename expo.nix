@@ -53,7 +53,7 @@
            };
           filter =
             if mode == "production" then
-              x: builtins.removeAttrs x [ "expo-drizzle-studio-plugin" ]
+              x: builtins.removeAttrs x [ "expo-drizzle-studio-plugin"  ]
             else
               x: x;
         in
@@ -167,6 +167,9 @@
                 cp -R ${node_modules}/node_modules node_modules
                 chmod -R +w node_modules
                 ls -l
+                ls -la $src
+                ls -la ${src}
+                #false
                 cp -Rv ${npm-cache} ~/.npm
                 chmod -cR +rw ~/.npm
                 find ~/.npm -exec touch '{}' ';'
@@ -289,10 +292,10 @@
         if [[ $Variant == Debug ]]; then
          ${gradle2nix}/bin/gradle2nix -t :expo:extractDebugAnnotations -l $git_root/gradle-lock/$1/gradle.lock.app.lintvitalrelease.json
         else
-         ${gradle2nix}/bin/gradle2nix -t :app:lintVital$Variant -l $git_root/gradle-lock/$1/gradle.lock.app.lintvitalrelease.json
-         ${gradle2nix}/bin/gradle2nix -t lintVital$Variant -l $git_root/gradle-lock/$1/gradle.lock.lintvitalrelease.json
+         #${gradle2nix}/bin/gradle2nix -l $git_root/gradle-lock/$1/gradle.lock.app.lintvitalrelease.json
+         ${gradle2nix}/bin/gradle2nix -t resolveAllArtifacts -t :app:lintVital$Variant -t lintVital$Variant -l $git_root/gradle-lock/$1/gradle.lock.lintvitalrelease.json
         fi
-        ${gradle2nix}/bin/gradle2nix -l $git_root/gradle-lock/$1/gradle.lock.json
+        #${gradle2nix}/bin/gradle2nix -l $git_root/gradle-lock/$1/gradle.lock.json
       '';
       update-gradle-lock-app =
         {

@@ -86,10 +86,6 @@
               build-tools-36-0-0
               platform-tools
               platforms-android-36
-              #emulator
-              #(if system == "x86_64-linux" then system-images-android-34-google-apis-x86-64 else system-images-android-34-google-apis-arm64-v8a)
-              #ndk-26-1-10909125
-              #ndk-25-1-8937393
               ndk-27-1-12297006
               ndk-27-0-12077973
             ]
@@ -106,13 +102,13 @@
             };
           expo_ = mkExpo system pkgs;
         in
-        rec {
+        {
           inherit android-sdk;
           android-spatialite = pkgs.pkgsCross.aarch64-android-prebuilt.libspatialite;
 
           update-gradle-lock = expo_.update-gradle-lock;
           update-gradle-lock-app = expo_.update-gradle-lock-app;
-          android = rec {
+          android = {
             node_modules = expo_.node-modules;
 
             development = expo_.android-development;
@@ -175,71 +171,17 @@
       devShell =
         let
 
-          haskellDeps = ps: [
-            ps.base
-
-            #ps.cookbook-basic-auth
-            #ps.cookbook-openapi3
-            ps.servant-swagger-ui
-            ps.file-embed-lzma
-            ps.lzma
-            ps.rasterific-svg
-            ps.JuicyPixels
-            ps.svg-tree
-            ps.system-fileio
-            ps.hinotify
-            ps.binary
-            ps.blaze-html
-            ps.blaze-markup
-            ps.blaze-svg
-            ps.bytestring
-            ps.cassava
-            ps.diagrams
-            ps.diagrams-svg
-            ps.ekg
-            #ps.geojson
-            ps.http-media
-            #ps.jsaddle
-            #ps.jsaddle-dom
-            #ps.jsaddle-warp
-            ps.list-transformer
-            ps.megaparsec
-            ps.optics
-            ps.postgresql-simple
-            ps.reflex
-            #ps.reflex-dom
-            ps.resource-pool
-            ps.servant
-            ps.servant-blaze
-            ps.servant-client
-            ps.servant-server
-            ps.stopwatch
-            ps.SVGFonts
-            ps.SVGPath
-            ps.text
-            ps.wai-cors
-            #ps.wkt-geom
-            ps.xml
-            ps.HaXml
-            ps.hexpat
-            ps.hexpat-pickle
-            ps.servant-foreign
-            ps.string-interpolate
-            #ps.servant-typescript
-            #ps.aeson-typescript
-          ];
-
           envars =
             if system != "x84_64-linux" then
               { }
             else
               {
-                MY_SPATIALITE = "${pkgs.libspatialite}";
-                LIB_GEOS = "${pkgs.pkgsCross.aarch64-android-prebuilt.geos}";
-                LIB_PROJ = "${pkgs.pkgsCross.aarch64-android-prebuilt.proj}";
-                LIB_SPATIALITE = "${pkgs.pkgsCross.aarch64-android-prebuilt.libspatialite}";
-                LIB_UNISTRING = "${pkgs.pkgsCross.aarch64-android-prebuilt.libunistring}";
-                LIB_ICONV = "${pkgs.pkgsCross.aarch64-android-prebuilt.libiconv}";
+                #MY_SPATIALITE = "${pkgs.libspatialite}";
+                #LIB_GEOS = "${pkgs.pkgsCross.aarch64-android-prebuilt.geos}";
+                #LIB_PROJ = "${pkgs.pkgsCross.aarch64-android-prebuilt.proj}";
+                #LIB_SPATIALITE = "${pkgs.pkgsCross.aarch64-android-prebuilt.libspatialite}";
+                #LIB_UNISTRING = "${pkgs.pkgsCross.aarch64-android-prebuilt.libunistring}";
+                #LIB_ICONV = "${pkgs.pkgsCross.aarch64-android-prebuilt.libiconv}";
                 JAVA_HOME = pkgs.jdk17.home;
               };
 
@@ -254,42 +196,6 @@
                 ''
                   set -euxo pipefail
                   gitroot=$(git rev-parse --show-toplevel)
-                  mkdir -p $gitroot/child-of-signmake/cosm-mobile/cosm/android/app/src/main/jniLibs/arm64-v8a
-                  cp -f $LIB_SPATIALITE/lib/mod_spatialite.so $gitroot/child-of-signmake/cosm-mobile/cosm/android/app/src/main/jniLibs/arm64-v8a/mod_spatialite.so
-                  cp -f $LIB_UNISTRING/lib/libunistring.so $gitroot/child-of-signmake/cosm-mobile/cosm/android/app/src/main/jniLibs/arm64-v8a/libunistring.so
-                  cp -f $LIB_PROJ/lib/libproj.so $gitroot/child-of-signmake/cosm-mobile/cosm/android/app/src/main/jniLibs/arm64-v8a/libproj.so
-                  cp -f $LIB_PROJ/share/proj/proj.db $gitroot/child-of-signmake/cosm-mobile/cosm/assets/proj.db
-                  cp -f $LIB_ICONV/lib/libiconv.so $gitroot/child-of-signmake/cosm-mobile/cosm/android/app/src/main/jniLibs/arm64-v8a/
-                  function updatelib() {
-                    echo "$@"
-                    echo "1 $1"
-                    echo "2 $2"
-                    echo "3 $3"
-                    echo "4 $4"
-                    needed_libgeos_c=$(${pkgs.patchelf}/bin/patchelf --print-needed $1 | grep $2)
-                    true_libgeos_c=$(readlink -f $3/$needed_libgeos_c)
-                    echo $needed_libgeos_c
-                    echo $true_libgeos_c
-                    cp -f $true_libgeos_c $4
-                    chmod +w $1
-                    ${pkgs.patchelf}/bin/patchelf --replace-needed $needed_libgeos_c $2 $1
-                  }
-                  updatelib $gitroot/child-of-signmake/cosm-mobile/cosm/android/app/src/main/jniLibs/arm64-v8a/mod_spatialite.so \
-                    libgeos_c.so $LIB_GEOS/lib \
-                    $gitroot/child-of-signmake/cosm-mobile/cosm/android/app/src/main/jniLibs/arm64-v8a/libgeos_c.so
-
-                  cp $( readlink -f ${pkgs.pkgsCross.aarch64-android-prebuilt.sqlite.out}/lib/libsqlite3.so) $gitroot/child-of-signmake/cosm-mobile/cosm/android/app/src/main/jniLibs/arm64-v8a/
-                  chmod +w $gitroot/child-of-signmake/cosm-mobile/cosm/android/app/src/main/jniLibs/arm64-v8a/libsqlite3.so
-
-                  updatelib $gitroot/child-of-signmake/cosm-mobile/cosm/android/app/src/main/jniLibs/arm64-v8a/mod_spatialite.so \
-                    libproj.so $LIB_PROJ/lib \
-                    $gitroot/child-of-signmake/cosm-mobile/cosm/android/app/src/main/jniLibs/arm64-v8a/libproj.so
-
-                  chmod +w  $gitroot/child-of-signmake/cosm-mobile/cosm/android/app/src/main/jniLibs/arm64-v8a/libproj.so
-                  #${pkgs.patchelf}/bin/patchelf --replace-needed libsqlite3.so libexpo-sqlite.so $gitroot/child-of-signmake/cosm-mobile/cosm/android/app/src/main/jniLibs/arm64-v8a/libproj.so
-
-                  updatelib   $gitroot/child-of-signmake/cosm-mobile/cosm/android/app/src/main/jniLibs/arm64-v8a/libgeos_c.so libgeos.so $LIB_GEOS/lib \
-                    $gitroot/child-of-signmake/cosm-mobile/cosm/android/app/src/main/jniLibs/arm64-v8a/libgeos.so
                   exec ${pkgs.zsh}/bin/zsh -l
                 '';
 
@@ -299,54 +205,25 @@
             ANDROID_HOME = "${pkgs.android-sdk}/share/android-sdk";
             ANDROID_SDK_ROOT = "${pkgs.android-sdk}/share/android-sdk";
             ANDROID_AVD_HOME = "/home/tristan/.config/.android/avd";
-            MY_PROJ = "${pkgs.proj}";
             GRADLE_OPTS = "-Dorg.gradle.project.android.aapt2FromMavenOverride=${ANDROID_SDK_ROOT}/build-tools/${buildToolsVersion}/aapt2";
-            #env = [
-            #  {
-            #    name = "ANDROID_HOME";
-            #    value = " ";
-            #  }
-            #  {
-            #    name = "ANDROID_SDK_ROOT";
-            #    value = " {pkgs.android-sdk}/share/android-sdk";
-            #  }
-            #  {
-            #    name = "JAVA_HOME";
-            #    value = pkgs.jdk.home;
-            #  }
-            #];
 
             nativeBuildInputs = [
               pkgs.ghostscript_headless
-              #(pkgs.haskellPackages.ghcWithPackages haskellDeps)
-              #(pkgs.haskellPackages.ghcWithHoogle haskellDeps)
-              #pkgs.cabal-install
               pkgs.gradle_8
-              #pkgs.haskell-language-server
-              #pkgs.ormolu
-              #pkgs.watchman
-              #pkgs.android-tools
               pkgs.nodejs
               pkgs.typescript
               pkgs.fontforge
-              pkgs.nixfmt-rfc-style
+              pkgs.nixfmt
               pkgs.qemu
-              #pkgs.ghcid
-              #pkgs.texliveSmall
               pkgs.yarn
               pkgs.sqlite-interactive
-              #pkgs.vscodium
-              #pkgs.vscode
               pkgs.android-sdk
-              #pkgs.jetbrains.webstorm
               pkgs.aapt
+              (inputs.gradle2nix.packages."${system}".gradle2nix)
             ]
             ++ (
               if system == "x86_64-linux" then
                 [
-                  #pkgs.ungoogled-chromium
-                  #pkgs.google-chrome
-                  #pkgs.android-studio
                   pkgs.jdk17
                 ]
               else

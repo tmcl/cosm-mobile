@@ -14,8 +14,9 @@ import {
   OsmChange,
   OsmChangeElement,
 } from "@/scripts/ts-xml-object-parser/osm-diff";
+import * as Application from 'expo-application'
 
-export const user_agent = "cosm/2025.11.30 (android)";
+export const user_agent = `cosm/${Application.nativeApplicationVersion || "online"}`;
 
 export type NearestPoint = GeoJSON.Feature<
   GeoJSON.Point,

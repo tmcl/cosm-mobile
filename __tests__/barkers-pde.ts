@@ -279,7 +279,7 @@ test("modal notes - barkers pde", () => {
     signFaceAngle: undefined,
     osmChange: {
       version: "0.6",
-      generator: "cosm/2025.11.30 (android)",
+      generator: "cosm/mock",
       create: [
         {
 					version: 0,
