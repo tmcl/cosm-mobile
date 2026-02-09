@@ -277,12 +277,12 @@
         '';
       in    pkgs.writeScriptBin "shell-build" ''
         #!${pkgs.bash}/bin/bash
-        ${pkgs.nix}/bin/nix develop -Li -k KEY_STORE_FILE -k KEY_STORE_PASSWORD -k KEY_ALIAS -k KEY_PASSWORD -c${shell-build-inner}/bin/build
+        ${pkgs.nix}/bin/nix-shell --pure --keep KEY_STORE_FILE --keep KEY_STORE_PASSWORD --keep KEY_ALIAS --keep KEY_PASSWORD --command ${shell-build-inner}/bin/build
       '';
       shell-build-app =
         {
           type = "app";
-          program = "${shell-build}/bin/shell-build";
+          program = pkgs.lib.getExe shell-build;
         };
 
       update-gradle-lock = pkgs.writeScriptBin "update-gradle-lock" ''

@@ -2,6 +2,13 @@
   description = "moo";
 
   inputs = {
+    flake-compat = {
+      url = "https://git.lix.systems/lix-project/flake-compat/archive/main.tar.gz";
+      # Optional:
+      flake = false;
+    };
+
+
     #my-wkt-geom.url = "git+https://git.tmcl.dev/tristan/wkt-geom";
     #my-wkt-geom.flake = false;
 
@@ -108,6 +115,7 @@
 
           update-gradle-lock = expo_.update-gradle-lock;
           update-gradle-lock-app = expo_.update-gradle-lock-app;
+          shell-build = expo_.shell-build;
           shell-build-app = expo_.shell-build-app;
           android = {
             node_modules = expo_.node-modules;
@@ -210,18 +218,15 @@
             GRADLE_OPTS = "-Dorg.gradle.project.android.aapt2FromMavenOverride=${ANDROID_SDK_ROOT}/build-tools/${buildToolsVersion}/aapt2";
 
             nativeBuildInputs = [
-              pkgs.ghostscript_headless
               pkgs.gradle_8
               pkgs.nodejs
               pkgs.typescript
-              pkgs.fontforge
               pkgs.nixfmt
-              pkgs.qemu
               pkgs.yarn
               pkgs.sqlite-interactive
               pkgs.android-sdk
               pkgs.aapt
-              (inputs.gradle2nix.packages."${system}".gradle2nix)
+              #(inputs.gradle2nix.packages."${system}".gradle2nix)
             ]
             ++ (
               if system == "x86_64-linux" then
