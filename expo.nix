@@ -277,7 +277,7 @@
         '';
       in    pkgs.writeScriptBin "shell-build" ''
         #!${pkgs.bash}/bin/bash
-        ${pkgs.nix}/bin/nix-shell --pure --keep KEY_STORE_FILE --keep KEY_STORE_PASSWORD --keep KEY_ALIAS --keep KEY_PASSWORD --command ${shell-build-inner}/bin/build
+        PATH=${pkgs.coreutils}/bin:$PATH ${pkgs.nix}/bin/nix-shell -I nixpkgs=${pkgs.path} --pure --keep KEY_STORE_FILE --keep KEY_STORE_PASSWORD --keep KEY_ALIAS --keep KEY_PASSWORD --command ${shell-build-inner}/bin/build
       '';
       shell-build-app =
         {
