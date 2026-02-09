@@ -1,0 +1,25 @@
+diff -Naur android/app/build.gradle android-old/app/build.gradle
+--- android/app/build.gradle	2026-02-09 08:57:20.518796783 +1100
++++ android-old/app/build.gradle	2026-02-09 08:52:01.383198604 +1100
+@@ -104,6 +104,12 @@
+             keyAlias 'androiddebugkey'
+             keyPassword 'android'
+         }
++        release {
++            storeFile file(KEY_STORE_FILE)
++            storePassword KEY_STORE_PASSWORD
++            keyAlias KEY_ALIAS
++            keyPassword KEY_PASSWORD
++        }
+     }
+     buildTypes {
+         debug {
+@@ -112,7 +118,7 @@
+         release {
+             // Caution! In production, you need to generate your own keystore file.
+             // see https://reactnative.dev/docs/signed-apk-android.
+-            signingConfig signingConfigs.debug
++            signingConfig signingConfigs.release
+             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
+             shrinkResources enableShrinkResources.toBoolean()
+             minifyEnabled enableMinifyInReleaseBuilds

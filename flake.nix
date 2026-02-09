@@ -108,6 +108,7 @@
 
           update-gradle-lock = expo_.update-gradle-lock;
           update-gradle-lock-app = expo_.update-gradle-lock-app;
+          shell-build-app = expo_.shell-build-app;
           android = {
             node_modules = expo_.node-modules;
 
@@ -153,6 +154,7 @@
         };
       };
 
+      apps.shell-build = packages.shell-build-app;
       apps.update-gradle-lock = packages.update-gradle-lock-app;
       apps.setup-android = {
         type = "app";

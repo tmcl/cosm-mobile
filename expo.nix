@@ -241,6 +241,50 @@
         )
       );
 
+      shell-build = 
+      let
+        shell-build-inner = pkgs.writeScriptBin "build" ''
+        #!${pkgs.bash}/bin/bash
+        if [[ -e android ]]; then
+          if  [[ "$1" == "--force"  ]]; then
+             echo "working despite android directory" >&2
+             shift
+          else
+             echo "android directory identified" >&2
+             echo "you should probably remove it, but if you know better use --force" >&2
+             exit 1
+          fi
+        fi
+        set -exu
+        [[ x$KEY_STORE_FILE == x ]] && (echo "signing store config required" >&2; false)
+        yarn install
+        find sql -type f -name '*.sql' -exec sh -c '
+          for file do
+            ${pkgs.jq}/bin/jq -Rs . "$file" > "$file.json"
+          done
+        ' sh {} + || true
+        npx tsc --noEmit   
+        yarn expo prebuild
+        cat <<EOF >> android/gradle.properties
+
+        KEY_STORE_FILE=$KEY_STORE_FILE
+        KEY_STORE_PASSWORD=$KEY_STORE_PASSWORD
+        KEY_ALIAS=$KEY_ALIAS
+        KEY_PASSWORD=$KEY_PASSWORD
+        EOF
+        (cd android; patch -p1 < ../signing-config.patch; bash -c 'echo xy$KEY_STORE_FILE'; ./gradlew app:assembleRelease)
+        #rm android/gradle.properties
+        '';
+      in    pkgs.writeScriptBin "shell-build" ''
+        #!${pkgs.bash}/bin/bash
+        ${pkgs.nix}/bin/nix develop -Li -k KEY_STORE_FILE -k KEY_STORE_PASSWORD -k KEY_ALIAS -k KEY_PASSWORD -c${shell-build-inner}/bin/build
+      '';
+      shell-build-app =
+        {
+          type = "app";
+          program = "${shell-build}/bin/shell-build";
+        };
+
       update-gradle-lock = pkgs.writeScriptBin "update-gradle-lock" ''
         #!${pkgs.bash}/bin/bash
         set -eu
