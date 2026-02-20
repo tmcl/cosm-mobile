@@ -273,7 +273,7 @@
         KEY_PASSWORD=$KEY_PASSWORD
         EOF
         (cd android; patch -p1 < ../signing-config.patch; bash -c 'echo xy$KEY_STORE_FILE'; ./gradlew app:assembleRelease)
-        #rm android/gradle.properties
+        rm android/gradle.properties
         '';
       in    pkgs.writeScriptBin "shell-build" ''
         #!${pkgs.bash}/bin/bash

@@ -216,6 +216,7 @@
             ANDROID_SDK_ROOT = "${pkgs.android-sdk}/share/android-sdk";
             ANDROID_AVD_HOME = "/home/tristan/.config/.android/avd";
             GRADLE_OPTS = "-Dorg.gradle.project.android.aapt2FromMavenOverride=${ANDROID_SDK_ROOT}/build-tools/${buildToolsVersion}/aapt2";
+            SSL_CERT_FILE="${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
 
             nativeBuildInputs = [
               pkgs.gradle_8
