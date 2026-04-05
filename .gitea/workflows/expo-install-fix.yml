@@ -1,0 +1,49 @@
+name: Expo Install Fix
+
+on:
+  schedule:
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+
+jobs:
+  expo-fix:
+    runs-on: ubuntu-x86_64-linux
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up nix dev shell
+        run: nix run .#nix-develop-gha -- .#ci-shell
+
+      - name: Run expo install --fix
+        run: |
+          set -euo pipefail
+          yarn install
+          npx expo install --fix
+
+      - name: Push branch and open PR
+        env:
+          APAT: ${{ secrets.APAT }}
+        run: |
+          set -exuo pipefail
+          if git diff --quiet; then
+            echo "No changes from expo install --fix"
+            exit 0
+          fi
+
+          BRANCH="expo-install-fix"
+          git checkout -b "$BRANCH"
+          git add .
+          git -c user.email="automation@thecartographers.net" -c user.name="automation" \
+            commit -m "chore: expo install --fix"
+          git push -f \
+            "https://automation:${APAT}@${GITHUB_SERVER_URL#https://}/${GITHUB_REPOSITORY}.git" \
+            "$BRANCH"
+
+      - name: Open or update release PR
+        uses: https://git.tmcl.dev/tristan/create-or-update-pr@v2_3
+        with:
+          token: ${{ secrets.APAT }}
+          head: expo-install-fix
+          base: development

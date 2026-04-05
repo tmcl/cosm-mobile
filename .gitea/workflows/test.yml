@@ -1,0 +1,122 @@
+name: Release Test
+
+on:
+  pull_request:
+    branches:
+      - release
+    types: [opened, edited, reopened]
+
+jobs:
+  test:
+    runs-on: ubuntu-x86_64-linux
+    timeout-minutes: 240
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Extract build run ID
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -exuo pipefail
+          PR_ARGS=$(echo "$PR_BODY" | awk '/^pr-args:/ {$1=""; sub(/^ /, ""); print}')
+          echo "BUILD_RUN_ID=$(echo $PR_ARGS | jq -r .run-id )" >> $GITHUB_ENV
+          echo "BUILD_RUN_ID=$(echo $PR_ARGS | jq -r .run-id )"
+
+      - name: Download APK
+        uses: https://github.com/christopherhx/gitea-download-artifact@main
+        with:
+          name: release-apk
+          run-id: ${{ env.BUILD_RUN_ID }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up nix dev shell
+        run: nix run .#nix-develop-gha -- .#ci-shell
+
+      # Guard against a crashed emulator from a previous run
+      - name: Kill any leftover emulator
+        run: adb emu kill 2>/dev/null || true
+
+      - name: Create emulator
+        run: avdmanager create avd -d pixel_6 -k "system-images;android-30;google_apis;x86_64" -n workout
+
+      - name: Check devices
+        run: adb devices -l
+
+      - name: Start emulator
+        run: |
+          set -exuo pipefail
+          echo "about to start an emulator with many arguments disabled"
+          echo 'emulator @workout -no-audio -no-snapshot-load -no-snapshot-save > /tmp/emulator-log  2>&1' > emu-cmd
+          chmod +x emu-cmd
+          XDG_RUNTIME_DIR=$(mktemp -d) xvfb-run ./emu-cmd &
+          sleep 5s
+          jobs
+          disown
+
+      - name: Wait for emulator to boot
+        timeout-minutes: 15
+        run: |
+          set -exuo pipefail
+          echo "waiting for device"
+          adb wait-for-device
+          echo "device waited for"
+          until adb shell getprop sys.boot_completed 2>/dev/null | grep -q "^1$"; do
+            adb shell getprop sys.boot_completed
+            sleep 2
+          done
+          adb devices -l
+
+      - name: Install APK
+        run: adb install app-release.apk
+
+      - name: Maestro tests
+        run: |
+          find test/maestro -iname '*.yaml' -print0 | while IFS= read -r -d '' f; do
+            echo "::group::$f"
+            maestro test \
+              --env APP_ID=dev.tmcl.cosm \
+              --format=JUNIT \
+              "--output=test-results/$f/results.xml" \
+              "--test-output-dir=test-results/$f/artifacts" \
+              "--debug-output=test-results/$f/debug" \
+              --flatten-debug-output \
+              --no-ansi \
+              "$f" \
+            || maestro test \
+              --env APP_ID=dev.tmcl.cosm \
+              --format=JUNIT \
+              "--output=test-results/$f/results.xml" \
+              "--test-output-dir=test-results/$f/artifacts" \
+              "--debug-output=test-results/$f/debug" \
+              --flatten-debug-output \
+              --no-ansi \
+              "$f" \
+            || maestro record --local \
+              --env APP_ID=dev.tmcl.cosm \
+              "--debug-output=test-results/$f/recording" \
+              --no-ansi \
+              "$f" \
+              "test-results/$f/recording.mp4"
+            echo "::endgroup::"
+          done
+
+      #- name: Fail on failed tests
+      #  run: |
+      #    find test-results/test/maestro -iname 'commands*.json' -prune -exec jq -e 'any(.metadata.status == "FAILED")' '{}' ';' -print | (! grep -v '^false$')
+
+      - name: Upload test artifacts on failure
+        #if: always()
+        if: failure() # disabled temporarily to obtain information about the results while the find command doesn't promote failure
+        uses: https://github.com/ChristopherHX/gitea-upload-artifact@v4
+        with:
+          name: maestro-test-results
+          path: test-results/
+          if-no-files-found: ignore
+
+      - name: Kill emulator
+        if: always()
+        run: |
+          set -exuo pipefail
+          cat /tmp/emulator-log
+          adb emu kill || true

@@ -1,0 +1,74 @@
+name: Release Build
+
+on:
+  push:
+    branches:
+      - development
+
+jobs:
+  build:
+    runs-on: ubuntu-x86_64-linux
+    timeout-minutes: 30
+    permissions:
+      pull-requests: write
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up nix dev shell
+        run: nix run .#nix-develop-gha -- .#ci-shell
+
+      - name: Jest & type check
+        run: |
+          set -euo pipefail
+          TMP_DIR=$(mktemp -d)
+          trap "rm -rf \"${TMP_DIR}\"" EXIT
+          yarn install
+          npx expo-doctor || true
+          yarn lint
+          yarn test
+
+      - name: Build release APK
+        env:
+          OPENBAO_TOKEN: ${{ secrets.OPENBAO_TOKEN }}
+          OPENBAO_ADDR: ${{ secrets.OPENBAO_ADDR }}
+        run: |
+          set -euo pipefail
+          TMP_DIR=$(mktemp -d)
+          trap "rm -rf \"${TMP_DIR}\"" EXIT
+          KEY_STORE_FILE="${TMP_DIR}/sign.jks"
+          KEY_STORE_PASSWORD=$(openssl rand -base64 32)
+          CERT_JSON=$(curl -ksf -H "X-Vault-Token: ${OPENBAO_TOKEN}" "${OPENBAO_ADDR}/v1/kv/data/apk-signer")
+          PRIVATE_KEY=$(jq -r '.data.data.private_key' <<< "${CERT_JSON}")
+          CERTIFICATE=$(jq -r '.data.data.certificate' <<< "${CERT_JSON}")
+
+          KEY_ALIAS=android-key
+          openssl pkcs12 -export \
+              -name "$KEY_ALIAS" \
+              -password "pass:${KEY_STORE_PASSWORD}" \
+              -inkey <(echo "${PRIVATE_KEY}") \
+              -in <(echo "${CERTIFICATE}") \
+              -out "${KEY_STORE_FILE}" \
+              -passout "pass:${KEY_STORE_PASSWORD}"
+
+          yarn install
+          yarn expo prebuild --platform android
+          cd android
+          patch -p1 < ../signing-config.patch
+          printf "KEY_STORE_FILE=%s\nKEY_STORE_PASSWORD=%s\nKEY_ALIAS=%s\nKEY_PASSWORD=%s\n" \
+            "$KEY_STORE_FILE" "$KEY_STORE_PASSWORD" "$KEY_ALIAS" "$KEY_STORE_PASSWORD" \
+            >> gradle.properties
+          ./gradlew app:assembleRelease
+
+      - name: Upload APK
+        uses: https://github.com/ChristopherHX/gitea-upload-artifact@v6
+        with:
+          name: release-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 30
+
+      - name: Open or update release PR
+        uses: https://git.tmcl.dev/tristan/create-or-update-pr@v2
+        with:
+          token: ${{ secrets.APAT }}

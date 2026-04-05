@@ -1,0 +1,33 @@
+name: Release Publish
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - release
+
+jobs:
+  publish:
+    runs-on: ubuntu-aarch64-linux
+    if: github.event.pull_request.merged == true
+
+    steps:
+      - name: Extract build run ID
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: echo "BUILD_RUN_ID=$(echo "$PR_BODY" | awk '/^run-id:/ {print $2}')" >> $GITHUB_ENV
+
+      - name: Download APK
+        uses: https://gitea.com/christopherhx/gitea-download-artifact@v6
+        with:
+          name: release-apk
+          run-id: ${{ env.BUILD_RUN_ID }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create release
+        uses: https://gitea.com/actions/gitea-release-action@v1
+        with:
+          token: ${{ secrets.APAT }}
+          tag_name: r${{ github.run_number }}
+          name: Release r${{ github.run_number }}
+          files: app-release.apk
