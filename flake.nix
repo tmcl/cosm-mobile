@@ -30,6 +30,10 @@
       url = "github:tadfisher/gradle2nix?ref=v2";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    nix-develop-gha = {
+      url = "github:nicknovitski/nix-develop";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
 
   };
 
@@ -55,6 +59,62 @@
       inherit overlay;
     }
     // flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-darwin" "aarch64-linux" ] (system: rec {
+          envars =
+            if system != "x84_64-linux" then
+              { }
+            else
+              {
+                #MY_SPATIALITE = "${pkgs.libspatialite}";
+                #LIB_GEOS = "${pkgs.pkgsCross.aarch64-android-prebuilt.geos}";
+                #LIB_PROJ = "${pkgs.pkgsCross.aarch64-android-prebuilt.proj}";
+                #LIB_SPATIALITE = "${pkgs.pkgsCross.aarch64-android-prebuilt.libspatialite}";
+                #LIB_UNISTRING = "${pkgs.pkgsCross.aarch64-android-prebuilt.libunistring}";
+                #LIB_ICONV = "${pkgs.pkgsCross.aarch64-android-prebuilt.libiconv}";
+                JAVA_HOME = pkgs.jdk17.home;
+              };
+      baseShell = (
+          envars
+          // rec {
+            shellHook =
+              if system != "x84_64-linux" then
+                ""
+              else
+                ''
+                  set -euxo pipefail
+                  gitroot=$(git rev-parse --show-toplevel)
+                  exec ${pkgs.zsh}/bin/zsh -l
+                '';
+
+            motd = ''
+              Entered Cosm development environment.
+            '';
+            ANDROID_HOME = "${pkgs.android-sdk}/share/android-sdk";
+            ANDROID_SDK_ROOT = "${pkgs.android-sdk}/share/android-sdk";
+            ANDROID_AVD_HOME = "/home/tristan/.config/.android/avd";
+            GRADLE_OPTS = "-Dorg.gradle.project.android.aapt2FromMavenOverride=${ANDROID_SDK_ROOT}/build-tools/${buildToolsVersion}/aapt2";
+            SSL_CERT_FILE="${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+
+            nativeBuildInputs = [
+              pkgs.gradle_8
+              pkgs.nodejs
+              pkgs.typescript
+              pkgs.nixfmt
+              pkgs.yarn
+              pkgs.sqlite-interactive
+              pkgs.android-sdk
+              pkgs.aapt
+              #(inputs.gradle2nix.packages."${system}".gradle2nix)
+            ]
+            ++ (
+              if system == "x86_64-linux" then
+                [
+                  pkgs.jdk17
+                ]
+              else
+                [ ]
+            );
+          }
+        );
       pkgs = (
         import nixpkgs {
           inherit system;
@@ -99,7 +159,7 @@
           );
           mkExpo =
             system: pkgs:
-            expo.buildOutputs rec {
+            expo.buildOutputs {
               root_relative = ".";
               root_path = ./.;
               inherit pkgs;
@@ -111,6 +171,7 @@
         in
         {
           inherit android-sdk;
+          nix-develop-gha = inputs.nix-develop-gha.packages.${system}.default;
           android-spatialite = pkgs.pkgsCross.aarch64-android-prebuilt.libspatialite;
 
           update-gradle-lock = expo_.update-gradle-lock;
@@ -178,66 +239,26 @@
       };
 
       buildToolsVersion = "36.0.0";
-      devShell =
-        let
-
-          envars =
-            if system != "x84_64-linux" then
-              { }
-            else
-              {
-                #MY_SPATIALITE = "${pkgs.libspatialite}";
-                #LIB_GEOS = "${pkgs.pkgsCross.aarch64-android-prebuilt.geos}";
-                #LIB_PROJ = "${pkgs.pkgsCross.aarch64-android-prebuilt.proj}";
-                #LIB_SPATIALITE = "${pkgs.pkgsCross.aarch64-android-prebuilt.libspatialite}";
-                #LIB_UNISTRING = "${pkgs.pkgsCross.aarch64-android-prebuilt.libunistring}";
-                #LIB_ICONV = "${pkgs.pkgsCross.aarch64-android-prebuilt.libiconv}";
-                JAVA_HOME = pkgs.jdk17.home;
-              };
-
-        in
-        pkgs.mkShell (
-          envars
-          // rec {
-            shellHook =
-              if system != "x84_64-linux" then
-                ""
-              else
-                ''
-                  set -euxo pipefail
-                  gitroot=$(git rev-parse --show-toplevel)
-                  exec ${pkgs.zsh}/bin/zsh -l
-                '';
-
-            motd = ''
-              Entered Cosm development environment.
-            '';
-            ANDROID_HOME = "${pkgs.android-sdk}/share/android-sdk";
-            ANDROID_SDK_ROOT = "${pkgs.android-sdk}/share/android-sdk";
-            ANDROID_AVD_HOME = "/home/tristan/.config/.android/avd";
-            GRADLE_OPTS = "-Dorg.gradle.project.android.aapt2FromMavenOverride=${ANDROID_SDK_ROOT}/build-tools/${buildToolsVersion}/aapt2";
-            SSL_CERT_FILE="${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
-
-            nativeBuildInputs = [
-              pkgs.gradle_8
-              pkgs.nodejs
-              pkgs.typescript
-              pkgs.nixfmt
-              pkgs.yarn
-              pkgs.sqlite-interactive
-              pkgs.android-sdk
-              pkgs.aapt
-              #(inputs.gradle2nix.packages."${system}".gradle2nix)
-            ]
-            ++ (
-              if system == "x86_64-linux" then
-                [
-                  pkgs.jdk17
-                ]
-              else
-                [ ]
-            );
+      devShells."ci-shell" =
+        let 
+        ciFontsConf = pkgs.makeFontsConf {
+          fontDirectories = [
+            pkgs.nerd-fonts.hurmit
+            pkgs.dejavu_fonts
+            pkgs.noto-fonts-color-emoji
+          ];
+        };
+        in pkgs.mkShell (
+          baseShell
+          // {
+            nativeBuildInputs = baseShell.nativeBuildInputs ++ [
+              pkgs.labwc
+              pkgs.xvfb-run
+              pkgs.xvfb
+            ];
+            FONTCONFIG_FILE = ciFontsConf;
           }
         );
+      devShell = pkgs.mkShell baseShell;
     });
 }
