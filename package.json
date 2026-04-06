@@ -16,7 +16,7 @@
   "dependencies": {
     "@expo/html-elements": "^0.4.2",
     "@legendapp/motion": "^2.4.0",
-    "@maplibre/maplibre-react-native": "^11.0.0-alpha.37",
+    "@maplibre/maplibre-react-native": "11.0.0-beta.25",
     "@react-native-vector-icons/fontawesome6": "^13.0.0",
     "@rneui/base": "^4.0.0-rc.8",
     "@rneui/themed": "^4.0.0-rc.8",

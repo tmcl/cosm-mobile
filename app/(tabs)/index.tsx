@@ -213,8 +213,8 @@ function MapAddStopSign({
   setCommentary: (c: [string, string | undefined]) => void;
   setChanges: (changes: Change[]) => void;
 }) {
-  const refTappedLoc = useRef<MapLibreGL.PointAnnotationRef>(null);
-  const refNearestPointAnnoPoint = useRef<MapLibreGL.PointAnnotationRef>(null);
+  const refTappedLoc = useRef<MapLibreGL.ViewAnnotationRef>(null);
+  const refNearestPointAnnoPoint = useRef<MapLibreGL.ViewAnnotationRef>(null);
   const refNearestPointShape = useRef<MapLibreGL.GeoJSONSourceRef>(null);
 
   const editableSign =
@@ -257,13 +257,13 @@ function MapAddStopSign({
   const signFaceAngle = constructedSign.signFaceAngle;
   const radians =
     signFaceAngle === undefined ? undefined : (signFaceAngle * Math.PI) / 180;
-  const setNearestPointLocation = (event: FeaturePayload) =>
+  const setNearestPointLocation = (event: NativeSyntheticEvent<MapLibreGL.ViewAnnotationEvent>) =>
     dispatch({
       action: "modal",
       mode: "addStopSign",
       modalAction: {
         action: "updated highway location",
-        point: event.geometry,
+        point: {type: "Point", coordinates: event.nativeEvent.lngLat},
       },
     });
   const nearestPoint =
@@ -282,7 +282,12 @@ function MapAddStopSign({
     : [];
 
   const dragEndSignLocation = useCallback(
-    (e: FeaturePayload) => setTappedLocation(e.geometry),
+    (e: NativeSyntheticEvent<MapLibreGL.ViewAnnotationEvent>) => {
+
+      const point: GeoJSON.Point = { type: "Point", coordinates: e.nativeEvent.lngLat };
+			setTappedLocation(point)
+		} ,
+
     [setTappedLocation]
   );
 
@@ -290,14 +295,14 @@ function MapAddStopSign({
     <>
       {nearestPoint && (
         <>
-          <MapLibreGL.PointAnnotation
+          <MapLibreGL.ViewAnnotation
             style={{ zIndex: 3, elevation: 3 }}
             key={nearestPoint.way}
             ref={refNearestPointAnnoPoint}
-            onSelected={(e) => console.log("selected", e)}
+            onSelect={(e) => console.log("selected", e)}
             onDragEnd={setNearestPointLocation}
             id={`nearestpoint-${nearestPoint.way}`}
-            coordinate={nearestPoint.point.geometry.coordinates}
+            lngLat={[nearestPoint.point.geometry.coordinates[0], nearestPoint.point.geometry.coordinates[1]]}
             draggable={true}
           >
             <View style={{ zIndex: 3, elevation: 3 }}>
@@ -312,7 +317,7 @@ function MapAddStopSign({
                 />
               </Svg.Svg>
             </View>
-          </MapLibreGL.PointAnnotation>
+          </MapLibreGL.ViewAnnotation>
           <MapLibreGL.GeoJSONSource
             id="nearestPointShape"
             data={nearestPointShape!}
@@ -328,12 +333,12 @@ function MapAddStopSign({
         </>
       )}
       {editableSign && (
-        <MapLibreGL.PointAnnotation
+        <MapLibreGL.ViewAnnotation
           key={radians}
           ref={refTappedLoc}
           onDragEnd={dragEndSignLocation}
           id="centrepoint"
-          coordinate={editableSign.coordinates}
+          lngLat={[editableSign.coordinates[0], editableSign.coordinates[1]]}
           draggable={true}
         >
           <View>
@@ -384,7 +389,7 @@ function MapAddStopSign({
               )}
             </Svg.Svg>
           </View>
-        </MapLibreGL.PointAnnotation>
+        </MapLibreGL.ViewAnnotation>
       )}
     </>
   );
@@ -416,7 +421,7 @@ export default function MainPage() {
   const refPointsOnWayNearClickSource =
     useRef<MapLibreGL.GeoJSONSourceRef>(null);
   const refRoadcasingsSource = useRef<MapLibreGL.GeoJSONSourceRef>(null);
-  const refMapView = useRef<MapLibreGL.MapViewRef | null>(null);
+  const refMapView = useRef<MapLibreGL.MapRef | null>(null);
 
   const fab = true;
   const [subFab, setSubFab] = useState(false);
@@ -586,7 +591,7 @@ export default function MainPage() {
       >
         {statusString}
       </View>
-      <MapLibreGL.MapView
+      <MapLibreGL.Map
         onRegionDidChange={onMapBoundChange}
         ref={refMapView}
         style={styles.map}
@@ -648,7 +653,7 @@ export default function MainPage() {
           zoom={state.zoom}
           trackUserLocation="default"
         />
-      </MapLibreGL.MapView>
+      </MapLibreGL.Map>
       {(notes.length > 0 || changes.length > 0) && (
         <View
           style={{
@@ -766,10 +771,3 @@ const fabFromMode = (
 };
 
 
-type FeaturePayload = GeoJSON.Feature<
-  GeoJSON.Point,
-  {
-    screenPointX: number;
-    screenPointY: number;
-  }
->;
