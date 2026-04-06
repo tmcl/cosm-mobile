@@ -18,7 +18,7 @@ jobs:
         run: echo "BUILD_RUN_ID=$(echo "$PR_BODY" | awk '/^run-id:/ {print $2}')" >> $GITHUB_ENV
 
       - name: Download APK
-        uses: https://github.com/christopherhx/gitea-download-artifact@v6
+        uses: https://github.com/christopherhx/gitea-download-artifact@v4
         with:
           name: release-apk
           run-id: ${{ env.BUILD_RUN_ID }}
