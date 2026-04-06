@@ -23,7 +23,7 @@
     android.url = "github:tadfisher/android-nixpkgs/stable";
     android.inputs.nixpkgs.follows = "nixpkgs";
 
-    libspatialite.url = "https://git.tmcl.dev/tristan/libspatialite-git?ref=refs/tags/5.1.0-cosm4";
+    libspatialite.url = "git+https://git.tmcl.dev/tristan/libspatialite-git?ref=refs/tags/5.1.0-cosm4";
     libspatialite.flake = false;
 
     gradle2nix = {
