@@ -923,16 +923,7 @@ export function useMainPageState() {
   const params = useLocalSearchParams<{ id?: string }>();
   const queryClient = useQueryClient();
   const queries = useMainPageQueries();
-  const [state, xdispatch] = useReducer(reducer, initialState);
-  const dispatch = useCallback((a: Action) => {
-    console.log(
-      "action",
-      a.action,
-      "query" in a && a.query,
-      "modalAction" in a && a.modalAction
-    );
-    return xdispatch(a);
-  }, []);
+  const [state, dispatch] = useReducer(reducer, initialState);
 
   console.log(
     "params",
@@ -972,7 +963,7 @@ export function useMainPageState() {
     state.queries.unknownBounds.data || visibleBounds;
   const invalidateSameRoads = useCallback(
     () => dispatch({ action: "invalidate same roads" }),
-    [dispatch]
+    []
   );
   useOsmPopulator(
     osmMapArgs,
@@ -1039,7 +1030,7 @@ export function useMainPageState() {
           query: "interestingNodes",
           queryState,
         }),
-      [dispatch]
+      []
     ),
     {
       queryKey: ["spatialite", "nearby ways", interestingNodesParams],
@@ -1059,7 +1050,7 @@ export function useMainPageState() {
           query: "unknownBounds",
           queryState,
         }),
-      [dispatch]
+      []
     ),
     {
       queryKey: ["spatialite known bounds", visibleBounds],
@@ -1096,7 +1087,7 @@ export function useMainPageState() {
           query: "queryNodes",
           queryState,
         }),
-      [dispatch]
+      []
     ),
     {
       queryKey: ["spatialite query nodes", doublePaddedBounds || {}],
@@ -1124,7 +1115,7 @@ export function useMainPageState() {
           query: "osmVersions",
           queryState,
         }),
-      [dispatch]
+      []
     ),
     {
       queryKey: ["osm query version"],
@@ -1144,7 +1135,7 @@ export function useMainPageState() {
           query: "neededForLoading",
           queryState,
         }),
-      [dispatch]
+      []
     ),
     {
       queryKey: ["spatialite", "needed for loading", neededForLoading],
@@ -1163,7 +1154,7 @@ export function useMainPageState() {
           query: "osmCapabilities",
           queryState,
         }),
-      [dispatch]
+      []
     ),
     {
       queryKey: ["osm query capabilities", state.queries.osmVersions.data],
@@ -1214,7 +1205,7 @@ export function useMainPageState() {
           query: "saveUpdateUserDataChanges",
           queryState,
         }),
-      [dispatch]
+      []
     ),
     {
       mutationFn: ({
@@ -1277,7 +1268,7 @@ export function useMainPageState() {
           query: "saveNewUserDataChanges",
           queryState,
         }),
-      [dispatch]
+      []
     ),
     {
       mutationFn: (args: MyChangeSet) => queries.current.doSaveNewChange(args),
@@ -1346,7 +1337,7 @@ export function useMainPageState() {
           return;
       }
     },
-    [dispatch, state.mode, state.modes.addStopSign.change.tappedLocation]
+    [state.mode, state.modes.addStopSign.change.tappedLocation]
   );
 
   useEffect(() => {
@@ -1357,13 +1348,13 @@ export function useMainPageState() {
         zoom: 16,
       });
     }, 300);
-  }, [dispatch]);
+  }, []);
 
   useEffect(() => {
     setTimeout(() => {
       dispatch({ action: "post initial setup" });
     }, 30_000);
-  }, [dispatch]);
+  }, []);
 
   const selectedInterestingPoints = selectedInterestingPointsForMode(state);
 

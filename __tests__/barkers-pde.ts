@@ -2,11 +2,10 @@ import * as ModalNotes from "@/components/diff-info/index";
 import {
   IntersectingWayInfo,
   PartialRecord,
-  TargetNode,
   WayId,
 } from "@/components/types";
 import type GeoJSON from "geojson";
-import { NearestPoint, StopSignChange } from "@/components/diff-info/index";
+import { StopSignChange } from "@/components/diff-info/index";
 import { mkNewHighwayNode, NewPoint } from "@/scripts/algo/highway-node";
 import { IWay } from "@/scripts/clients";
 import { DOMImplementation, XMLSerializer } from "@xmldom/xmldom";
@@ -176,7 +175,6 @@ const barkersPde = {
   ],
 };
 
-const sum = (a: number, b: number) => a + b;
 
 test("modal notes - barkers pde", () => {
   const intersections: PartialRecord<WayId, IntersectingWayInfo> = {};

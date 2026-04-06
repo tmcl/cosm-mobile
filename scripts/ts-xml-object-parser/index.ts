@@ -247,6 +247,7 @@ const handleAbsence = <T>(
     } else if (parser.if_absent === "optional key") {
       return null;
     } else {
+			// eslint-disable-next-line @typescript-eslint/no-unused-vars
       const p: undefined | "continue anyway" = parser.if_absent;
       return parser.parser(nodes);
     }

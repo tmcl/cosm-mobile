@@ -1,5 +1,3 @@
-import * as Picklers from "./ts-xml-object-parser";
-import { DOMImplementation, XMLSerializer } from "@xmldom/xmldom";
 
 export function getApi06MapText(bbox?: Bbox): Promise<string> {
   let options: RequestInit = {
@@ -35,8 +33,6 @@ export function putApi06ChangesetCreateText(body: Changeset): Promise<string> {
     method: "PUT",
     headers: { Accept: "text/xml" },
   };
-
-  const doc = new DOMImplementation().createDocument(null, "osm");
 
   let params = {};
   console.log(
@@ -445,17 +441,3 @@ export function toQueryParamBbox(a: Bbox) {
   return ((a) => `${a.minlon},${a.minlat},${a.maxlon},${a.maxlat}`)(a);
 }
 
-const manualMapPickleParser = () => {
-  throw "unimplemented - parsing kvp";
-};
-const manualMapPickleBuilder = Picklers.buildKvp("tag", "k", "v");
-
-const pickleChangesetObject = {
-  changeset: {
-    type: "element" as const,
-    parser: manualMapPickleParser,
-    builder: manualMapPickleBuilder,
-  },
-};
-const pickleChangesetParser = Picklers.parseObject(pickleChangesetObject);
-const pickleChangesetBuilder = Picklers.buildObject(pickleChangesetObject);

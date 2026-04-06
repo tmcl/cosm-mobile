@@ -481,15 +481,3 @@ const a_includes_b = (
   );
 };
 
-type FullyDefined<T> = Partial<{
-  [key in keyof T]: Exclude<T[key], undefined>;
-}>;
-
-function removeUndefined<T extends object>(t: T): FullyDefined<T> {
-  const filter = <K extends keyof T>(
-    arg: [string | number | symbol, T[K]]
-  ): arg is [K, Exclude<T[K], undefined>] => arg[1] !== undefined;
-  return Object.fromEntries(
-    Object.entries(t).filter(filter)
-  ) as FullyDefined<T>;
-}

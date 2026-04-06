@@ -1,4 +1,3 @@
-import * as MapLibreGL from "@maplibre/maplibre-react-native";
 import { Stack } from "expo-router";
 import * as SQLite from "expo-sqlite";
 import { Asset } from "expo-asset";

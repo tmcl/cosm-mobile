@@ -1,14 +1,12 @@
 import isEqual from "lodash/isEqual";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import * as OsmApiJSON from "@/scripts/clients";
 import {
-  doublePad,
   JsonBBox,
   WayId,
   PartialRecord,
   IntersectingWayInfo,
   nub,
-  debug,
 } from "@/components/types";
 import {
   initialQueryState,
