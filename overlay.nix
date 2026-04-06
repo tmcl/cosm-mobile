@@ -289,7 +289,8 @@ let
         final.haskell.lib.compose.unmarkBroken hsSuper.stopwatch
       );
       servant-foreign = (
-        final.haskell.lib.compose.overrideSrc { src = inputs.servant-foreign; } hsSuper.servant-foreign
+        #todo mayhaps a patch?
+        final.haskell.lib.compose.overrideSrc { src = "${inputs.servant}"/servant-foreign; } hsSuper.servant-foreign
       );
       servant-typescript = final.haskell.lib.compose.doJailbreak (
         final.haskell.lib.compose.unmarkBroken (

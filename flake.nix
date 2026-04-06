@@ -12,8 +12,8 @@
     #my-wkt-geom.url = "git+https://git.tmcl.dev/tristan/wkt-geom";
     #my-wkt-geom.flake = false;
 
-    servant-foreign.url = "/home/tristan/src/current-projects/signs-alt/tmp/servant/servant-foreign";
-    servant-foreign.flake = false;
+    servant.url = "git+https://git.tmcl.dev/tristan/servant";
+    servant.flake = false;
 
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     #nixpkgsold.url = "github:NixOS/nixpkgs?rev=ae92f312bf0f80b0e22a177152d54254349d010e";

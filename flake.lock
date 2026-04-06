@@ -196,20 +196,23 @@
         "libspatialite": "libspatialite",
         "nix-develop-gha": "nix-develop-gha",
         "nixpkgs": "nixpkgs",
-        "servant-foreign": "servant-foreign"
+        "servant": "servant"
       }
     },
-    "servant-foreign": {
+    "servant": {
       "flake": false,
       "locked": {
-        "lastModified": 1735691230,
-        "narHash": "sha256-70y8QFTTUelK5g8D8G4jLd88fGwRab/OMeMBj548nuw=",
-        "path": "/home/tristan/src/current-projects/signs-alt/tmp/servant/servant-foreign",
-        "type": "path"
+        "lastModified": 1745288289,
+        "narHash": "sha256-9Y76r9GHKnHwE7a3VKh6Hm9jwGjVNhvJQoWNEWdk4ek=",
+        "ref": "refs/heads/master",
+        "rev": "f0b33d5cea1342cb74bc107e95efbd80020a3ea3",
+        "revCount": 2815,
+        "type": "git",
+        "url": "https://git.tmcl.dev/tristan/servant"
       },
       "original": {
-        "path": "/home/tristan/src/current-projects/signs-alt/tmp/servant/servant-foreign",
-        "type": "path"
+        "type": "git",
+        "url": "https://git.tmcl.dev/tristan/servant"
       }
     },
     "systems": {
