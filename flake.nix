@@ -103,6 +103,7 @@
               pkgs.sqlite-interactive
               pkgs.android-sdk
               pkgs.aapt
+              pkgs.rsync
               #(inputs.gradle2nix.packages."${system}".gradle2nix)
             ]
             ++ (
