@@ -4,7 +4,7 @@ import { Asset } from "expo-asset";
 import React, { useEffect } from "react";
 import * as Spatialite from "spatialite";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
+import FontAwesome6 from "@react-native-vector-icons/fontawesome6/static";
 import * as Themed from "@rneui/themed";
 import * as ReactQuery from "@tanstack/react-query";
 
