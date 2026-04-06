@@ -54,6 +54,7 @@ jobs:
 
           yarn install
           yarn expo prebuild --platform android
+          (cd sql; ./run.sh)
           cd android
           patch -p1 < ../signing-config.patch
           printf "\nKEY_STORE_FILE=%s\nKEY_STORE_PASSWORD=%s\nKEY_ALIAS=%s\nKEY_PASSWORD=%s\n" \
