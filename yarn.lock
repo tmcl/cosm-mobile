@@ -2073,6 +2073,22 @@
   resolved "https://registry.yarnpkg.com/@radix-ui/react-use-layout-effect/-/react-use-layout-effect-1.1.1.tgz#0c4230a9eed49d4589c967e2d9c0d9d60a23971e"
   integrity sha512-RbJRS4UWQFkzHTTwVymMTUv8EqYhOp8dOOviLj2ugtTiXRaRQS7GLGxZTLL1jWhMeoSCf5zmcZkqTl9IiYfXcQ==
 
+"@react-native-vector-icons/common@^13.0.0":
+  version "13.0.0"
+  resolved "https://registry.yarnpkg.com/@react-native-vector-icons/common/-/common-13.0.0.tgz#d71e50111e6967b9934a4d505fda1eb96a292c90"
+  integrity sha512-FJ0Ql5UTGVtK0ak4vLTxmhFHadb8NmTk4yOWoggh7UvC2pVQNyJK7L9nIZeIZ0IaVJtKfmKXtBWA0nKqqzQ/FQ==
+  dependencies:
+    find-up "^7.0.0"
+    picocolors "^1.1.1"
+    plist "^3.1.0"
+
+"@react-native-vector-icons/fontawesome6@^13.0.0":
+  version "13.0.0"
+  resolved "https://registry.yarnpkg.com/@react-native-vector-icons/fontawesome6/-/fontawesome6-13.0.0.tgz#13ce9c9b2eb6b61fb48facda9c50f1e86e715334"
+  integrity sha512-Ll2yEcmO2IVgREfgvVDMBKgxS8dxpiFSolX+gWOQXoin3f65Z31xOyDM2JILe3DQXgfQvSd0G4OZ3cutgrHPpA==
+  dependencies:
+    "@react-native-vector-icons/common" "^13.0.0"
+
 "@react-native/assets-registry@0.81.5":
   version "0.81.5"
   resolved "https://registry.yarnpkg.com/@react-native/assets-registry/-/assets-registry-0.81.5.tgz#d22c924fa6f6d4a463c5af34ce91f38756c0fa7d"
@@ -6366,6 +6382,15 @@ find-up@^5.0.0:
     locate-path "^6.0.0"
     path-exists "^4.0.0"
 
+find-up@^7.0.0:
+  version "7.0.0"
+  resolved "https://registry.yarnpkg.com/find-up/-/find-up-7.0.0.tgz#e8dec1455f74f78d888ad65bf7ca13dd2b4e66fb"
+  integrity sha512-YyZM99iHrqLKjmt4LJDj58KI+fYyufRLBSYcqycxf//KpBk9FoewoGX0450m9nB44qrZnovzC2oeP5hUibxc/g==
+  dependencies:
+    locate-path "^7.2.0"
+    path-exists "^5.0.0"
+    unicorn-magic "^0.1.0"
+
 flat-cache@^4.0.0:
   version "4.0.1"
   resolved "https://registry.yarnpkg.com/flat-cache/-/flat-cache-4.0.1.tgz#0ece39fcb14ee012f4b0410bd33dd9c1f011127c"
@@ -7947,6 +7972,13 @@ locate-path@^6.0.0:
   dependencies:
     p-locate "^5.0.0"
 
+locate-path@^7.2.0:
+  version "7.2.0"
+  resolved "https://registry.yarnpkg.com/locate-path/-/locate-path-7.2.0.tgz#69cb1779bd90b35ab1e771e1f2f89a202c2a8a8a"
+  integrity sha512-gvVijfZvn7R+2qyPX8mAuKcFGDf6Nc61GdvGafQsHL0sBIxfKzA+usWn4GFC/bk+QdwPUD4kWFJLhElipq+0VA==
+  dependencies:
+    p-locate "^6.0.0"
+
 lodash.debounce@^4.0.8:
   version "4.0.8"
   resolved "https://registry.yarnpkg.com/lodash.debounce/-/lodash.debounce-4.0.8.tgz#82d79bff30a67c4005ffd5e2515300ad9ca4d7af"
@@ -8657,6 +8689,13 @@ p-limit@^3.0.2, p-limit@^3.1.0:
   dependencies:
     yocto-queue "^0.1.0"
 
+p-limit@^4.0.0:
+  version "4.0.0"
+  resolved "https://registry.yarnpkg.com/p-limit/-/p-limit-4.0.0.tgz#914af6544ed32bfa54670b061cafcbd04984b644"
+  integrity sha512-5b0R4txpzjPWVw/cXXUResoD4hb6U/x9BH08L7nw+GN1sezDzPdxeRvpc9c433fZhBan/wusjbCsqwqm4EIBIQ==
+  dependencies:
+    yocto-queue "^1.0.0"
+
 p-locate@^3.0.0:
   version "3.0.0"
   resolved "https://registry.yarnpkg.com/p-locate/-/p-locate-3.0.0.tgz#322d69a05c0264b25997d9f40cd8a891ab0064a4"
@@ -8677,6 +8716,13 @@ p-locate@^5.0.0:
   integrity sha512-LaNjtRWUBY++zB5nE/NwcaoMylSPk+S+ZHNB1TzdbMJMny6dynpAGt7X/tl/QYq3TIeE6nxHppbo2LGymrG5Pw==
   dependencies:
     p-limit "^3.0.2"
+
+p-locate@^6.0.0:
+  version "6.0.0"
+  resolved "https://registry.yarnpkg.com/p-locate/-/p-locate-6.0.0.tgz#3da9a49d4934b901089dca3302fa65dc5a05c04f"
+  integrity sha512-wPrq66Llhl7/4AGC6I+cqxT07LhXvWL08LNXz1fENOw0Ap4sRZZ/gZpTTJ5jpurzzzfS2W/Ge9BY3LgLjCShcw==
+  dependencies:
+    p-limit "^4.0.0"
 
 p-try@^2.0.0:
   version "2.2.0"
@@ -8728,6 +8774,11 @@ path-exists@^4.0.0:
   version "4.0.0"
   resolved "https://registry.yarnpkg.com/path-exists/-/path-exists-4.0.0.tgz#513bdbe2d3b95d7762e8c1137efa195c6c61b5b3"
   integrity sha512-ak9Qy5Q7jYb2Wwcey5Fpvg2KoAc/ZIhLSLOSBmRmygPsGwkVVt0fZa0qrtMz+m6tJTAHfZQ8FnmB4MG4LWy7/w==
+
+path-exists@^5.0.0:
+  version "5.0.0"
+  resolved "https://registry.yarnpkg.com/path-exists/-/path-exists-5.0.0.tgz#a6aad9489200b21fab31e49cf09277e5116fb9e7"
+  integrity sha512-RjhtfwJOxzcFmNOi6ltcbcu4Iu+FL3zEj83dk4kAS+fVpTxXLO1b38RvJgT/0QwvV/L3aY9TAnyv0EOqW4GoMQ==
 
 path-is-absolute@^1.0.0:
   version "1.0.1"
@@ -8811,7 +8862,7 @@ pkg-up@^3.1.0:
   dependencies:
     find-up "^3.0.0"
 
-plist@^3.0.5:
+plist@^3.0.5, plist@^3.1.0:
   version "3.1.0"
   resolved "https://registry.yarnpkg.com/plist/-/plist-3.1.0.tgz#797a516a93e62f5bde55e0b9cc9c967f860893c9"
   integrity sha512-uysumyrvkUX0rX/dEVqt8gC3sTBzd4zoWfLeS29nb53imdaXVvLINYXTI2GNqzaMuvacNx4uJQ8+b3zXR0pkgQ==
@@ -10404,6 +10455,11 @@ unicode-property-aliases-ecmascript@^2.0.0:
   resolved "https://registry.yarnpkg.com/unicode-property-aliases-ecmascript/-/unicode-property-aliases-ecmascript-2.2.0.tgz#301d4f8a43d2b75c97adfad87c9dd5350c9475d1"
   integrity sha512-hpbDzxUY9BFwX+UeBnxv3Sh1q7HFxj48DTmXchNgRa46lO8uj3/1iEn3MiNUYTg1g9ctIqXCCERn8gYZhHC5lQ==
 
+unicorn-magic@^0.1.0:
+  version "0.1.0"
+  resolved "https://registry.yarnpkg.com/unicorn-magic/-/unicorn-magic-0.1.0.tgz#1bb9a51c823aaf9d73a8bfcd3d1a23dde94b0ce4"
+  integrity sha512-lRfVq8fE8gz6QMBuDM6a+LO3IAzTi05H6gCVaUpir2E1Rwpo4ZUog45KpNXKC/Mn3Yb9UDuHumeFTo9iV/D9FQ==
+
 unique-string@~2.0.0:
   version "2.0.0"
   resolved "https://registry.yarnpkg.com/unique-string/-/unique-string-2.0.0.tgz#39c6451f81afb2749de2b233e3f7c5e8843bd89d"
@@ -10849,3 +10905,8 @@ yocto-queue@^0.1.0:
   version "0.1.0"
   resolved "https://registry.yarnpkg.com/yocto-queue/-/yocto-queue-0.1.0.tgz#0294eb3dee05028d31ee1a5fa2c556a6aaf10a1b"
   integrity sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==
+
+yocto-queue@^1.0.0:
+  version "1.2.2"
+  resolved "https://registry.yarnpkg.com/yocto-queue/-/yocto-queue-1.2.2.tgz#3e09c95d3f1aa89a58c114c99223edf639152c00"
+  integrity sha512-4LCcse/U2MHZ63HAJVE+v71o7yOdIe4cZ70Wpf8D/IyjDKYQLV5GD46B+hSTjJsvV5PztjvHoU580EftxjDZFQ==
