@@ -56,7 +56,7 @@ jobs:
           yarn expo prebuild --platform android
           cd android
           patch -p1 < ../signing-config.patch
-          printf "KEY_STORE_FILE=%s\nKEY_STORE_PASSWORD=%s\nKEY_ALIAS=%s\nKEY_PASSWORD=%s\n" \
+          printf "\nKEY_STORE_FILE=%s\nKEY_STORE_PASSWORD=%s\nKEY_ALIAS=%s\nKEY_PASSWORD=%s\n" \
             "$KEY_STORE_FILE" "$KEY_STORE_PASSWORD" "$KEY_ALIAS" "$KEY_STORE_PASSWORD" \
             >> gradle.properties
           ./gradlew app:assembleRelease
