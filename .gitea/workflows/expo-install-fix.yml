@@ -42,7 +42,7 @@ jobs:
             "$BRANCH"
 
       - name: Open or update release PR
-        uses: https://git.tmcl.dev/tristan/create-or-update-pr@v2_3
+        uses: https://git.tmcl.dev/tristan/create-or-update-pr@f9e9760f9b150069b7bf5cb681d191fd477e6e22 # v2
         with:
           token: ${{ secrets.APAT }}
           head: expo-install-fix
