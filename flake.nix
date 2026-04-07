@@ -26,10 +26,6 @@
     libspatialite.url = "git+https://git.tmcl.dev/tristan/libspatialite-git?ref=refs/tags/5.1.0-cosm4";
     libspatialite.flake = false;
 
-    gradle2nix = {
-      url = "github:tadfisher/gradle2nix?ref=v2";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
     nix-develop-gha = {
       url = "github:nicknovitski/nix-develop";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -95,6 +91,7 @@
             SSL_CERT_FILE="${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
 
             nativeBuildInputs = [
+              pkgs.jq
               pkgs.gradle_8
               pkgs.nodejs
               pkgs.typescript
@@ -104,7 +101,6 @@
               pkgs.android-sdk
               pkgs.aapt
               pkgs.rsync
-              #(inputs.gradle2nix.packages."${system}".gradle2nix)
             ]
             ++ (
               if system == "x86_64-linux" then
@@ -145,7 +141,7 @@
       #});
 
       packages =
-        let
+        {
           android-sdk = inputs.android.sdk.${system} (
             sdkPkgs: with sdkPkgs; [
               cmdline-tools-latest
@@ -154,50 +150,12 @@
               build-tools-36-0-0
               platform-tools
               platforms-android-36
-              ndk-27-1-12297006
               ndk-27-0-12077973
+              ndk-27-1-12297006
             ]
           );
-          mkExpo =
-            system: pkgs:
-            expo.buildOutputs {
-              root_relative = ".";
-              root_path = ./.;
-              inherit pkgs;
-              inherit (inputs.gradle2nix.builders."${system}") buildGradlePackage buildMavenRepo;
-              inherit (inputs.gradle2nix.packages."${system}") gradle2nix;
-              inherit android-sdk;
-            };
-          expo_ = mkExpo system pkgs;
-        in
-        {
-          inherit android-sdk;
           nix-develop-gha = inputs.nix-develop-gha.packages.${system}.default;
           android-spatialite = pkgs.pkgsCross.aarch64-android-prebuilt.libspatialite;
-
-          update-gradle-lock = expo_.update-gradle-lock;
-          update-gradle-lock-app = expo_.update-gradle-lock-app;
-          shell-build = expo_.shell-build;
-          shell-build-app = expo_.shell-build-app;
-          android = {
-            node_modules = expo_.node-modules;
-
-            development = expo_.android-development;
-            production = expo_.android-production;
-            buildMavenRepo = expo_.buildMavenRepo;
-          };
-
-          all = pkgs.stdenv.mkDerivation {
-            name = "everything";
-            phases = [ "buildPhase" ];
-            pkgs = pkgs.lib.attrValues (packages // { all = null; });
-            buildPhase = ''
-              mkdir $out
-              for i in $pkgs; do
-                ln -s $i $out
-              done;
-            '';
-          };
         };
       prepush = {
         check-hs-lint-format = pkgs.stdenv.mkDerivation {
@@ -224,8 +182,6 @@
         };
       };
 
-      apps.shell-build = packages.shell-build-app;
-      apps.update-gradle-lock = packages.update-gradle-lock-app;
       apps.setup-android = {
         type = "app";
         program = pkgs.lib.getExe (
@@ -241,7 +197,7 @@
 
       buildToolsVersion = "36.0.0";
       devShells."ci-shell" =
-        let 
+        let
         ciFontsConf = pkgs.makeFontsConf {
           fontDirectories = [
             pkgs.nerd-fonts.hurmit
