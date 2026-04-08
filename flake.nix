@@ -92,7 +92,7 @@
 
             nativeBuildInputs = [
               pkgs.jq
-              pkgs.gradle_8
+              pkgs.gradle_9
               pkgs.nodejs
               pkgs.typescript
               pkgs.nixfmt

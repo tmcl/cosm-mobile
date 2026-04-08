@@ -1,4 +1,10 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["local>tristan/renovate-config:default"]
+  "extends": ["local>tristan/renovate-config:default"],
+  "packageRules": [
+    {
+      "matchPackagePatterns": ["^react-native-"],
+      "enabled": false
+    }
+  ]
 }
