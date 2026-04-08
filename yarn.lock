@@ -1383,10 +1383,10 @@
     resolve-from "^5.0.0"
     semver "^7.6.0"
 
-"@expo/html-elements@^0.4.2":
-  version "0.4.3"
-  resolved "https://registry.yarnpkg.com/@expo/html-elements/-/html-elements-0.4.3.tgz#32b4ca05dd13582164ed1be34ae87e22adfd1d5b"
-  integrity sha512-UwEEdnpyhUEIDe/AkFSBUmCuwcknjAuu73fd5L9Rm/BbHczYXCrtyZmzCNVBsAiHhwUjmhNWzFlr9cAkp/sxIA==
+"@expo/html-elements@^55.0.0":
+  version "55.0.3"
+  resolved "https://registry.yarnpkg.com/@expo/html-elements/-/html-elements-55.0.3.tgz#346204ef880dc31d33563e9329bfeeef2615ee06"
+  integrity sha512-/adnZVHXZ9NaaR7z5bz9lIFmIvMX8ghEfWucAjwuUwcq4jFfgun6VYjhs/9s0j93EC1FQl9HXWnl8oGCxp0YZg==
 
 "@expo/image-utils@^0.8.12":
   version "0.8.12"

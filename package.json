@@ -13,7 +13,7 @@
     "format": "find -not '(' -name node_modules -prune -o -name android -prune ')' '(' -iname '*.ts' -o -iname '*.tsx' ')' -print0 | xargs -0 npx prettier --write"
   },
   "dependencies": {
-    "@expo/html-elements": "^0.4.2",
+    "@expo/html-elements": "^55.0.0",
     "@legendapp/motion": "^2.4.0",
     "@maplibre/maplibre-react-native": "11.0.0-beta.25",
     "@react-native-vector-icons/fontawesome6": "^13.0.0",
