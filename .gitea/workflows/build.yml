@@ -39,7 +39,7 @@ jobs:
           trap "rm -rf \"${TMP_DIR}\"" EXIT
           KEY_STORE_FILE="${TMP_DIR}/sign.jks"
           KEY_STORE_PASSWORD=$(openssl rand -base64 32)
-          CERT_JSON=$(curl -ksf -H "X-Vault-Token: ${OPENBAO_TOKEN}" "${OPENBAO_ADDR}/v1/kv/data/apk-signer")
+          CERT_JSON=$(curl -kvsf -H "X-Vault-Token: ${OPENBAO_TOKEN}" "${OPENBAO_ADDR}/v1/kv/data/apk-signer")
           PRIVATE_KEY=$(jq -r '.data.data.private_key' <<< "${CERT_JSON}")
           CERTIFICATE=$(jq -r '.data.data.certificate' <<< "${CERT_JSON}")
 
