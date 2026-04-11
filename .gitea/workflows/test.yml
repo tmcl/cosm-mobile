@@ -10,7 +10,7 @@ jobs:
   test:
     runs-on: ubuntu-x86_64-linux
     timeout-minutes: 240
-    if: never()
+    if: 1==0
 
     steps:
       - uses: actions/checkout@v6
