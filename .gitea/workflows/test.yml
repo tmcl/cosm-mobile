@@ -124,5 +124,5 @@ jobs:
         if: always()
         run: |
           set -exuo pipefail
-          cat /tmp/emulator-log
+          cat /tmp/emulator-log || true
           adb emu kill || true
