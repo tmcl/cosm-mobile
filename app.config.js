@@ -29,6 +29,7 @@ export default {
     },
     "plugins": [
       "expo-router",
+      "expo-image",
 			"expo-web-browser",
 			["expo-dev-client", {"addGeneratedScheme": !IS_DEV}],
       ["expo-sqlite", {
