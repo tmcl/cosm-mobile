@@ -4,7 +4,7 @@ import * as OsmDiff from "@/scripts/ts-xml-object-parser/osm-diff";
 
 export function putApi06ChangesetByChangesetidUploadText(
   body: OsmChange,
-  changesetid: number
+  changesetid: number,
 ): Promise<string> {
   let options: RequestInit = {
     credentials: "same-origin" as RequestCredentials,
@@ -23,7 +23,7 @@ export function putApi06ChangesetByChangesetidUploadText(
     `https://master.apis.dev.openstreetmap.org/api/0.6/changeset/${changesetid}/upload` +
       "?" +
       new URLSearchParams(params).toString(),
-    JSON.stringify(options)
+    JSON.stringify(options),
   );
   return Promise.reject("unimplemented");
 }

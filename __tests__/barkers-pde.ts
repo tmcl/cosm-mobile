@@ -1,9 +1,5 @@
 import * as ModalNotes from "@/components/diff-info/index";
-import {
-  IntersectingWayInfo,
-  PartialRecord,
-  WayId,
-} from "@/components/types";
+import { IntersectingWayInfo, PartialRecord, WayId } from "@/components/types";
 import type GeoJSON from "geojson";
 import { StopSignChange } from "@/components/diff-info/index";
 import { mkNewHighwayNode, NewPoint } from "@/scripts/algo/highway-node";
@@ -175,14 +171,13 @@ const barkersPde = {
   ],
 };
 
-
 test("modal notes - barkers pde", () => {
   const intersections: PartialRecord<WayId, IntersectingWayInfo> = {};
   const wayCentreline: GeoJSON.LineString = {
     type: "LineString",
     coordinates: barkersPde.elements[0]!.nodes!.map((ele) => {
       const node = barkersPde.elements.find(
-        (f) => f.type === "node" && f.id === ele
+        (f) => f.type === "node" && f.id === ele,
       )!;
       const coordinates: GeoJSON.Position = [node.lon!, node.lat!];
       return coordinates;
@@ -199,7 +194,7 @@ test("modal notes - barkers pde", () => {
   const highwayPoint = mkNewHighwayNode(
     "4306563790",
     wayCentrelines,
-    relativePoint
+    relativePoint,
   );
   const expectedPoint: NewPoint = {
     type: "new",
@@ -239,7 +234,7 @@ test("modal notes - barkers pde", () => {
       {
         object: {
           type: "node",
-          position: [ 145.0824623112455, -37.86022008982643 ] ,
+          position: [145.0824623112455, -37.86022008982643],
           node_id: "new-4306563790",
         },
         set_tags: { highway: "stop", direction: "forward" },
@@ -280,45 +275,45 @@ test("modal notes - barkers pde", () => {
       generator: "cosm/mock",
       create: [
         {
-					version: 0,
+          version: 0,
           tag: "node",
           id: -1,
-          lon: 145.0824623112455, 
+          lon: 145.0824623112455,
           lat: -37.86022008982643,
           tags: { highway: "stop", direction: "forward" },
         },
       ],
       modify: [
-      {
+        {
           id: 4306563790,
-					version: 1,
-					tag: "way",
-					tags: {
-						highway: "residential",
-						name: "Baker Parade",
-						surface: "paved"
-					},
+          version: 1,
+          tag: "way",
+          tags: {
+            highway: "residential",
+            name: "Baker Parade",
+            surface: "paved",
+          },
           nodes: [
-						{ref: 4352740557},
-						{ref: -1},
-            {ref: 4352742893},
-            {ref: 4352740599},
-            {ref: 4352742065},
-            {ref: 4352740556},
-            {ref: 4352736893},
-            {ref: 4352736894},
-            {ref: 4352736895},
-            {ref: 4352736896},
-            {ref: 4352736897},
-            {ref: 4352740555},
-            {ref: 4352736869},
+            { ref: 4352740557 },
+            { ref: -1 },
+            { ref: 4352742893 },
+            { ref: 4352740599 },
+            { ref: 4352742065 },
+            { ref: 4352740556 },
+            { ref: 4352736893 },
+            { ref: 4352736894 },
+            { ref: 4352736895 },
+            { ref: 4352736896 },
+            { ref: 4352736897 },
+            { ref: 4352740555 },
+            { ref: 4352736869 },
           ],
-			}
-			],
+        },
+      ],
       delete: [],
     },
   };
-  expect(notes).toStrictEqual(expectedNotes) /* still being worked on */
+  expect(notes).toStrictEqual(expectedNotes); /* still being worked on */
   console.log(buildOsmChangeXML(notes.osmChange));
 });
 

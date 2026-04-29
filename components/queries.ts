@@ -36,12 +36,12 @@ class ThingyTracker {
   public async track<T, R>(
     arg: T,
     f: (arg: T) => Promise<R>,
-    withTimes: false
+    withTimes: false,
   ): Promise<R>;
   public async track<T, R>(
     arg: T,
     f: (arg: T) => Promise<R>,
-    withTimes: true
+    withTimes: true,
   ): Promise<{
     res: R;
     times: TrackerInfo;
@@ -49,7 +49,7 @@ class ThingyTracker {
   public async track<T, R>(
     arg: T,
     f: (arg: T) => Promise<R>,
-    withTimes = false
+    withTimes = false,
   ) {
     const newLength = this._trackees.push({
       any: arg,
@@ -135,18 +135,18 @@ export class OsmDataQueries {
   }
 
   public async doFindIntersections(
-    jsArgs: WayId[]
+    jsArgs: WayId[],
   ): Promise<Record<WayId, IntersectingWayInfo>> {
     const sqliteArgs = { $required_ids: JSON.stringify(jsArgs) };
     console.log("find intersections", jsArgs, sqliteArgs);
     const query = await this._tracker.track("exec find intersections", () =>
       this._findIntersections!.executeAsync<{ intersections: string }>(
-        sqliteArgs
-      )
+        sqliteArgs,
+      ),
     );
     const queryResult = await this._tracker.track(
       "exec getall intersections",
-      () => query.getFirstAsync()
+      () => query.getFirstAsync(),
     );
     const result: Record<WayId, IntersectingWayInfo> = queryResult
       ? JSON.parse(queryResult.intersections)
@@ -166,23 +166,23 @@ export class OsmDataQueries {
   }
 
   public async doFindSameRoads(
-    jsArgs: WayId[]
+    jsArgs: WayId[],
   ): Promise<Record<WayId, WayId[]>> {
     const sqliteArgs = { $required_ids: JSON.stringify(jsArgs) };
     console.log("!!!!!!!!!!!!!!!!!!!!!!!!!find same roads", jsArgs, sqliteArgs);
     const query = await this._tracker.track("exec find sameRoads", () =>
       this._findSameRoads!.executeAsync<{ id: WayId; sameRoad: string }>(
-        sqliteArgs
-      )
+        sqliteArgs,
+      ),
     );
     const queryResult = await this._tracker.track(
       "exec getall same roads",
-      () => query.getAllAsync()
+      () => query.getAllAsync(),
     );
     const result: Record<WayId, WayId[]> = {};
     queryResult.forEach((r) => {
       result[r.id] = (JSON.parse(r.sameRoad) as number[]).map((m) =>
-        m.toString()
+        m.toString(),
       );
     });
 
@@ -190,7 +190,7 @@ export class OsmDataQueries {
   }
 
   public set queryWays(
-    theQueryWays: { q: SQLite.SQLiteStatement } | { e: unknown } | undefined
+    theQueryWays: { q: SQLite.SQLiteStatement } | { e: unknown } | undefined,
   ) {
     this._queryWays &&
       "q" in this._queryWays &&
@@ -225,13 +225,13 @@ export class OsmDataQueries {
           JSON.parse(geojson.geojson) as GeoJSON.Feature<
             GeoJSON.Polygon | GeoJSON.LineString,
             OsmApi.IWay
-          >
+          >,
         );
         centrelines.push(
           JSON.parse(geojson.centrelines) as GeoJSON.Feature<
             GeoJSON.LineString,
             OsmApi.IWay
-          >
+          >,
         );
       }
       return { centrelines, casings };
@@ -254,11 +254,11 @@ export class OsmDataQueries {
       })();
       console.log("hi 10");
       this.findSameRoads = await db.prepareAsync(
-        require("@/sql/find-same-roads.sql.json")
+        require("@/sql/find-same-roads.sql.json"),
       );
       console.log("hi 11");
       this.findIntersections = await db.prepareAsync(
-        require("@/sql/find-intersections.sql.json")
+        require("@/sql/find-intersections.sql.json"),
       );
     } catch (e) {
       console.log("error initialising queries", e);
@@ -312,10 +312,10 @@ export class OsmPopulatingQueries {
 
   public async doInsertWays(param: { $json: string }) {
     const r1 = this._tracker.track("insert ways", async (_) =>
-      this._insertWays!.executeAsync<never>(param)
+      this._insertWays!.executeAsync<never>(param),
     );
     const r2 = this._tracker.track("insert nodes ways", async (_) =>
-      this._insertNodesWays!.executeAsync<never>(param)
+      this._insertNodesWays!.executeAsync<never>(param),
     );
     const [a1, a2] = await fromAsync([r1, r2]);
     return a1.changes > 0 || a2.changes > 0;
@@ -344,7 +344,7 @@ export class OsmPopulatingQueries {
   }
 
   public set insertNodesWays(
-    theinsertWays: SQLite.SQLiteStatement | undefined
+    theinsertWays: SQLite.SQLiteStatement | undefined,
   ) {
     this._insertNodesWays?.finalizeAsync();
     this._insertNodesWays = theinsertWays;
@@ -354,7 +354,7 @@ export class OsmPopulatingQueries {
   }
 
   public set insertRelatedWays(
-    theinsertWays: SQLite.SQLiteStatement | undefined
+    theinsertWays: SQLite.SQLiteStatement | undefined,
   ) {
     this._insertRelatedWays?.finalizeAsync();
     this._insertRelatedWays = theinsertWays;
@@ -364,12 +364,12 @@ export class OsmPopulatingQueries {
     const loop = async (changes: number, resolver: (val: number) => void) => {
       const currentQuery = this._insertRelatedWays;
       const queryResult = await this._tracker.track("insert related ways", () =>
-        currentQuery!.executeAsync<never>()
+        currentQuery!.executeAsync<never>(),
       );
       console.log("irw queryResult.changes", queryResult.changes);
       if (queryResult.changes) {
         InteractionManager.runAfterInteractions(() =>
-          loop(changes + queryResult.changes, resolver)
+          loop(changes + queryResult.changes, resolver),
         );
       } else {
         resolver(changes);
@@ -377,7 +377,7 @@ export class OsmPopulatingQueries {
     };
     const settler = (
       resolver: (val: number) => void,
-      rejecter: (e?: any) => void
+      rejecter: (e?: any) => void,
     ) => {
       loop(0, resolver);
     };
@@ -408,27 +408,27 @@ export class OsmPopulatingQueries {
     try {
       console.log("hi 1");
       this.insertBounds = await db.prepareAsync(
-        require("@/sql/insert-bounds.sql.json")
+        require("@/sql/insert-bounds.sql.json"),
       );
       console.log("hi 2");
       this.insertNodes = await db.prepareAsync(
-        require("@/sql/insert-nodes.sql.json")
+        require("@/sql/insert-nodes.sql.json"),
       );
       console.log("hi 3");
       this.insertWays = await db.prepareAsync(
-        require("@/sql/insert-ways.sql.json")
+        require("@/sql/insert-ways.sql.json"),
       );
       console.log("hi 5");
       this.addCasingToWays = await db.prepareAsync(
-        require("@/sql/add-casing-to-ways.sql.json")
+        require("@/sql/add-casing-to-ways.sql.json"),
       );
       console.log("hi 6");
       this.insertRelatedWays = await db.prepareAsync(
-        require("@/sql/insert-related-ways.sql.json")
+        require("@/sql/insert-related-ways.sql.json"),
       );
       console.log("hi 7");
       this.insertNodesWays = await db.prepareAsync(
-        require("@/sql/insert-nodes-ways.sql.json")
+        require("@/sql/insert-nodes-ways.sql.json"),
       );
     } catch (e) {
       console.log("error initialising queries", e);
@@ -475,9 +475,10 @@ export class MainPageQueries {
     console.log("doing select user change", this._selectUserChange);
     if (this._selectUserChange && "q" in this._selectUserChange) {
       const sqlChange = { $id: id };
-      const r = await this._selectUserChange.q.executeAsync<
-        SavedChangeSet<string>
-      >(sqlChange);
+      const r =
+        await this._selectUserChange.q.executeAsync<SavedChangeSet<string>>(
+          sqlChange,
+        );
       const res = await r.getFirstAsync();
       const result = res && {
         ...res,
@@ -506,7 +507,7 @@ export class MainPageQueries {
   public async doSaveUpdateChange(
     id: number,
     changeset: ChangeSet,
-    commentary: [string, string | undefined]
+    commentary: [string, string | undefined],
   ): Promise<number> {
     if (this._saveUpdateChange && "q" in this._saveUpdateChange) {
       const sqlChange = {
@@ -517,9 +518,8 @@ export class MainPageQueries {
         $commentary1: commentary[0],
         $commentary2: commentary[1] || null,
       };
-      const r = await this._saveUpdateChange.q.executeAsync<SavedChangeSet>(
-        sqlChange
-      );
+      const r =
+        await this._saveUpdateChange.q.executeAsync<SavedChangeSet>(sqlChange);
       return r.changes;
     } else {
       throw this._saveUpdateChange || "save Update change was not defined";
@@ -545,9 +545,8 @@ export class MainPageQueries {
         $state_extract: JSON.stringify(changeset.state_extract),
         $change: JSON.stringify(changeset.change),
       };
-      const r = await this._saveNewChange.q.executeAsync<SavedChangeSet>(
-        sqlChange
-      );
+      const r =
+        await this._saveNewChange.q.executeAsync<SavedChangeSet>(sqlChange);
       return (await r.getFirstAsync())!;
     } else {
       throw this._saveNewChange || "save new change was not defined";
@@ -565,7 +564,7 @@ export class MainPageQueries {
   }
 
   public async doFindTargetNodes(
-    jsArgs: InterestingNodesParams
+    jsArgs: InterestingNodesParams,
   ): Promise<InterestingNodes> {
     if (this._findTargetNodes && "q" in this._findTargetNodes) {
       const { minlon, minlat, maxlon, maxlat } = jsArgs;
@@ -612,7 +611,7 @@ export class MainPageQueries {
   }) {
     console.log(
       "i want to do known bounds, so i'm checking carefully",
-      this._knownBounds
+      this._knownBounds,
     );
     const { minlon, minlat, maxlon, maxlat } = jsArgs;
     const sqliteArgs = {
@@ -652,7 +651,7 @@ export class MainPageQueries {
       $maxlon: maxlon,
     };
     const result = await this._queryNodes!.executeAsync<{ geojson: string }>(
-      sqliteArgs
+      sqliteArgs,
     );
     for await (const geojson of result) {
       yield JSON.parse(geojson.geojson) as GeoJSON.Feature<
@@ -666,20 +665,20 @@ export class MainPageQueries {
     try {
       console.log("hi 4");
       this.knownBounds = await db.prepareAsync(
-        require("@/sql/known-bounds.sql.json")
+        require("@/sql/known-bounds.sql.json"),
       );
       console.log("hi 7");
 
       console.log("hi 8");
       this.queryNodes = await db.prepareAsync(
-        require("@/sql/query-nodes.sql.json")
+        require("@/sql/query-nodes.sql.json"),
       );
       console.log("hi 12");
       this.findTargetNodes = await (async () => {
         try {
           return {
             q: await db.prepareAsync(
-              require("@/sql/find-target-elements.sql.json")
+              require("@/sql/find-target-elements.sql.json"),
             ),
           };
         } catch (e) {
@@ -690,7 +689,7 @@ export class MainPageQueries {
         try {
           return {
             q: await db.prepareAsync(
-              require("@/sql/save-user-data-changes.sql.json")
+              require("@/sql/save-user-data-changes.sql.json"),
             ),
           };
         } catch (e) {
@@ -701,7 +700,7 @@ export class MainPageQueries {
         try {
           return {
             q: await db.prepareAsync(
-              require("@/sql/update-user-data-changes.sql.json")
+              require("@/sql/update-user-data-changes.sql.json"),
             ),
           };
         } catch (e) {
@@ -712,7 +711,7 @@ export class MainPageQueries {
         try {
           return {
             q: await db.prepareAsync(
-              require("@/sql/select-user-change.sql.json")
+              require("@/sql/select-user-change.sql.json"),
             ),
           };
         } catch (e) {
@@ -768,7 +767,7 @@ export const initialQueryState = <TError, TResult>(): QueryState<
   error: null,
 });
 export type QueryDispatcher<TError, TResult> = (
-  args: QueryState<TError, TResult>
+  args: QueryState<TError, TResult>,
 ) => void;
 export const useDispatchingQuery = function <TError, TResult>(
   dispatcher: QueryDispatcher<TError, TResult>,
@@ -830,18 +829,18 @@ export type StandardMutation<
   TData = unknown,
   TError = DefaultError,
   TVariables = void,
-  TContext = unknown
+  TContext = unknown,
 > = Parameters<
   typeof ReactQuery.useMutation<TData, TError, TVariables, TContext>
 >;
 export type MutationDispatcher<TError, TResult> = (
-  args: MutationState<TError, TResult>
+  args: MutationState<TError, TResult>,
 ) => void;
 export const useDispatchingMutation = function <
   TData,
   TError,
   TVariables = void,
-  TContext = unknown
+  TContext = unknown,
 >(
   dispatcher: MutationDispatcher<TError, TData>,
   ...args: StandardMutation<TData, TError, TVariables, TContext>
@@ -901,7 +900,7 @@ class ReviewPageQueries {
 
   async selectUserChange(id: number): Promise<SavedChangeSet | null> {
     const sql = await this._db!.prepareAsync(
-      require("@/sql/select-user-change.sql.json")
+      require("@/sql/select-user-change.sql.json"),
     );
     console.log("doing select user change", sql);
     const sqlChange = { $id: id };
@@ -918,7 +917,7 @@ class ReviewPageQueries {
 
   async deleteChanges(params: { ids: number[] }) {
     const sql = await this._db!.prepareAsync(
-      require("@/sql/delete-user-data-changes.sql.json")
+      require("@/sql/delete-user-data-changes.sql.json"),
     );
     try {
       const query = await sql.executeAsync<void>({
@@ -931,7 +930,7 @@ class ReviewPageQueries {
   }
   async queryChanges() {
     const sql = await this._db!.prepareAsync(
-      require("@/sql/select-user-changes.sql.json")
+      require("@/sql/select-user-changes.sql.json"),
     );
     const query = await sql.executeAsync<SavedChangeSet<string>>();
     return await query.getAllAsync();

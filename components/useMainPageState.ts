@@ -53,7 +53,7 @@ const isStringRecord = (obj: object): obj is Record<string, string> => {
   return !Object.getOwnPropertyNames(obj).some(
     (prop) =>
       typeof (prop as unknown) !== "string" ||
-      typeof (obj as any)[prop] !== "string"
+      typeof (obj as any)[prop] !== "string",
   );
 };
 
@@ -140,7 +140,7 @@ const isNearestPoint = (point: object): point is NearestPoint => {
 };
 
 const isNewHighwayLocation = (
-  obj: object
+  obj: object,
 ): obj is { point: NearestPoint; way: WayId; type: "new" } => {
   const way = "way" in obj && obj.way;
   console.log(1);
@@ -163,7 +163,7 @@ const isNewHighwayLocation = (
   return true;
 };
 const isNewTappedLocation = (
-  obj: object
+  obj: object,
 ): obj is { newId: `new-${number}`; point: GeoJSON.Point; type: "new" } => {
   const type = "type" in obj && obj.type;
   if (type !== "new") return false;
@@ -256,7 +256,7 @@ const isTargetNode = (obj: object): obj is TargetNode => {
 };
 
 const verifyAsStopSign = (
-  change: unknown
+  change: unknown,
 ): State["modes"]["addStopSign"]["change"] | undefined => {
   const fail = (msg: string) => {
     throw msg;
@@ -396,8 +396,8 @@ type ModalAction<M extends Mode> = {
 type ActionInMode<M extends Mode> = M extends "browse"
   ? BrowseAction
   : M extends "addStopSign"
-  ? AddStopSignAction
-  : never;
+    ? AddStopSignAction
+    : never;
 type BrowseAction = never;
 type AddStopSignAction =
   | SelectInterestingPoint
@@ -491,10 +491,10 @@ const make_id = (() => {
 const mkNewHighwayNodeFromState = (
   wayId: WayId,
   state: State,
-  relativePoint: GeoJSON.Position | GeoJSON.Point
+  relativePoint: GeoJSON.Position | GeoJSON.Point,
 ): NewPoint | undefined => {
   const wayGroup = state.modes.addStopSign.change.selectedWays.flatMap(
-    (w) => state.sameRoads_m[w] || []
+    (w) => state.sameRoads_m[w] || [],
   );
   const waysCentrelines =
     state.queries.queryWays_.data?.centrelines?.features || [];
@@ -626,7 +626,7 @@ const reducer = (state: State, action: Action): State => {
                 const newHighwayNode = mkNewHighwayNodeFromState(
                   way,
                   state,
-                  modalAction.point
+                  modalAction.point,
                 );
                 console.log("new higway node", newHighwayNode);
                 return {
@@ -671,7 +671,7 @@ const reducer = (state: State, action: Action): State => {
               const newHighwayNode = mkNewHighwayNodeFromState(
                 wayId,
                 state,
-                modalAction.point
+                modalAction.point,
               );
               return newHighwayNode === undefined
                 ? state
@@ -769,7 +769,7 @@ const reducer = (state: State, action: Action): State => {
                       "we got some error",
                       id,
                       state_extract,
-                      data.state_extract
+                      data.state_extract,
                     );
                   }
                   break;
@@ -806,7 +806,7 @@ const reducer = (state: State, action: Action): State => {
               "because max features",
               action.queryState.data?.casings.features.length,
               "zooming",
-              state.zoom + 1
+              state.zoom + 1,
             );
             updateState = { ...updateState, zoom: Math.floor(state.zoom) + 1 };
           }
@@ -838,7 +838,7 @@ const selectedInterestingPointsForMode = (state: State): string[] => {
 };
 
 const interestingNodesParamsFromMode = (
-  state: State
+  state: State,
 ):
   | undefined
   | Omit<InterestingNodesParams, "minlon" | "minlat" | "maxlon" | "maxlat"> => {
@@ -905,7 +905,7 @@ const anyModeSelectsWay = (state: State, wayId: WayId) => {
 type MyChangeSet_<
   M extends Mode,
   Y,
-  X extends State["modes"][M] & { change: Y }
+  X extends State["modes"][M] & { change: Y },
 > = {
   type: M;
   change: Change[];
@@ -931,7 +931,7 @@ export function useMainPageState() {
     state.neededForLoading,
     state.queries.neededForLoading,
     state.modes.addStopSign,
-    state.mode
+    state.mode,
   );
 
   useEffect(() => {
@@ -963,29 +963,29 @@ export function useMainPageState() {
     state.queries.unknownBounds.data || visibleBounds;
   const invalidateSameRoads = useCallback(
     () => dispatch({ action: "invalidate same roads" }),
-    []
+    [],
   );
   useOsmPopulator(
     osmMapArgs,
     state.queries.unknownBounds.status === "success" &&
       !!state.queries.unknownBounds.data,
     invalidateSameRoads,
-    InteractionManager.runAfterInteractions
+    InteractionManager.runAfterInteractions,
   );
   const withNewWays = useCallback(
     (ways: QueryState<unknown, WaysInfo>) =>
       dispatch({ action: "set query", query: "queryWays_", queryState: ways }),
-    []
+    [],
   );
   const setIntersections = useCallback(
     (intersections: PartialRecord<WayId, IntersectingWayInfo>) =>
       dispatch({ action: "new intersections", intersections }),
-    []
+    [],
   );
   const setSameRoads = useCallback(
     (sameRoads: PartialRecord<WayId, WayId[]>) =>
       dispatch({ action: "new same roads", sameRoads }),
-    []
+    [],
   );
   const allModeSelectedWays_ = allModesSelectedWays(state);
   const isWaySelected = (wayId: WayId) => anyModeSelectsWay(state, wayId);
@@ -1007,10 +1007,10 @@ export function useMainPageState() {
     () =>
       nub(
         modalSelectedWays.concat(
-          modalSelectedWays.flatMap((f) => state.sameRoads_m[f] || [])
-        )
+          modalSelectedWays.flatMap((f) => state.sameRoads_m[f] || []),
+        ),
       ),
-    [modalSelectedWays, state.sameRoads_m]
+    [modalSelectedWays, state.sameRoads_m],
   );
 
   const interestingNodesParams =
@@ -1030,7 +1030,7 @@ export function useMainPageState() {
           query: "interestingNodes",
           queryState,
         }),
-      []
+      [],
     ),
     {
       queryKey: ["spatialite", "nearby ways", interestingNodesParams],
@@ -1039,7 +1039,7 @@ export function useMainPageState() {
       queryFn: interestingNodesParams
         ? () => queries.current.doFindTargetNodes(interestingNodesParams)
         : () => new Promise(() => {}),
-    }
+    },
   );
 
   useDispatchingQuery(
@@ -1050,7 +1050,7 @@ export function useMainPageState() {
           query: "unknownBounds",
           queryState,
         }),
-      []
+      [],
     ),
     {
       queryKey: ["spatialite known bounds", visibleBounds],
@@ -1071,7 +1071,7 @@ export function useMainPageState() {
             }
           }
         : skipToken,
-    }
+    },
   );
 
   useDispatchingQuery(
@@ -1080,14 +1080,14 @@ export function useMainPageState() {
         queryState: QueryState<
           unknown,
           GeoJSON.FeatureCollection<GeoJSON.Point, OsmApiJSON.INode> | null
-        >
+        >,
       ) =>
         dispatch({
           action: "set query",
           query: "queryNodes",
           queryState,
         }),
-      []
+      [],
     ),
     {
       queryKey: ["spatialite query nodes", doublePaddedBounds || {}],
@@ -1098,13 +1098,13 @@ export function useMainPageState() {
       > | null> => {
         if (!doublePaddedBounds) return await Promise_never();
         const nodes = await fromAsync(
-          queries.current.doQueryNodes(doublePaddedBounds)
+          queries.current.doQueryNodes(doublePaddedBounds),
         );
         return nodes.length
           ? { type: "FeatureCollection", features: nodes }
           : null;
       },
-    }
+    },
   );
 
   useDispatchingQuery(
@@ -1115,7 +1115,7 @@ export function useMainPageState() {
           query: "osmVersions",
           queryState,
         }),
-      []
+      [],
     ),
     {
       queryKey: ["osm query version"],
@@ -1123,7 +1123,7 @@ export function useMainPageState() {
       staleTime: 7 * 24 * 60 * 60 * 1000,
       placeholderData: (prev) =>
         prev || { api: { versions: ["0.6" as const] } },
-    }
+    },
   );
 
   const neededForLoading = state.neededForLoading;
@@ -1135,7 +1135,7 @@ export function useMainPageState() {
           query: "neededForLoading",
           queryState,
         }),
-      []
+      [],
     ),
     {
       queryKey: ["spatialite", "needed for loading", neededForLoading],
@@ -1143,7 +1143,7 @@ export function useMainPageState() {
       queryFn: neededForLoading
         ? () => queries.current.doselectUserChange(neededForLoading)
         : skipToken,
-    }
+    },
   );
 
   useDispatchingQuery(
@@ -1154,7 +1154,7 @@ export function useMainPageState() {
           query: "osmCapabilities",
           queryState,
         }),
-      []
+      [],
     ),
     {
       queryKey: ["osm query capabilities", state.queries.osmVersions.data],
@@ -1187,7 +1187,7 @@ export function useMainPageState() {
           },
           policy: { imagery: { blacklist: [] } },
         },
-    }
+    },
   );
   const [changes, setChanges] = useState<Change[]>([]);
   const [commentary, setCommentary] = useState<[string, string | undefined]>([
@@ -1205,7 +1205,7 @@ export function useMainPageState() {
           query: "saveUpdateUserDataChanges",
           queryState,
         }),
-      []
+      [],
     ),
     {
       mutationFn: ({
@@ -1222,7 +1222,7 @@ export function useMainPageState() {
           queryKey: ["spatialite", "needed for loading"],
         });
       },
-    }
+    },
   );
   const debSaveUpdateUserChanges = useDebouncedCallback(
     (args: {
@@ -1234,7 +1234,7 @@ export function useMainPageState() {
       qSaveUpdateUserChanges.mutate(args);
     },
     250,
-    { maxWait: 10_000 }
+    { maxWait: 10_000 },
   );
 
   const modeSettings = state.modes[state.mode];
@@ -1246,7 +1246,7 @@ export function useMainPageState() {
     ) {
       console.log(
         "we have further got enough data to save",
-        modeSettings.changeId
+        modeSettings.changeId,
       );
       debSaveUpdateUserChanges({
         commentary,
@@ -1268,7 +1268,7 @@ export function useMainPageState() {
           query: "saveNewUserDataChanges",
           queryState,
         }),
-      []
+      [],
     ),
     {
       mutationFn: (args: MyChangeSet) => queries.current.doSaveNewChange(args),
@@ -1277,7 +1277,7 @@ export function useMainPageState() {
           queryKey: ["spatialite", "needed for loading"],
         });
       },
-    }
+    },
   );
 
   const modeHasChanges =
@@ -1337,7 +1337,7 @@ export function useMainPageState() {
           return;
       }
     },
-    [state.mode, state.modes.addStopSign.change.tappedLocation]
+    [state.mode, state.modes.addStopSign.change.tappedLocation],
   );
 
   useEffect(() => {

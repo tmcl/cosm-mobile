@@ -42,15 +42,14 @@ export default (params: {
   setSameRoads: (p: PartialRecord<WayId, WayId[]>) => void;
 }) => {
   const queries = useOsmDataQueries();
-  const [queryWays, setQueryWays_] = useState(
-    initialQueryState<unknown, WaysInfo>()
-  );
-  const [queryIntersections, setQueryIntersections_] = useState(
-    initialQueryState<unknown, PartialRecord<WayId, IntersectingWayInfo>>()
-  );
-  const [querySameRoads, setQuerySameRoads_] = useState(
-    initialQueryState<unknown, PartialRecord<WayId, WayId[]>>()
-  );
+  const [queryWays, setQueryWays_] =
+    useState(initialQueryState<unknown, WaysInfo>());
+  const [queryIntersections, setQueryIntersections_] =
+    useState(
+      initialQueryState<unknown, PartialRecord<WayId, IntersectingWayInfo>>(),
+    );
+  const [querySameRoads, setQuerySameRoads_] =
+    useState(initialQueryState<unknown, PartialRecord<WayId, WayId[]>>());
 
   const processableState = {
     intersections: params.intersections,
@@ -63,7 +62,7 @@ export default (params: {
 
   const process = <T extends keyof typeof updatableState>(
     queryState: QueryState<unknown, unknown>,
-    query: T
+    query: T,
   ) => {
     if (queryState.status === "success" && queryState.data) {
       const data = { ...processableState[query], ...queryState.data };
@@ -83,7 +82,7 @@ export default (params: {
   };
 
   const setQueryIntersections = (
-    queryState: QueryState<unknown, PartialRecord<WayId, IntersectingWayInfo>>
+    queryState: QueryState<unknown, PartialRecord<WayId, IntersectingWayInfo>>,
   ) => {
     const isChanged = !isEqual(queryIntersections, queryState);
     console.log(
@@ -91,13 +90,13 @@ export default (params: {
       isChanged,
       queryIntersections === queryState,
       queryIntersections,
-      queryState
+      queryState,
     );
     isChanged && setQueryIntersections_(queryState);
     isChanged && process(queryState, "intersections");
   };
   const setQuerySameRoads = (
-    queryState: QueryState<unknown, PartialRecord<WayId, WayId[]>>
+    queryState: QueryState<unknown, PartialRecord<WayId, WayId[]>>,
   ) => {
     const isChanged = !isEqual(querySameRoads, queryState);
     isChanged && setQuerySameRoads_(queryState);
@@ -107,12 +106,12 @@ export default (params: {
   const interestingWays = params.interestingWays || [];
   console.log(
     "the params iw",
-    interestingWays && JSON.stringify(interestingWays).substring(0, 15)
+    interestingWays && JSON.stringify(interestingWays).substring(0, 15),
   );
 
   {
     const neededIntersections = interestingWays.filter(
-      (f) => !(f in params.intersections) || !params.intersections[f]
+      (f) => !(f in params.intersections) || !params.intersections[f],
     );
     useDispatchingQuery(setQueryIntersections, {
       queryKey: ["spatialite", "ways", "intersections", neededIntersections],
@@ -125,9 +124,9 @@ export default (params: {
     const neededRoads = nub(
       relatedWays.concat(
         interestingWays.filter(
-          (f) => !(f in params.sameRoads) || !params.sameRoads[f]
-        )
-      )
+          (f) => !(f in params.sameRoads) || !params.sameRoads[f],
+        ),
+      ),
     );
     useDispatchingQuery(setQuerySameRoads, {
       queryKey: [

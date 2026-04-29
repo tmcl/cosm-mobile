@@ -22,23 +22,27 @@ export default (
   osmMapArgs: JsonBBox | undefined,
   unknownBoundsDone: boolean,
   invalidateSameRoads: () => void,
-  runAfterInteractions: (f: () => void) => void
+  runAfterInteractions: (f: () => void) => void,
 ) => {
   const queryClient = useQueryClient();
   const queries = useOsmPopulatingQueries();
-  const [osmMap, setOsmMapQ] = useState(
-    initialQueryState<unknown, { $json: string; $requestedBounds: JsonBBox }>()
-  );
+  const [osmMap, setOsmMapQ] =
+    useState(
+      initialQueryState<
+        unknown,
+        { $json: string; $requestedBounds: JsonBBox }
+      >(),
+    );
   const [, setInsertBoundsQ] = useState(initialMutationState<unknown, void>());
   const [, setInsertNodesQ] = useState(
-    initialMutationState<unknown, boolean>()
+    initialMutationState<unknown, boolean>(),
   );
   const [, setInsertWaysQ] = useState(initialMutationState<unknown, boolean>());
   const [, setInsertRelatedWaysQ] = useState(
-    initialMutationState<unknown, boolean>()
+    initialMutationState<unknown, boolean>(),
   );
   const [, seUpdateCasingsQ] = useState(
-    initialMutationState<unknown, boolean>()
+    initialMutationState<unknown, boolean>(),
   );
 
   useDispatchingQuery(setOsmMapQ, {

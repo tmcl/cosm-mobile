@@ -78,16 +78,15 @@ function SubmitStop(params: { change: StopSignChange }) {
     bounds,
     true,
     () => {},
-    InteractionManager.runAfterInteractions
+    InteractionManager.runAfterInteractions,
   );
   const [intersections, setIntersections] = useState({});
   const [sameRoads, setSameRoads] = useState({});
-  const [queryWays, withNewWays] = useState(
-    initialQueryState<unknown, WaysInfo>()
-  );
+  const [queryWays, withNewWays] =
+    useState(initialQueryState<unknown, WaysInfo>());
   const isWaySelected = useCallback(
     (w: WayId) => params.change.selectedWays.includes(w),
-    [params.change.selectedWays]
+    [params.change.selectedWays],
   );
   console.log("sumitstop params", params);
   useOsmData({
@@ -110,7 +109,7 @@ function SubmitStop(params: { change: StopSignChange }) {
   console.log("the q", q && JSON.stringify(q).substring(0, 15));
   const activeWays =
     q.filter(
-      (f) => f.id && params.change.selectedWays.includes(f.id.toString())
+      (f) => f.id && params.change.selectedWays.includes(f.id.toString()),
     ) || [];
   const notes = modalNotes(intersections, params.change, activeWays);
   const domImpl = new DOMImplementation();
@@ -137,7 +136,7 @@ export default function Review() {
   const [speedDialOpen, setSpeedDialOpen] = useState(false);
 
   const [submitting, setSubmitting] = useState<Record<number, SavedChangeSet>>(
-    {}
+    {},
   );
   const addSubmitting = (scs: SavedChangeSet) =>
     submitting[scs.id] || setSubmitting({ ...submitting, [scs.id]: scs });

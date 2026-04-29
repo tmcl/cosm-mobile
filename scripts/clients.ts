@@ -1,5 +1,5 @@
 export function getApi06Map(
-  bbox?: Bbox
+  bbox?: Bbox,
 ): Promise<OsmStandard & BoundedElements> {
   let options: RequestInit = {
     credentials: "same-origin" as RequestCredentials,
@@ -13,7 +13,7 @@ export function getApi06Map(
       `https://master.apis.dev.openstreetmap.org/api/0.6/map` +
         "?" +
         new URLSearchParams(removeUndefined(params)).toString(),
-      options
+      options,
     )
     .then((response) => {
       return new Promise((resolve, reject) => {
@@ -41,7 +41,7 @@ export function getApi06MapText(bbox?: Bbox): Promise<string> {
       `https://master.apis.dev.openstreetmap.org/api/0.6/map` +
         "?" +
         new URLSearchParams(removeUndefined(params)).toString(),
-      options
+      options,
     )
     .then((response) => {
       return new Promise((resolve, reject) => {
@@ -71,7 +71,7 @@ export function getApi06Permissions(): Promise<
       `https://master.apis.dev.openstreetmap.org/api/0.6/permissions` +
         "?" +
         new URLSearchParams(removeUndefined(params)).toString(),
-      options
+      options,
     )
     .then((response) => {
       return new Promise((resolve, reject) => {
@@ -99,7 +99,7 @@ export function getApi06PermissionsText(): Promise<string> {
       `https://master.apis.dev.openstreetmap.org/api/0.6/permissions` +
         "?" +
         new URLSearchParams(removeUndefined(params)).toString(),
-      options
+      options,
     )
     .then((response) => {
       return new Promise((resolve, reject) => {
@@ -127,7 +127,7 @@ export function getApi06Capabilities(): Promise<OsmStandard & ApiCapabilities> {
       `https://master.apis.dev.openstreetmap.org/api/0.6/capabilities` +
         "?" +
         new URLSearchParams(removeUndefined(params)).toString(),
-      options
+      options,
     )
     .then((response) => {
       return new Promise((resolve, reject) => {
@@ -155,7 +155,7 @@ export function getApi06CapabilitiesText(): Promise<string> {
       `https://master.apis.dev.openstreetmap.org/api/0.6/capabilities` +
         "?" +
         new URLSearchParams(removeUndefined(params)).toString(),
-      options
+      options,
     )
     .then((response) => {
       return new Promise((resolve, reject) => {
@@ -185,7 +185,7 @@ export function getApiVersions(): Promise<
       `https://master.apis.dev.openstreetmap.org/api/versions` +
         "?" +
         new URLSearchParams(removeUndefined(params)).toString(),
-      options
+      options,
     )
     .then((response) => {
       return new Promise((resolve, reject) => {
@@ -213,7 +213,7 @@ export function getApiVersionsText(): Promise<string> {
       `https://master.apis.dev.openstreetmap.org/api/versions` +
         "?" +
         new URLSearchParams(removeUndefined(params)).toString(),
-      options
+      options,
     )
     .then((response) => {
       return new Promise((resolve, reject) => {
@@ -233,10 +233,10 @@ type FullyDefined<T> = Partial<{
 
 function removeUndefined<T extends object>(t: T): FullyDefined<T> {
   const filter = <K extends keyof T>(
-    arg: [string | number | symbol, T[K]]
+    arg: [string | number | symbol, T[K]],
   ): arg is [K, Exclude<T[K], undefined>] => arg[1] !== undefined;
   return Object.fromEntries(
-    Object.entries(t).filter(filter)
+    Object.entries(t).filter(filter),
   ) as FullyDefined<T>;
 }
 
@@ -446,22 +446,22 @@ export type Stati = IStati;
 
 export type Status = "offline" | "readonly" | "online";
 export function toQueryParamOsmStandardApiCapabilities(
-  a: OsmStandard & ApiCapabilities
+  a: OsmStandard & ApiCapabilities,
 ) {
   return ((a) => a)(a);
 }
 export function toQueryParamOsmStandardBoundedElements(
-  a: OsmStandard & BoundedElements
+  a: OsmStandard & BoundedElements,
 ) {
   return ((a) => a)(a);
 }
 export function toQueryParamOsmStandardInaRecordapiInaRecordversionsApiVersion(
-  a: OsmStandard & InaRecord_api_InaRecord_versions_ApiVersion
+  a: OsmStandard & InaRecord_api_InaRecord_versions_ApiVersion,
 ) {
   return ((a) => a)(a);
 }
 export function toQueryParamOsmStandardInaRecordpermissionsPermission(
-  a: OsmStandard & InaRecord_permissions_Permission
+  a: OsmStandard & InaRecord_permissions_Permission,
 ) {
   return ((a) => a)(a);
 }

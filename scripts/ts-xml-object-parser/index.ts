@@ -23,7 +23,7 @@ export type KnownError =
 export type Result<T> = { success: T } | KnownError;
 export const mapResult = <T, R>(
   result: Result<T>,
-  f: (t: T) => R
+  f: (t: T) => R,
 ): Result<R> => {
   if ("success" in result) {
     return { success: f(result.success) };
@@ -34,14 +34,14 @@ export const mapResult = <T, R>(
 
 export const composeFoldMap = <A extends unknown[], T, R>(
   f: (...a: A) => Result<T>,
-  g: (t: T) => Result<R>
+  g: (t: T) => Result<R>,
 ): ((...a: A) => Result<R>) => {
   return (...args) => foldMap(f(...args), g);
 };
 
 export const foldMap = <T, R>(
   result: Result<T>,
-  f: (t: T) => Result<R>
+  f: (t: T) => Result<R>,
 ): Result<R> => {
   if ("success" in result) {
     return f(result.success);
@@ -53,7 +53,7 @@ export const foldMap = <T, R>(
 export type Parser<T> = (nodes: Node[]) => Result<T>;
 export type Builder<T> = (
   document: Document,
-  t: T
+  t: T,
 ) => { attributes?: Attr[]; children: Node[] }[];
 export type Builder0<T> = (document: Document, t: T) => [{ children: [] }];
 export type Builder1<T> = (document: Document, t: T) => [{ children: [Node] }];
@@ -107,22 +107,21 @@ export const buildKvp =
   <K extends string, T extends string>(
     tagName: string,
     kAttr: string,
-    vAttr: string
+    vAttr: string,
   ): Builder<Record<K, T>> =>
   (
     document: Document,
-    val: Record<K, T>
-  ): { attributes?: Attr[]; children: Node[] }[] =>
-    [
-      {
-        children: Object.entries(val).map(([key, value]) => {
-          const ele = document.createElement(tagName);
-          ele.setAttribute(kAttr, key);
-          ele.setAttribute(vAttr, String(value));
-          return ele;
-        }),
-      },
-    ];
+    val: Record<K, T>,
+  ): { attributes?: Attr[]; children: Node[] }[] => [
+    {
+      children: Object.entries(val).map(([key, value]) => {
+        const ele = document.createElement(tagName);
+        ele.setAttribute(kAttr, key);
+        ele.setAttribute(vAttr, String(value));
+        return ele;
+      }),
+    },
+  ];
 
 const buildString: Builder1<string> = (document: Document, val: string) => {
   return [{ children: [document.createTextNode(val)] }];
@@ -146,7 +145,7 @@ export const pickleStringBuilder = buildString;
 export const pickleStringParser = parseString;
 export const buildNumber: Builder1<number> = (
   document: Document,
-  val: number
+  val: number,
 ) => {
   return buildString(document, val.toString());
 };
@@ -193,12 +192,12 @@ export const buildObject =
   <T>(builderObject: BuilderObject<T>): Builder<T> =>
   (
     document: Document,
-    val: T
+    val: T,
   ): [
     {
       attributes: Attr[];
       children: Node[];
-    }
+    },
   ] => {
     const children: Node[] = [];
     const attributes: Attr[] = [];
@@ -211,10 +210,10 @@ export const buildObject =
             const node = document.createElement(builder.xmlname || key);
             child.attributes &&
               Array.from(child.attributes).forEach((a) =>
-                node.setAttributeNode(a)
+                node.setAttributeNode(a),
               );
             Array.from(node.childNodes).forEach((child) =>
-              node.removeChild(child)
+              node.removeChild(child),
             ); //this had been node.removeChild(node), which seemed obviously wrong
             child.children.forEach((ch) => node.appendChild(ch));
             children.push(node);
@@ -239,7 +238,7 @@ export const buildObject =
 
 const handleAbsence = <T>(
   parser: ParserSpec<T>,
-  nodes: Node[]
+  nodes: Node[],
 ): Result<T> | null => {
   if (nodes.length === 0) {
     if ("default" in parser) {
@@ -247,7 +246,7 @@ const handleAbsence = <T>(
     } else if (parser.if_absent === "optional key") {
       return null;
     } else {
-			// eslint-disable-next-line @typescript-eslint/no-unused-vars
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const p: undefined | "continue anyway" = parser.if_absent;
       return parser.parser(nodes);
     }
@@ -270,7 +269,7 @@ export const parseObject =
               const foundNodes: Element[] = [];
               Array.from(node.childNodes || []).forEach(
                 (n) =>
-                  isElementNode(n) && n.tagName === key && foundNodes.push(n)
+                  isElementNode(n) && n.tagName === key && foundNodes.push(n),
               );
               return handleAbsence(parser, foundNodes);
             }
@@ -279,7 +278,7 @@ export const parseObject =
                 isElementNode(node) && node.attributes.getNamedItem(key);
               return handleAbsence(
                 parser,
-                foundAttribute ? [foundAttribute] : []
+                foundAttribute ? [foundAttribute] : [],
               );
             }
             default:
@@ -311,7 +310,7 @@ export const parseObject =
 
 const withOneNode = <T>(
   nodes: Node[],
-  f: (n: Node) => Result<T>
+  f: (n: Node) => Result<T>,
 ): Result<T> => {
   if (nodes.length < 1) {
     return { error: "insufficiency of nodes" };
@@ -341,7 +340,7 @@ export const buildRoot =
   (blankDocument: Document, val: T) => {
     const rootEle = buildObject({ [name]: { type: "element", builder } })(
       blankDocument,
-      { [name]: val }
+      { [name]: val },
     );
 
     return rootEle[0].children[0];

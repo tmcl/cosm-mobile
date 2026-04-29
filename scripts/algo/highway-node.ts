@@ -9,7 +9,7 @@ export type NewPoint = { type: "new"; way: WayId; point: NearestPoint };
 export const mkNewHighwayNode = (
   wayId: WayId,
   wayCentrelines: Record<WayId, Feature<LineString, IWay>>,
-  relativePoint: GeoJSON.Position | GeoJSON.Point
+  relativePoint: GeoJSON.Position | GeoJSON.Point,
 ): NewPoint | undefined => {
   const closestPoints = Object.entries(wayCentrelines).flatMap(
     ([localWayId, way]) => {
@@ -23,14 +23,14 @@ export const mkNewHighwayNode = (
         segmentWayId: localWayId,
       };
       return [closestPoint];
-    }
+    },
   );
   if (closestPoints.length === 0) {
     console.log(wayId, closestPoints);
     return undefined;
   }
   const closestPoint = closestPoints.sort(
-    (f, g) => f.properties.distance - g.properties.distance
+    (f, g) => f.properties.distance - g.properties.distance,
   )[0];
   const bestPoint: NearestPoint = {
     ...closestPoint,

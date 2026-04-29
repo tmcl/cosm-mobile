@@ -52,7 +52,7 @@ export interface IOCERelationMember {
 
 export function buildOsmChangeXML(
   doc: XMLDocument,
-  osmChange: OsmChange
+  osmChange: OsmChange,
 ): void {
   const root = doc.documentElement;
   root.setAttribute("version", osmChange.version);

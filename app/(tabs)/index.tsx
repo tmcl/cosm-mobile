@@ -40,7 +40,7 @@ const LayerIndexLookup = {
 };
 
 const roadStrokesLayerStyle = (
-  wayIds: string[] | null
+  wayIds: string[] | null,
 ): MapLibreGL.LineLayerStyle => ({
   lineColor: wayIds
     ? ["case", ["in", ["id"], ["literal", wayIds]], "purple", "red"]
@@ -49,7 +49,7 @@ const roadStrokesLayerStyle = (
 });
 
 const roadcasingsLayerStyle = (
-  wayIds: string[] | null
+  wayIds: string[] | null,
 ): MapLibreGL.FillLayerStyle => ({
   fillColor: wayIds
     ? ["case", ["in", ["id"], ["literal", wayIds]], "purple", "red"]
@@ -63,7 +63,7 @@ const roadcasingsLayerStyle = (
 });
 
 const pointsOnWayNearClickLayerStyle = (
-  nodeIds: string[]
+  nodeIds: string[],
 ): MapLibreGL.CircleLayerStyle => ({
   circleColor: ["case", ["in", ["id"], ["literal", nodeIds]], "blue", "gray"],
   circleOpacity: 1,
@@ -74,7 +74,7 @@ const pointsOnWayNearClickLayerStyle = (
 });
 
 const circleLayerStyle = (
-  input: number | undefined
+  input: number | undefined,
 ): MapLibreGL.CircleLayerStyle => ({
   circleColor: input
     ? ["case", ["==", ["id"], input.toString()], "yellow", "purple"]
@@ -116,10 +116,10 @@ function buildStatusString(
   queries: PartialRecord<
     string,
     MutationState<unknown, unknown> | QueryState<unknown, unknown>
-  >
+  >,
 ) {
   const buildStatusStr = (
-    m: MutationState<unknown, unknown> | QueryState<unknown, unknown>
+    m: MutationState<unknown, unknown> | QueryState<unknown, unknown>,
   ): [string, string] => {
     if ("fetchStatus" in m) {
       switch (m.status) {
@@ -192,7 +192,7 @@ function buildStatusString(
         <Text key={"d" + i} style={{ color: d ? "red" : "black" }}>
           {d ? "P" : "_"}
         </Text>
-      ))
+      )),
     );
 }
 
@@ -224,12 +224,12 @@ function MapAddStopSign({
   const constructedSign = useMemo(() => {
     const activeWays =
       state.queries.queryWays_.data?.centrelines?.features.filter(
-        (f) => f.id && highlightWays.includes(f.id.toString())
+        (f) => f.id && highlightWays.includes(f.id.toString()),
       ) || [];
     return modalNotes(
       state.intersections_m,
       state.modes.addStopSign.change,
-      activeWays
+      activeWays,
     );
   }, [
     state.intersections_m,
@@ -247,23 +247,25 @@ function MapAddStopSign({
     setChanges([]);
     setCommentary([
       `hke${constructedSign.commentary[0]}\n${JSON.stringify(
-        constructedSign.osmChange
+        constructedSign.osmChange,
       )}`,
       `hka${constructedSign.commentary[1]}\n${JSON.stringify(
-        constructedSign.osmChange
+        constructedSign.osmChange,
       )}`,
     ]);
   }, [constructedSign, setNotes, setChanges, setCommentary]);
   const signFaceAngle = constructedSign.signFaceAngle;
   const radians =
     signFaceAngle === undefined ? undefined : (signFaceAngle * Math.PI) / 180;
-  const setNearestPointLocation = (event: NativeSyntheticEvent<MapLibreGL.ViewAnnotationEvent>) =>
+  const setNearestPointLocation = (
+    event: NativeSyntheticEvent<MapLibreGL.ViewAnnotationEvent>,
+  ) =>
     dispatch({
       action: "modal",
       mode: "addStopSign",
       modalAction: {
         action: "updated highway location",
-        point: {type: "Point", coordinates: event.nativeEvent.lngLat},
+        point: { type: "Point", coordinates: event.nativeEvent.lngLat },
       },
     });
   const nearestPoint =
@@ -283,12 +285,14 @@ function MapAddStopSign({
 
   const dragEndSignLocation = useCallback(
     (e: NativeSyntheticEvent<MapLibreGL.ViewAnnotationEvent>) => {
+      const point: GeoJSON.Point = {
+        type: "Point",
+        coordinates: e.nativeEvent.lngLat,
+      };
+      setTappedLocation(point);
+    },
 
-      const point: GeoJSON.Point = { type: "Point", coordinates: e.nativeEvent.lngLat };
-			setTappedLocation(point)
-		} ,
-
-    [setTappedLocation]
+    [setTappedLocation],
   );
 
   return (
@@ -302,7 +306,10 @@ function MapAddStopSign({
             onSelect={(e) => console.log("selected", e)}
             onDragEnd={setNearestPointLocation}
             id={`nearestpoint-${nearestPoint.way}`}
-            lngLat={[nearestPoint.point.geometry.coordinates[0], nearestPoint.point.geometry.coordinates[1]]}
+            lngLat={[
+              nearestPoint.point.geometry.coordinates[0],
+              nearestPoint.point.geometry.coordinates[1],
+            ]}
             draggable={true}
           >
             <View style={{ zIndex: 3, elevation: 3 }}>
@@ -324,7 +331,7 @@ function MapAddStopSign({
             ref={refNearestPointShape}
           >
             <Layer
-							type="circle"
+              type="circle"
               layerIndex={LayerIndexLookup["nearestPointLayer"]}
               id="nearestPointLayer"
               style={pointsOnWayNearClickLayerStyle(nearestPointId)}
@@ -457,11 +464,11 @@ export default function MainPage() {
   };
   const statusString = buildStatusString(
     [debSaveUpdateIsPending],
-    state.queries
+    state.queries,
   );
 
   const onMapBoundChange = (
-    event: NativeSyntheticEvent<MapLibreGL.ViewStateChangeEvent>
+    event: NativeSyntheticEvent<MapLibreGL.ViewStateChangeEvent>,
   ) => {
     const state = event.nativeEvent;
     console.log("+++++++++++++++observed map bounds change", state);
@@ -485,7 +492,7 @@ export default function MainPage() {
   };
 
   const [defaultOptionText, defaultOptionIcon, subfabs] = fabFromMode(
-    state.mode
+    state.mode,
   );
   const fabButtonPress = () => {
     switch (state.mode) {
@@ -500,7 +507,7 @@ export default function MainPage() {
   };
 
   const onPressSelectInterestingPoint = (
-    event: NativeSyntheticEvent<PressEventWithFeatures>
+    event: NativeSyntheticEvent<PressEventWithFeatures>,
   ) => {
     switch (state.mode) {
       case "addStopSign":
@@ -508,7 +515,7 @@ export default function MainPage() {
           event.nativeEvent.features;
         console.log(
           "an interesting point has been selected!",
-          event.nativeEvent
+          event.nativeEvent,
         );
         if (features.length === 1) {
           const feature = features[0];
@@ -607,7 +614,8 @@ export default function MainPage() {
             ref={refPointsOnWayNearClickSource}
             onPress={onPressSelectInterestingPoint}
           >
-            <Layer type="circle"
+            <Layer
+              type="circle"
               layerIndex={LayerIndexLookup.pointsOnWayNearClicks}
               id="pointsOnWayNearClicks"
               style={pointsOnWayNearClickLayerStyle(selectedInterestingPoints)}
@@ -620,7 +628,8 @@ export default function MainPage() {
             data={symbols}
             ref={refHighwaystopSource}
           >
-            <Layer type="circle"
+            <Layer
+              type="circle"
               id="points"
               layerIndex={LayerIndexLookup.points}
               style={circleLayerStyle(undefined)}
@@ -634,12 +643,14 @@ export default function MainPage() {
             ref={refRoadcasingsSource}
             onPress={onPressWay}
           >
-            <Layer type="fill"
+            <Layer
+              type="fill"
               id="roadcasingfill"
               layerIndex={LayerIndexLookup.roadcasingfill}
               style={roadcasingsLayerStyle(highlightWays)}
             />
-            <Layer type="line"
+            <Layer
+              type="line"
               id="roadstrokeslines"
               layerIndex={LayerIndexLookup.roadcasinglines}
               filter={["==", ["geometry-type"], "LineString"]}
@@ -731,7 +742,7 @@ export default function MainPage() {
 }
 
 const fabFromMode = (
-  mode: Mode
+  mode: Mode,
 ): [
   string | undefined,
   IconNode,
@@ -739,7 +750,7 @@ const fabFromMode = (
     icon: IconNode;
     text: string | undefined;
     mode: Mode;
-  }[]
+  }[],
 ] => {
   switch (mode) {
     case "browse":
@@ -769,5 +780,3 @@ const fabFromMode = (
       ];
   }
 };
-
-

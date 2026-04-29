@@ -114,19 +114,19 @@ type UnitChooserSettings<T extends string, IsOptional extends boolean> = {
 type UnitChooserProps<
   Unit extends string,
   IsOptional extends boolean,
-  ParsedMeasure extends string
+  ParsedMeasure extends string,
 > = UnitProps<Unit, IsOptional, ParsedMeasure> &
   UnitChooserSettings<Unit, IsOptional>;
 
 function UnitChooser<
   Unit extends string,
   IsOptional extends boolean,
-  ParsedMeasure extends string
+  ParsedMeasure extends string,
 >(params: UnitChooserProps<Unit, IsOptional, ParsedMeasure>) {
   const keys = Object.keys(params.options);
   const buttons: string[] = [];
   keys.forEach(
-    (k) => params.stringIsValidUnit(k) && buttons.push(params.options[k])
+    (k) => params.stringIsValidUnit(k) && buttons.push(params.options[k]),
   );
   const selButton = keys.findIndex((k) => k === params.unit);
   const logger = (args: number) =>
@@ -169,7 +169,7 @@ const distanceUnits = {
 type DistanceUnit = keyof typeof distanceUnits;
 
 const isValidDistanceUnit = (
-  distanceUnit: string
+  distanceUnit: string,
 ): distanceUnit is DistanceUnit => {
   return !!(distanceUnits as any)[distanceUnit];
 };
@@ -194,7 +194,7 @@ const DistanceChooser = <IsOptional extends boolean>(
   params: Omit<
     UnitChooserProps<DistanceUnit, IsOptional, QualifiedDistance>,
     "options" | "pureNumber" | "stringIsValidUnit"
-  >
+  >,
 ) => (
   <UnitChooser
     {...params}
@@ -207,7 +207,7 @@ const SpeedChooser = <IsOptional extends boolean>(
   params: Omit<
     UnitChooserProps<SpeedUnit, IsOptional, QualifiedSpeed>,
     "options" | "pureNumber" | "stringIsValidUnit"
-  >
+  >,
 ) => (
   <UnitChooser
     {...params}
@@ -235,7 +235,7 @@ type QualifiedSpeed =
 
 const parseSpeed = (
   signDistance: string,
-  signDistanceType: SpeedUnit
+  signDistanceType: SpeedUnit,
 ): QualifiedSpeed | { error: string } => {
   switch (signDistanceType) {
     case "km/h": {
@@ -259,7 +259,7 @@ const parseSpeed = (
 
 const parseDistance = (
   signDistance: string,
-  signDistanceType: DistanceUnit
+  signDistanceType: DistanceUnit,
 ): QualifiedDistance | { error: string } => {
   switch (signDistanceType) {
     case "ft": {
@@ -281,7 +281,7 @@ const parseDistance = (
         const ft = +signDistance.substring(0, posFt);
         const inn = +signDistance.substring(
           posFt + 1,
-          posIn === -1 ? undefined : posIn
+          posIn === -1 ? undefined : posIn,
         );
         if (!isNaN(ft) && !isNaN(inn)) {
           return `${ft}'${inn}"`;
@@ -431,7 +431,7 @@ const Hazard = (params: StandardSignFormType) => {
                 <RNE.ListItem.Title>{hazardTypes[k]}</RNE.ListItem.Title>
               </RNE.ListItem.Content>
             </RNE.ListItem>
-          )
+          ),
       )}
     </RNE.ListItem.Accordion>
   );

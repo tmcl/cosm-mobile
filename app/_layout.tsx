@@ -31,7 +31,7 @@ const activateDb = async (db: SQLite.SQLiteDatabase) => {
     let projQuery;
     try {
       projQuery = await db.prepareAsync(
-        ` select proj_setdatabasepath( ? ) as r; `
+        ` select proj_setdatabasepath( ? ) as r; `,
       );
       const r = await (
         await projQuery.executeAsync(shorterpath!)
@@ -42,14 +42,14 @@ const activateDb = async (db: SQLite.SQLiteDatabase) => {
         "moo",
         shorterpath,
         localuri,
-        assetpath
+        assetpath,
       );
     } finally {
       projQuery && (await projQuery.finalizeAsync());
     }
   });
   const hasData = db.getFirstSync(
-    "SELECT count(name) as hasData FROM sqlite_master WHERE type='table' AND name='spatial_ref_sys';"
+    "SELECT count(name) as hasData FROM sqlite_master WHERE type='table' AND name='spatial_ref_sys';",
   ) as { hasData: number };
 
   if (!hasData.hasData) {
@@ -132,7 +132,7 @@ const activateDb = async (db: SQLite.SQLiteDatabase) => {
 			for each row begin
 			    delete from ways_of_same_roads where way_id in (select atom from json_each(new.road)) and ways_of_same_roads.road <> new.road;
 			end;
-		`
+		`,
   );
 
   return projInterlinked;

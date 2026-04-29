@@ -8,7 +8,7 @@ declare module "array-from-async" {
       iterableOrArrayLike:
         | AsyncIterable<T>
         | Iterable<T | PromiseLike<T>>
-        | ArrayLike<T | PromiseLike<T>>
+        | ArrayLike<T | PromiseLike<T>>,
     ): Promise<T[]>;
 
     /**
@@ -22,7 +22,7 @@ declare module "array-from-async" {
     <T, U>(
       iterableOrArrayLike: AsyncIterable<T> | Iterable<T> | ArrayLike<T>,
       mapFn: (value: Awaited<T>) => U,
-      thisArg?: any
+      thisArg?: any,
     ): Promise<Awaited<U>[]>;
   }
 

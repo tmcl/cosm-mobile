@@ -14,7 +14,7 @@ import {
   OsmChange,
   OsmChangeElement,
 } from "@/scripts/ts-xml-object-parser/osm-diff";
-import * as Application from 'expo-application'
+import * as Application from "expo-application";
 
 export const user_agent = `cosm/${Application.nativeApplicationVersion || "online"}`;
 
@@ -55,7 +55,7 @@ export type StopSignChange = {
 export const modalNotes = (
   intersections: PartialRecord<WayId, IntersectingWayInfo>,
   addStopSign: StopSignChange,
-  selectedWays: GeoJSON.Feature<GeoJSON.LineString, OsmApiJSON.IWay>[]
+  selectedWays: GeoJSON.Feature<GeoJSON.LineString, OsmApiJSON.IWay>[],
 ): {
   signFaceAngle: number | undefined;
   changesOld: Change[];
@@ -104,7 +104,11 @@ export const modalNotes = (
 
   const inferredSignDirectionAndAngle = tappedLocationPoint
     ? lazy(() =>
-        inferDirectionAndAngle(tappedLocationPoint, selectedWays, intersections)
+        inferDirectionAndAngle(
+          tappedLocationPoint,
+          selectedWays,
+          intersections,
+        ),
       )
     : () => ({
         angle: undefined,
@@ -116,15 +120,15 @@ export const modalNotes = (
         inferDirectionAndAngle(
           highwayLocationPoint,
           selectedWays,
-          intersections
-        )
+          intersections,
+        ),
       )
     : () => ({ angle: undefined, direction: undefined, wayId: undefined });
   const highwayDirection =
     addStopSign.direction ||
     directionFromString(
       highwayLocation?.type === "Feature" &&
-        highwayLocation.properties.tags?.direction
+        highwayLocation.properties.tags?.direction,
     ) ||
     inferredHighwayDirectionAndAngle().direction;
 
@@ -135,13 +139,13 @@ export const modalNotes = (
       inferredHighwayDirectionAndAngle().wayId
   ) {
     notes.push(
-      "Note: something might be off because the inferred ways are different"
+      "Note: something might be off because the inferred ways are different",
     );
   }
 
   if (inferredHighwayDirectionAndAngle().direction !== highwayDirection) {
     notes.push(
-      "Note: something might be off because a different direction has been inferred than the configured direction"
+      "Note: something might be off because a different direction has been inferred than the configured direction",
     );
   }
 
@@ -152,14 +156,14 @@ export const modalNotes = (
       inferredHighwayDirectionAndAngle().direction
   ) {
     notes.push(
-      "Note: the road and sign have different inferred directions. The sign follows the road."
+      "Note: the road and sign have different inferred directions. The sign follows the road.",
     );
   }
 
   if (!tappedLocation) {
     sign = "none";
     notes.push(
-      "Add a stop sign in its physical location by tapping the map where the sign is."
+      "Add a stop sign in its physical location by tapping the map where the sign is.",
     );
   } else {
     const inferredAngle = inferredSignDirectionAndAngle().angle;
@@ -175,8 +179,8 @@ export const modalNotes = (
                 signTypeAngle +
                 (apparentDirection === "backward" ? 180 : 0),
               0,
-              360
-            )
+              360,
+            ),
           );
     const signTags: Record<string, string> = rmUndef({
       direction: signFaceAngle?.toString(),
@@ -228,7 +232,7 @@ export const modalNotes = (
   if (!highwayLocation) {
     line = "none";
     notes.push(
-      "Add a stop in its logical location by tapping the way roughly where the driver should stop, usually at the stop line."
+      "Add a stop in its logical location by tapping the way roughly where the driver should stop, usually at the stop line.",
     );
   } else {
     if (highwayLocation.type === "Feature") {
@@ -302,7 +306,7 @@ export const modalNotes = (
           waynodes,
           complete,
           highwayLocation.point.properties,
-          index
+          index,
         );
         osmModify.push({
           id: Number(highwayLocation.way),
@@ -324,19 +328,19 @@ export const modalNotes = (
   }
   if (tappedLocation === null || highwayLocation === null) {
     notes.push(
-      "You can also add or change existing nodes by tapping them: independent traffic signs are shown, as well as give way lines that might need to be corrected."
+      "You can also add or change existing nodes by tapping them: independent traffic signs are shown, as well as give way lines that might need to be corrected.",
     );
   }
   const commentary: [string, string | undefined] = [
     sign === "new"
       ? "Add Stop Sign"
       : line === "new"
-      ? "Add Stop"
-      : sign === "edit"
-      ? "Edit Stop Sign"
-      : line === "edit"
-      ? "Edit Stop"
-      : "Add Stop Sign",
+        ? "Add Stop"
+        : sign === "edit"
+          ? "Edit Stop Sign"
+          : line === "edit"
+            ? "Edit Stop"
+            : "Add Stop Sign",
     on ? `On ${on}` : undefined,
   ];
 
@@ -353,7 +357,7 @@ export const modalNotes = (
 const inferDirectionAndAngle = (
   signLocation: GeoJSON.Point | NearestPoint,
   selectedWays: GeoJSON.Feature<GeoJSON.LineString, object>[],
-  waysOthers: PartialRecord<WayId, IntersectingWayInfo>
+  waysOthers: PartialRecord<WayId, IntersectingWayInfo>,
 ): {
   wayId: undefined | WayId /* direction is relative to wayId */;
   angle: undefined | number;
@@ -367,7 +371,7 @@ const inferDirectionAndAngle = (
   if (!ways)
     return { angle: undefined, direction: undefined, wayId: undefined };
   const closestWay = ways.sort(
-    ({ distance: distance1 }, { distance: distance2 }) => distance1 - distance2
+    ({ distance: distance1 }, { distance: distance2 }) => distance1 - distance2,
   )[0];
   if (!closestWay)
     return { angle: undefined, direction: undefined, wayId: undefined };
@@ -377,7 +381,7 @@ const inferDirectionAndAngle = (
   const direction = calculateDirectionToNearestIntersection(
     closestWay,
     nearestPointOnLine.properties.index,
-    waysOthers[way.id!.toString()]
+    waysOthers[way.id!.toString()],
   );
 
   return { angle, direction, wayId: closestWay.way.id as WayId };
@@ -385,7 +389,7 @@ const inferDirectionAndAngle = (
 
 const calculateAngleAtIndex = (
   way: GeoJSON.Feature<GeoJSON.LineString, object>,
-  ix: number
+  ix: number,
 ) => {
   const otherIx = ix + 1 >= way.geometry.coordinates.length ? ix - 1 : ix + 1;
   const nextIx = Math.max(ix, otherIx);
@@ -404,7 +408,7 @@ const calculateDirectionToNearestIntersection = (
     nearestPointOnLine: TurfNearestPoint;
   },
   ix: number,
-  intersectedWays: IntersectingWayInfo | undefined
+  intersectedWays: IntersectingWayInfo | undefined,
 ) => {
   const wayIntersections: GeoJSON.Feature<GeoJSON.Point, { ix: number }>[] = (
     intersectedWays || []
@@ -443,17 +447,17 @@ const calculateDirectionToNearestIntersection = (
 };
 
 const rmUndef = (
-  r: PartialRecord<string, string | undefined>
+  r: PartialRecord<string, string | undefined>,
 ): Record<string, string> => {
   return Object.fromEntries(
     Object.entries(r).flatMap(([key, val]) =>
-      val === undefined ? [] : [[key, val]]
-    )
+      val === undefined ? [] : [[key, val]],
+    ),
   );
 };
 
 const directionFromString = (
-  maybeDirection: string | undefined | null | false
+  maybeDirection: string | undefined | null | false,
 ): "forward" | "backward" | undefined => {
   switch (maybeDirection) {
     case "forward":
@@ -472,12 +476,11 @@ const a_includes_b = (
     | ((
         key: string,
         a_value: string | undefined,
-        b_value: string | undefined
+        b_value: string | undefined,
       ) => boolean)
-    | undefined = undefined
+    | undefined = undefined,
 ): boolean => {
   return !Object.entries(b).some(([bkey, bval]) =>
-    isIncluded ? isIncluded(bkey, a[bkey], bval) : a[bkey] !== bval
+    isIncluded ? isIncluded(bkey, a[bkey], bval) : a[bkey] !== bval,
   );
 };
-
