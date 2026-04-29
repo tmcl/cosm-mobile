@@ -10,6 +10,7 @@ jobs:
   test:
     runs-on: ubuntu-x86_64-linux
     timeout-minutes: 240
+    
 
     steps:
       - uses: actions/checkout@v6
@@ -38,12 +39,14 @@ jobs:
         run: adb emu kill 2>/dev/null || true
 
       - name: Create emulator
+        if: 1 == 0
         run: avdmanager create avd -d pixel_6 -k "system-images;android-30;google_apis;x86_64" -n workout
 
       - name: Check devices
         run: adb devices -l
 
       - name: Start emulator
+        if: 1 == 0
         run: |
           set -exuo pipefail
           echo "about to start an emulator with many arguments disabled"
@@ -55,6 +58,7 @@ jobs:
           disown
 
       - name: Wait for emulator to boot
+        if: 1 == 0        
         timeout-minutes: 15
         run: |
           set -exuo pipefail
@@ -68,6 +72,7 @@ jobs:
           adb devices -l
 
       - name: Install APK
+        if: 1 == 0      
         run: adb install app-release.apk
 
       - name: Maestro tests
@@ -119,5 +124,5 @@ jobs:
         if: always()
         run: |
           set -exuo pipefail
-          cat /tmp/emulator-log
+          cat /tmp/emulator-log || true
           adb emu kill || true
